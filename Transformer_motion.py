@@ -42,13 +42,14 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
         for i, value in enumerate(train_loader):
             optimizer.zero_grad()
 
-            # both (32,913,91)
+            # (4,91,128)
             input_motions, gt_motions = map(lambda v : v.to(args.cuda_device), value)
 
             # Change Data Dimenstion 
             # input_motions.transpose_(1,2)
             # gt_motions.transpose_(1,2)
 
+            """ Set value to model """
             enc_inputs, dec_inputs = input_motions, input_motions
             
             # outputs: dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
@@ -61,18 +62,18 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             """ Get Loss """
             loss_sum = 0            
             # for each motion in minibatch 
-            num_joints = gt_motions.size(1)
+            num_frames = gt_motions.size(1)
             for j in range(args.batch_size):
                 # for all joints 
-                for k in range(num_joints):
-                    # loss for all frames of 1 joint
+                for k in range(num_frames):
+                    # loss for all joints of 1 frame
                     loss = criterion(output_motions[j][k], gt_motions[j][k])
                     loss_sum += loss
                     losses.append(loss.item())
                     if k == 0 :
                         loss_pos.append(loss.item())
   
-            """ Regularization Term """
+            """ Regularization Loss Term """
             # norm = torch.as_tensor(0.).cuda()
             # for param in model.parameters():
             #     norm += torch.norm(param)
@@ -83,16 +84,21 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             pbar.update(1)
             pbar.set_postfix_str(f"Rec_root_loss: {np.mean(loss_pos):.3f}, (mean: {np.mean(losses):.3f})") # 로그는 4개의 모션에 한번 꼴로 찍힙니다.
 
-            """ BVH Writing """
+            """ denorm """
             # Get Character Index
             motion_idx = int(i * args.batch_size)
-            character_idx = int(motion_idx / args.num_motions)   
-
+            character_idx = int(motion_idx / args.num_motions)
+            
             # denorm 
             if args.normalization == 1:
                 gt_motions = train_dataset.denorm(1, character_idx, gt_motions)
                 output_motions = train_dataset.denorm(1, character_idx, output_motions)
+            
+            # Change Data Dimenstion 
+            output_motions.transpose_(1,2)
+            gt_motions.transpose_(1,2)
 
+            """ BVH Writing """
             # Write gt motion for 0 epoch
             if epoch == 0:
                 save_dir_gt = save_dir + "character_{}/gt/".format(character_idx)
@@ -105,7 +111,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
                     bvh_writer.write_raw(motion, 'quaternion', file_name)
 
             # Write output motions for 10 epoch
-            if epoch % 50 == 0:
+            if epoch % 10 == 0:
                 save_dir_output = save_dir + "character_{}/output_{}/".format(character_idx, epoch)
                 try_mkdir(save_dir_output)
                 file = BVH_file(option_parser.get_std_bvh(dataset = characters[0][character_idx]))
@@ -199,8 +205,7 @@ print("device: ", args.cuda_device)
 """ Changable Parameters """
 args.is_train = True # False 
 path = "./parameters/"
-save_name = "210817_transformer3__input_posEmb_conv1d/"
-
+save_name = "210823_transformer7_conv1d_bs_window_featureDim/"
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)

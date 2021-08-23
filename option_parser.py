@@ -14,7 +14,7 @@ def get_parser():
     parser.add_argument('--batch_size', type=int, default=4, help='batch_size')
     parser.add_argument('--upsampling', type=str, default='linear', help="'stride2' or 'nearest', 'linear'")
     parser.add_argument('--downsampling', type=str, default='stride2', help='stride2 or max_pooling')
-    parser.add_argument('--batch_normalization', type=int, default=0, help='batch_norm: 1 or 0')
+    # parser.add_argument('--batch_normalization', type=int, default=0, help='batch_norm: 1 or 0')
     parser.add_argument('--activation', type=str, default='LeakyReLU', help='activation: ReLU, LeakyReLU, tanh')
     parser.add_argument('--rotation', type=str, default='quaternion', help='representation of rotation:euler_angle, quaternion')
     parser.add_argument('--data_augment', type=int, default=0, help='data_augment: 1 or 0') # 1
@@ -22,11 +22,12 @@ def get_parser():
 
     # Dataset
     parser.add_argument('--normalization', type=int, default=1)
+    parser.add_argument('--position_encoding', type=int, default=0, help='positional encoding')
     parser.add_argument('--num_motions', type=int, default=1) # _for_character
-    parser.add_argument('--window_size', type=int, default=128, help='length of time axis per window')
-
+    parser.add_argument('--window_size', type=int, default=64, help='length of time axis per window')
+    
     # Network 
-    parser.add_argument('--d_hidn', type=int, default=256) # embedding dimenstion: 256
+    parser.add_argument('--d_hidn', type=int, default=64) # embedding dimenstion: 256
     parser.add_argument('--num_layers', type=int, default=2, help='number of layers')
 
     # 필요없는건 지웁시다 from skeleton aware 

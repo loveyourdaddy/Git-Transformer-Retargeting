@@ -1,12 +1,13 @@
 import json
-from pdb import set_trace
 import torch
 from torch import optim
 from tqdm import tqdm
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-import os 
+import os
+
+from wandb import set_trace 
 import option_parser
 from datasets import get_character_names, create_dataset
 from models import create_model
@@ -41,7 +42,7 @@ class MultiHeadAttention(nn.Module):
     def __init__(self, args):
         super().__init__()
         # animation parameters
-        self.window_size = args.window_size
+        self.DoF = args.DoF
         # self.window_size = args.window_size
         # head parameters
         self.d_head = args.d_head
@@ -53,13 +54,13 @@ class MultiHeadAttention(nn.Module):
         # self.W_Q = nn.Conv1d(self.DoF, self.n_head * self.d_head, kernel_size=1) # W: (91, 256)
         # self.W_K = nn.Conv1d(self.DoF, self.n_head * self.d_head, kernel_size=1)
         # self.W_V = nn.Conv1d(self.DoF, self.n_head * self.d_head, kernel_size=1)
-        self.W_Q = nn.Linear(self.window_size, self.n_head * self.d_head) # W: (91, 256)
-        self.W_K = nn.Linear(self.window_size, self.n_head * self.d_head)
-        self.W_V = nn.Linear(self.window_size, self.n_head * self.d_head)
+        self.W_Q = nn.Linear(self.DoF, self.n_head * self.d_head) # W: (DoF, 256)
+        self.W_K = nn.Linear(self.DoF, self.n_head * self.d_head)
+        self.W_V = nn.Linear(self.DoF, self.n_head * self.d_head)
 
         # Get attention value
         self.scaled_dot_attn = ScaledDotProductAttention(self.d_head)
-        self.linear = nn.Linear(self.n_head * self.d_head, self.window_size)
+        self.linear = nn.Linear(self.n_head * self.d_head, self.DoF)
 
     def forward(self, Q, K, V, attn_mask):
         # Q,K,V:(bs, window, DoF) attn_mask:(bs, window, window)
@@ -92,13 +93,12 @@ class MultiHeadAttention(nn.Module):
 class PositionFeedForwardNet(nn.Module):
     def __init__(self, args):
         super().__init__()
-        # self.d_hidn = args.d_hidn
+        self.DoF = args.DoF
         # self.window_size = args.window_size
-        self.window_size = args.window_size
 
         # Layer
-        self.conv1 = nn.Conv1d(in_channels = self.window_size, out_channels = self.window_size * 4, kernel_size=1)
-        self.conv2 = nn.Conv1d(in_channels = self.window_size * 4, out_channels = self.window_size, kernel_size=1)
+        self.conv1 = nn.Conv1d(in_channels = self.DoF, out_channels = self.DoF * 4, kernel_size=1)
+        self.conv2 = nn.Conv1d(in_channels = self.DoF * 4, out_channels = self.DoF, kernel_size=1)
         self.active = F.gelu
     
     def forward(self, inputs):
@@ -116,14 +116,15 @@ class EncoderLayer(nn.Module):
         super().__init__()
         # animation parameters
         self.args = args
-        self.window_size = args.window_size
+        self.DoF = args.DoF
+        # self.window_size = args.window_size
         self.layer_norm_epsilon = args.layer_norm_epsilon
 
         # Layers
         self.self_attn = MultiHeadAttention(self.args)
-        self.layer_norm1 = nn.LayerNorm(self.window_size, eps=self.layer_norm_epsilon)
+        self.layer_norm1 = nn.LayerNorm(self.DoF, eps=self.layer_norm_epsilon)
         self.pos_ffn = PositionFeedForwardNet(self.args)
-        self.layer_norm2 = nn.LayerNorm(self.window_size, eps=self.layer_norm_epsilon)
+        self.layer_norm2 = nn.LayerNorm(self.DoF, eps=self.layer_norm_epsilon)
 
     def forward(self, inputs, attn_mask):
         # 아래 전부 (bs, window, DoF)
@@ -145,11 +146,11 @@ class PoswiseFeedForwardNet(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.d_hidn = args.d_hidn
-        self.window_size = args.window_size
+        self.DoF = args.DoF
 
         # Layer
-        self.conv1 = nn.Conv1d(in_channels=self.window_size, out_channels=self.window_size * 4, kernel_size=1)
-        self.conv2 = nn.Conv1d(in_channels=self.window_size * 4, out_channels=self.window_size, kernel_size=1)
+        self.conv1 = nn.Conv1d(in_channels=self.DoF, out_channels=self.DoF * 4, kernel_size=1)
+        self.conv2 = nn.Conv1d(in_channels=self.DoF * 4, out_channels=self.DoF, kernel_size=1)
         self.active = F.gelu
 
     def forward(self, inputs):
@@ -167,14 +168,15 @@ class DecoderLayer(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.args = args
-        self.window_size = args.window_size
+        self.DoF = args.DoF
+        # self.window_size = args.window_size
 
         self.self_attn = MultiHeadAttention(self.args)
-        self.layer_norm1 = nn.LayerNorm(self.window_size, eps=self.args.layer_norm_epsilon)
+        self.layer_norm1 = nn.LayerNorm(self.DoF, eps=self.args.layer_norm_epsilon)
         self.dec_enc_attn = MultiHeadAttention(self.args)
-        self.layer_norm2 = nn.LayerNorm(self.window_size, eps=self.args.layer_norm_epsilon)
+        self.layer_norm2 = nn.LayerNorm(self.DoF, eps=self.args.layer_norm_epsilon)
         self.pos_ffn = PoswiseFeedForwardNet(self.args)
-        self.layer_norm3 = nn.LayerNorm(self.window_size, eps=self.args.layer_norm_epsilon)
+        self.layer_norm3 = nn.LayerNorm(self.DoF, eps=self.args.layer_norm_epsilon)
     
     def forward(self, dec_inputs, enc_outputs, self_attn_mask, dec_enc_attn_mask):
         
@@ -233,22 +235,28 @@ class Encoder(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.args = args
-        self.window_size = args.window_size
         self.DoF = args.DoF
+        self.window_size = args.window_size
+        self.d_hidn = args.d_hidn
 
         """  Input embedding: input 을 vector 로 나타내기 위한 """
         # in: len of one input/output(num of embeddings), out: dim of hidden embedding dimension  
-        self.enc_input_emb = nn.Embedding(self.window_size, self.args.d_hidn)
+        # self.enc_input_emb = nn.Embedding(self.DoF, self.args.d_hidn)
 
         """ Positional embedding: frame을 표시하기 위한 """
         # frame을 나타내게 된다면, 과연 sinusoid로 표시할 필요가 있는가? check the paper 
-        sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(self.args.DoF + 1, self.args.d_hidn))  # +1: 1 부터 시작하게끔
+        # sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(self.args.DoF + 1, self.args.d_hidn))  # +1: 1 부터 시작하게끔
+
         # frame을 int로 그냥 넣어주게 된다면 embedding이 아니다. 1
-        self.pos_emb = nn.Embedding.from_pretrained(sinusoid_table, freeze=True)
+        # self.pos_emb = nn.Embedding.from_pretrained(sinusoid_table, freeze=True)
 
         """ Layer """
         self.layers = nn.ModuleList([EncoderLayer(self.args) for _ in range(self.args.n_layer)])
-        self.conv1 = nn.Conv1d(self.DoF, self.DoF, kernel_size=1) 
+        
+        # output(depth)의 갯수이니, 2차원으로 써줘야함 
+        self.conv1 = nn.Conv1d(self.window_size, self.window_size, kernel_size=1)
+        # self.fc1 = nn.Linear(self.window_size, self.window_size)
+        # self.conv1 = nn.Conv1d(self.DoF, self.DoF, kernel_size=3, padding=1)        
 
     def forward(self, inputs):
         # (bs, length of frames, joints): (4, 91, 64)
@@ -271,8 +279,10 @@ class Encoder(nn.Module):
         # (bs, window, DoF)
         # outputs = self.enc_input_emb(inputs.long()) + self.pos_emb(positions.long())        # 아마 float value가 인덱스로 들어가기 때문일겁니다.
         
-        outputs = inputs + positions
+        outputs = inputs 
+        # outputs = inputs + positions
         outputs = self.conv1(outputs)
+        # outputs = self.fc1(outputs)
         
         # (bs, n_head, window, window)
         attn_mask = get_attn_pad_mask(inputs, inputs, self.args.i_pad)
@@ -297,23 +307,28 @@ class Decoder(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.args = args
-        self.window_size = args.window_size
         self.DoF = args.DoF
+        self.window_size = args.window_size
+        self.d_hidn = args.d_hidn
 
-        self.dec_input_emb = nn.Embedding(self.window_size, self.args.d_hidn)
+        # self.dec_input_emb = nn.Embedding(self.DoF, self.args.d_hidn)
         sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(self.args.DoF + 1, self.args.d_hidn))
         self.pos_emb = nn.Embedding.from_pretrained(sinusoid_table, freeze=True)
 
         # layers
         self.layers = nn.ModuleList([DecoderLayer(self.args) for _ in range(self.args.n_layer)])
-        self.conv1 = nn.Conv1d(self.DoF, self.DoF, kernel_size=1)
+
+        # output(depth)의 갯수이니, 2차원으로 써줘야함 
+        self.conv1 = nn.Conv1d(self.window_size, self.window_size, kernel_size=1) 
+        # self.fc1 = nn.Linear(self.window_size, self.window_size)
+        # self.conv1 = nn.Conv1d(self.DoF, self.DoF, kernel_size=3, padding=1)
 
     def forward(self, dec_inputs, enc_inputs, enc_outputs):
 
         """  Positional Encoding : input중 0에 해당하는 부분은 0으로 채우고, value가 있는 곳은 포지션 인덱스를 넣어줍니다. """
         # (64) -> (1,1,64)
         frames_tensor = torch.arange(dec_inputs.size(2), device=dec_inputs.device, dtype=torch.int)
-        tmp1 = torch.unsqueeze(torch.unsqueeze(frames_tensor, 0), 0)        
+        tmp1 = torch.unsqueeze(torch.unsqueeze(frames_tensor, 0), 0)
         # (1,1,64) -> (1,91,64)
         one_motion_tensor = tmp1.expand(-1, dec_inputs.size(1), -1)
         # (1,91,64) -> (4,91,64)
@@ -326,8 +341,10 @@ class Decoder(nn.Module):
         """ 연산 """
         # (bs, DoF, d_hidn)
         # dec_outputs = self.dec_input_emb(dec_inputs.long()) + self.pos_emb(positions.long())
-        dec_outputs = dec_inputs + positions
+        dec_outputs = dec_inputs
+        # dec_outputs = dec_inputs + positions
         dec_outputs = self.conv1(dec_outputs)
+        # dec_outputs = self.fc1(dec_outputs)
         
         # (bs, DoF, DoF)
         dec_attn_pad_mask = get_attn_pad_mask(dec_inputs, dec_inputs, self.args.i_pad)
@@ -402,12 +419,12 @@ class MotionGenerator(nn.Module):
         # Parameters 
         super().__init__()
         self.args = args
-        self.window_size = args.window_size
-        # self.n_output = self.window_size
+        self.DoF = args.DoF
+        # self.window_size = args.window_size
 
         # layers
         self.transformer = Transformer(args)
-        self.projection = nn.Linear(self.window_size, self.window_size)
+        self.projection = nn.Linear(self.DoF, self.DoF)
         # self.param = self.transformer.parameters() + self.projection.parameters()
 
     """ Fuclly Connected layer Forward"""
