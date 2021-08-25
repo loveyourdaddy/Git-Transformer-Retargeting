@@ -42,8 +42,10 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
         for i, value in enumerate(train_loader):
             optimizer.zero_grad()
 
+            """ Get Data """
             # (4,91,128)
             input_motions, gt_motions = map(lambda v : v.to(args.cuda_device), value)
+            # print("input: {}".format(input_motions[0][0]))
 
             # Change Data Dimenstion 
             # input_motions.transpose_(1,2)
@@ -51,10 +53,15 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
 
             """ Set value to model """
             enc_inputs, dec_inputs = input_motions, input_motions
-            
+            # conv2d
+            # enc_inputs = torch.unsqueeze(enc_inputs, 0)
+            # dec_inputs = torch.unsqueeze(dec_inputs, 0)
             # outputs: dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
             output_motions = model(enc_inputs, dec_inputs) [0]
+            # print("input: {}".format(output_motions[0][0]))
 
+            # output_motions = torch.squeeze(output_motions, 0)
+            
             # Change Data Dimenstion 
             # output_motions.transpose_(1,2)
             # gt_motions.transpose_(1,2)
@@ -95,8 +102,8 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
                 output_motions = train_dataset.denorm(1, character_idx, output_motions)
             
             # Change Data Dimenstion 
-            output_motions.transpose_(1,2)
-            gt_motions.transpose_(1,2)
+            # output_motions.transpose_(1,2)
+            # gt_motions.transpose_(1,2)
 
             """ BVH Writing """
             # Write gt motion for 0 epoch
@@ -144,6 +151,7 @@ def eval_epoch(args, epoch, model, data_loader, data_dataset, vocab):
     with tqdm(total=len(data_loader), desc=f"TestSet") as pbar: 
         for i, value in enumerate(data_loader):
             labels, enc_inputs, dec_inputs = map(lambda v : v.to(args.cuda_device), value)
+
             outputs = model(enc_inputs, dec_inputs)
 
             logits = outputs[0]
@@ -205,7 +213,7 @@ print("device: ", args.cuda_device)
 """ Changable Parameters """
 args.is_train = True # False 
 path = "./parameters/"
-save_name = "210823_transformer7_conv1d_bs_window_featureDim/"
+save_name = "210824_transformer4_bs_dof_window_pos_encoding_ker3_pad1/"
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)

@@ -11,7 +11,6 @@ def get_parser():
     # learning parameter 
     parser.add_argument('--learning_rate', type=float, default=1e-3, help='learning rate') # 2e-4 # 5e-5
     parser.add_argument('--alpha', type=float, default=0, help='penalty of sparsity')
-    parser.add_argument('--batch_size', type=int, default=4, help='batch_size')
     parser.add_argument('--upsampling', type=str, default='linear', help="'stride2' or 'nearest', 'linear'")
     parser.add_argument('--downsampling', type=str, default='stride2', help='stride2 or max_pooling')
     # parser.add_argument('--batch_normalization', type=int, default=0, help='batch_norm: 1 or 0')
@@ -25,6 +24,8 @@ def get_parser():
     parser.add_argument('--position_encoding', type=int, default=0, help='positional encoding')
     parser.add_argument('--num_motions', type=int, default=1) # _for_character
     parser.add_argument('--window_size', type=int, default=64, help='length of time axis per window')
+    parser.add_argument('--batch_size', type=int, default=4, help='batch_size')
+
     
     # Network 
     parser.add_argument('--d_hidn', type=int, default=64) # embedding dimenstion: 256
