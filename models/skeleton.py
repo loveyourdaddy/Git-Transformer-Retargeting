@@ -320,11 +320,12 @@ def build_joint_topology(edges, origin_names):
     def make_topology(edge_idx, pa):
         nonlocal edges, parent, offset, names, edge2joint, joint_from_edge, joint_cnt
         edge = edges[edge_idx]
+        """ add virtual joint """
         if out_degree[edge[0]] > 1:
             parent.append(pa)
             offset.append(np.array([0, 0, 0]))
             names.append(origin_names[edge[1]] + '_virtual')
-            edge2joint.append(-1)
+            # edge2joint.append(-1)
             pa = joint_cnt
             joint_cnt += 1
 
@@ -343,7 +344,7 @@ def build_joint_topology(edges, origin_names):
         if e[0] == 0:
             make_topology(idx, 0)
 
-    return parent, offset, names, edge2joint
+    return parent, offset, names # , edge2joint
 
 
 def calc_edge_mat(edges):

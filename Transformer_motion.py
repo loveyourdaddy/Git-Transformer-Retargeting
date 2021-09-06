@@ -34,8 +34,10 @@ def motion_collate_fn(inputs): # input ???
 def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_dataset, bvh_writers, characters, save_name):
     losses = [] # losses for 1 epoch 
     loss_pos = []
+    norm = []
     model.train()
-
+    root_weight = args.root_weight
+    
     with tqdm(total=len(train_loader)-1, desc=f"TrainEpoch {epoch}") as pbar:
         save_dir = args.save_dir + save_name
         try_mkdir(save_dir)
@@ -45,51 +47,42 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             """ Get Data """
             # (4,91,128)
             input_motions, gt_motions = map(lambda v : v.to(args.cuda_device), value)
-            # print("input: {}".format(input_motions[0][0]))
+            import pdb; pdb.set_trace()
 
-            # Change Data Dimenstion 
-            # input_motions.transpose_(1,2)
-            # gt_motions.transpose_(1,2)
-
-            """ Set value to model """
+            """ Set value to model and get output """
             enc_inputs, dec_inputs = input_motions, input_motions
-            # conv2d
-            # enc_inputs = torch.unsqueeze(enc_inputs, 0)
-            # dec_inputs = torch.unsqueeze(dec_inputs, 0)
-            # outputs: dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
-            output_motions = model(enc_inputs, dec_inputs) [0]
-            # print("input: {}".format(output_motions[0][0]))
 
-            # output_motions = torch.squeeze(output_motions, 0)
-            
-            # Change Data Dimenstion 
-            # output_motions.transpose_(1,2)
-            # gt_motions.transpose_(1,2)
+            # outputs: dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
+            # output_motion : (bs, DoF, window_size)
+            output_motions = model(enc_inputs, dec_inputs) [0]
             
             """ Get Loss """
-            loss_sum = 0            
-            # for each motion in minibatch 
-            num_frames = gt_motions.size(1)
-            for j in range(args.batch_size):
-                # for all joints 
-                for k in range(num_frames):
-                    # loss for all joints of 1 frame
+            loss_sum = 0
+            num_bs = gt_motions.size(0)
+            num_DoF = gt_motions.size(1)
+            for j in range(num_bs): # For all motions
+                for k in range(num_DoF):  # loss for all joints of 1 frame
                     loss = criterion(output_motions[j][k], gt_motions[j][k])
+
+                    """ Root의 경우 weight을 추가해줍니다. """
+                    if k == num_DoF-2 or k == num_DoF-1 or k == num_DoF:
+                        loss *= root_weight
+                        loss_pos.append(loss.item())
+                    
                     loss_sum += loss
                     losses.append(loss.item())
-                    if k == 0 :
-                        loss_pos.append(loss.item())
   
             """ Regularization Loss Term """
-            # norm = torch.as_tensor(0.).cuda()
-            # for param in model.parameters():
-            #     norm += torch.norm(param)
-            # loss_sum += norm
+            norm = torch.as_tensor(0.).cuda()
+            for param in model.parameters():
+                norm += torch.norm(param)
+            loss_sum += norm
 
             loss_sum.backward()
             optimizer.step()
             pbar.update(1)
-            pbar.set_postfix_str(f"Rec_root_loss: {np.mean(loss_pos):.3f}, (mean: {np.mean(losses):.3f})") # 로그는 4개의 모션에 한번 꼴로 찍힙니다.
+            pbar.set_postfix_str(f"Rec_root_loss: {np.mean(loss_pos):.3f}, Reg_loss: {norm:.3f}, (mean: {np.mean(losses):.3f})")
+            # pbar.set_postfix_str(f"Rec_root_loss: {np.mean(loss_pos):.3f}, (mean: {np.mean(losses):.3f})") 
 
             """ denorm """
             # Get Character Index
@@ -104,6 +97,38 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             # Change Data Dimenstion 
             # output_motions.transpose_(1,2)
             # gt_motions.transpose_(1,2)
+
+            """ remake root position from displacement"""
+            # data: (bs, DoF, window)
+            if args.root_pos_disp == 1:
+                for bs in range(num_bs): 
+                    root_pos_x = 0 
+                    root_pos_y = 0 
+                    root_pos_z = 0 
+
+                    for frame in range(num_DoF - 1):
+                        root_pos_x += gt_motions[bs][num_DoF - 2][frame].clone().detach()
+                        root_pos_y += gt_motions[bs][num_DoF - 1][frame].clone().detach()
+                        root_pos_z += gt_motions[bs][num_DoF - 0][frame].clone().detach()
+
+                        gt_motions[bs][num_DoF - 2][frame] = root_pos_x.clone().detach()
+                        gt_motions[bs][num_DoF - 1][frame] = root_pos_y.clone().detach()
+                        gt_motions[bs][num_DoF - 0][frame] = root_pos_z.clone().detach()
+
+                for bs in range(output_motions.size(0)):
+                    root_pos_x = 0
+                    root_pos_y = 0
+                    root_pos_z = 0
+                        
+                    for frame in range(output_motions.size(2) - 1):
+                        root_pos_x += output_motions[bs][num_DoF - 2][frame].clone().detach()
+                        root_pos_y += output_motions[bs][num_DoF - 1][frame].clone().detach()
+                        root_pos_z += output_motions[bs][num_DoF - 0][frame].clone().detach()
+
+                        output_motions[bs][num_DoF - 2][frame] = root_pos_x.clone().detach()
+                        output_motions[bs][num_DoF - 1][frame] = root_pos_y.clone().detach()
+                        output_motions[bs][num_DoF - 0][frame] = root_pos_z.clone().detach()
+
 
             """ BVH Writing """
             # Write gt motion for 0 epoch
@@ -213,7 +238,7 @@ print("device: ", args.cuda_device)
 """ Changable Parameters """
 args.is_train = True # False 
 path = "./parameters/"
-save_name = "210824_transformer4_bs_dof_window_pos_encoding_ker3_pad1/"
+save_name = "210906_transformer6_root_disp_weighted_50/"
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)
