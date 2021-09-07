@@ -102,8 +102,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             # data: (bs, DoF, window)
             if args.root_pos_disp == 1:
                 for bs in range(num_bs): # dim 0
-                    for frame in range(num_frame - 2): # dim 2
-                        import pdb; pdb.set_trace()                        
+                    for frame in range(num_frame - 2): # dim 2             
                         gt_motions[bs][num_DoF - 3][frame + 1] += gt_motions[bs][num_DoF - 3][frame]
                         gt_motions[bs][num_DoF - 2][frame + 1] += gt_motions[bs][num_DoF - 2][frame]
                         gt_motions[bs][num_DoF - 1][frame + 1] += gt_motions[bs][num_DoF - 1][frame]
@@ -220,7 +219,7 @@ print("device: ", args.cuda_device)
 """ Changable Parameters """
 args.is_train = True # False 
 path = "./parameters/"
-save_name = "210907_transformer5_root_disp/"
+save_name = "210907_transformer7_changed_skeleton_type/"
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)

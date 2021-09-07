@@ -39,8 +39,6 @@ class MotionData(Dataset):
         # change data from list to tensor
         self.data.append(new_window)
         self.data = torch.cat(self.data)
-
-        # import pdb; pdb.set_trace()
         
         # 데이터의 1차원과 2차원을 바꿈 (112, 91, 913) -> (112, 913, 91)
         self.data = self.data.permute(0, 2, 1)

@@ -23,16 +23,16 @@ def get_parser():
     parser.add_argument('--normalization', type=int, default = 1)
     parser.add_argument('--position_encoding', type=int, default = 0, help='positional encoding')
     parser.add_argument('--root_pos_disp', type=int, default = 1, help='represent root pos as displacement')
-    parser.add_argument('--num_motions', type=int, default=1) # _for_character
-    parser.add_argument('--window_size', type=int, default=128, help='length of time axis per window')
-    parser.add_argument('--batch_size', type=int, default=4, help='batch_size')
-   
+    parser.add_argument('--num_motions', type=int, default=1) # num motions for_character. dummy value 1 
+    
     # Network
     parser.add_argument('--d_hidn', type=int, default=64) # embedding dimenstion: 256
     parser.add_argument('--num_layers', type=int, default=2, help='number of layers')
 
     # Training
     parser.add_argument('--root_weight', type=int, default=1, help='weighted loss for root displacement')
+    parser.add_argument('--window_size', type=int, default=128, help='length of time axis per window')
+    parser.add_argument('--batch_size', type=int, default=4, help='batch_size')
 
     # 필요없는건 지웁시다 from skeleton aware  
     parser.add_argument('--kernel_size', type=int, default=15, help='must be odd')
