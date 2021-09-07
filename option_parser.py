@@ -32,7 +32,7 @@ def get_parser():
     parser.add_argument('--num_layers', type=int, default=2, help='number of layers')
 
     # Training
-    parser.add_argument('--root_weight', type=int, default=50, help='weighted loss for root displacement')
+    parser.add_argument('--root_weight', type=int, default=1, help='weighted loss for root displacement')
 
     # 필요없는건 지웁시다 from skeleton aware  
     parser.add_argument('--kernel_size', type=int, default=15, help='must be odd')

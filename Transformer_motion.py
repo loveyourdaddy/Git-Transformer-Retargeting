@@ -47,7 +47,6 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             """ Get Data """
             # (4,91,128)
             input_motions, gt_motions = map(lambda v : v.to(args.cuda_device), value)
-            import pdb; pdb.set_trace()
 
             """ Set value to model and get output """
             enc_inputs, dec_inputs = input_motions, input_motions
@@ -152,7 +151,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
                     file_name = save_dir_output + "motion_{}.bvh".format(int(motion_idx % args.num_motions + j))
                     motion = output_motions[j]
                     bvh_writer.write_raw(motion, 'quaternion', file_name)
-
+            
             torch.cuda.empty_cache()
             del gt_motions, enc_inputs, dec_inputs
     
@@ -238,7 +237,7 @@ print("device: ", args.cuda_device)
 """ Changable Parameters """
 args.is_train = True # False 
 path = "./parameters/"
-save_name = "210906_transformer6_root_disp_weighted_50/"
+save_name = "210907_transformer3_skeleton_type_3/"
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)
