@@ -102,33 +102,15 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             # data: (bs, DoF, window)
             if args.root_pos_disp == 1:
                 for bs in range(num_bs): # dim 0
-                    root_pos_x = 0 
-                    root_pos_y = 0 
-                    root_pos_z = 0 
+                    for frame in range(num_frame - 2): # dim 2
+                        import pdb; pdb.set_trace()                        
+                        gt_motions[bs][num_DoF - 3][frame + 1] += gt_motions[bs][num_DoF - 3][frame]
+                        gt_motions[bs][num_DoF - 2][frame + 1] += gt_motions[bs][num_DoF - 2][frame]
+                        gt_motions[bs][num_DoF - 1][frame + 1] += gt_motions[bs][num_DoF - 1][frame]
 
-                    for frame in range(num_frame): # dim 2
-                        root_pos_x += gt_motions[bs][num_DoF - 3][frame].clone().detach()
-                        root_pos_y += gt_motions[bs][num_DoF - 2][frame].clone().detach()
-                        root_pos_z += gt_motions[bs][num_DoF - 1][frame].clone().detach()
-
-                        gt_motions[bs][num_DoF - 3][frame] = root_pos_x.clone().detach()
-                        gt_motions[bs][num_DoF - 2][frame] = root_pos_y.clone().detach()
-                        gt_motions[bs][num_DoF - 1][frame] = root_pos_z.clone().detach()
-
-                for bs in range(num_bs):
-                    root_pos_x = 0
-                    root_pos_y = 0
-                    root_pos_z = 0
-                        
-                    for frame in range(num_frame):
-                        root_pos_x += output_motions[bs][num_DoF - 3][frame].clone().detach()
-                        root_pos_y += output_motions[bs][num_DoF - 2][frame].clone().detach()
-                        root_pos_z += output_motions[bs][num_DoF - 1][frame].clone().detach()
-
-                        output_motions[bs][num_DoF - 3][frame] = root_pos_x.clone().detach()
-                        output_motions[bs][num_DoF - 2][frame] = root_pos_y.clone().detach()
-                        output_motions[bs][num_DoF - 1][frame] = root_pos_z.clone().detach()
-
+                        output_motions[bs][num_DoF - 3][frame + 1] += output_motions[bs][num_DoF - 3][frame]
+                        output_motions[bs][num_DoF - 2][frame + 1] += output_motions[bs][num_DoF - 2][frame]
+                        output_motions[bs][num_DoF - 1][frame + 1] += output_motions[bs][num_DoF - 1][frame]
 
             """ BVH Writing """
             # Write gt motion for 0 epoch
@@ -238,7 +220,7 @@ print("device: ", args.cuda_device)
 """ Changable Parameters """
 args.is_train = True # False 
 path = "./parameters/"
-save_name = "210907_transformer4_root_disp/"
+save_name = "210907_transformer5_root_disp/"
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)

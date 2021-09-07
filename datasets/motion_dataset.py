@@ -53,27 +53,14 @@ class MotionData(Dataset):
         
         if self.root_pos_disp == 1:
             for bs in range(num_bs): # 0차원(motions)에 대해
-                prev_root_pos_x = self.data[bs][num_DoF - 3][0].clone().detach()
-                prev_root_pos_y = self.data[bs][num_DoF - 2][0].clone().detach()
-                prev_root_pos_z = self.data[bs][num_DoF - 1][0].clone().detach()
-
                 for frame in range(num_frames - 1): # 2차원(frames)에 대해. frame: 0 ~ 126
-                    disp_x = self.data[bs][num_DoF - 3][frame + 1] - prev_root_pos_x.clone().detach()
-                    disp_y = self.data[bs][num_DoF - 2][frame + 1] - prev_root_pos_y.clone().detach()
-                    disp_z = self.data[bs][num_DoF - 1][frame + 1] - prev_root_pos_z.clone().detach()
-
-                    prev_root_pos_x = self.data[bs][num_DoF - 3][frame].clone().detach()
-                    prev_root_pos_y = self.data[bs][num_DoF - 2][frame].clone().detach()
-                    prev_root_pos_z = self.data[bs][num_DoF - 1][frame].clone().detach()
-
-                    self.data[bs][num_DoF - 3][frame] = disp_x.clone().detach()
-                    self.data[bs][num_DoF - 2][frame] = disp_y.clone().detach()
-                    self.data[bs][num_DoF - 1][frame] = disp_z.clone().detach()
-                
+                    self.data[bs][num_DoF - 3][frame] = self.data[bs][num_DoF - 3][frame + 1] - self.data[bs][num_DoF - 3][frame]
+                    self.data[bs][num_DoF - 2][frame] = self.data[bs][num_DoF - 2][frame + 1] - self.data[bs][num_DoF - 2][frame]
+                    self.data[bs][num_DoF - 1][frame] = self.data[bs][num_DoF - 1][frame + 1] - self.data[bs][num_DoF - 1][frame]
                 # 마지막 프레임의 disp는 0으로 셋팅해줍니다. 
-                self.data[bs][num_DoF - 3][self.data.size(2) - 1] = 0
-                self.data[bs][num_DoF - 2][self.data.size(2) - 1] = 0
-                self.data[bs][num_DoF - 1][self.data.size(2) - 1] = 0
+                self.data[bs][num_DoF - 3][num_frames - 1] = 0
+                self.data[bs][num_DoF - 2][num_frames - 1] = 0
+                self.data[bs][num_DoF - 1][num_frames - 1] = 0
                 
                 
         # normalization하는 부분이 position 더해주는 코드 보다 위에 있으면 동일한 normalization
