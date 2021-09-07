@@ -22,7 +22,7 @@ def get_parser():
     # Dataset
     parser.add_argument('--normalization', type=int, default = 1)
     parser.add_argument('--position_encoding', type=int, default = 0, help='positional encoding')
-    parser.add_argument('--root_pos_disp', type=int, default = 0, help='represent root pos as displacement')
+    parser.add_argument('--root_pos_disp', type=int, default = 1, help='represent root pos as displacement')
     parser.add_argument('--num_motions', type=int, default=1) # _for_character
     parser.add_argument('--window_size', type=int, default=128, help='length of time axis per window')
     parser.add_argument('--batch_size', type=int, default=4, help='batch_size')

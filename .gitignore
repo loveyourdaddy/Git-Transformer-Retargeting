@@ -129,4 +129,6 @@ venv/*
 __pycache__/*
 parameters/*
 output/*
-datasets/*
+datasets/Mixamo/*
+datasets/tmp/*
+datasets/__pycache/*
