@@ -12,6 +12,7 @@ from model import MotionGenerator
 # from torch.utils.tensorboard import SummaryWriter
 from datasets.bvh_parser import BVH_file
 from datasets.bvh_writer import BVH_writer
+from models.Kinematics import ForwardKinematics
 import wandb
 
 """ motion data collate function """
@@ -31,9 +32,10 @@ def motion_collate_fn(inputs): # input ???
     ]
     return batch
 
-def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_dataset, bvh_writers, characters, save_name):
+def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_dataset, Files, bvh_writers, characters, save_name):
     losses = [] # losses for 1 epoch 
     loss_pos = []
+    loss_fk = []
     norm = []
     model.train()
     root_weight = args.root_weight
@@ -60,43 +62,21 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             num_bs = gt_motions.size(0)
             num_DoF = gt_motions.size(1)
             num_frame = gt_motions.size(2)
+
+            """ root position & Joint orientaion loss """
             for j in range(num_bs): # For all motions
                 for k in range(num_DoF):  # loss for all joints of 1 frame
                     loss = criterion(output_motions[j][k], gt_motions[j][k])
 
                     """ Root의 경우 weight을 추가해줍니다. """
                     if k == num_DoF-2 or k == num_DoF-1 or k == num_DoF:
-                        loss *= root_weight
+                        # if args.weight_root_loss:
+                        #     loss *= root_weight
                         loss_pos.append(loss.item())
-                    
+                        
                     loss_sum += loss
                     losses.append(loss.item())
-  
-            """ Regularization Loss Term """
-            norm = torch.as_tensor(0.).cuda()
-            for param in model.parameters():
-                norm += torch.norm(param)
-            loss_sum += norm
-
-            loss_sum.backward()
-            optimizer.step()
-            pbar.update(1)
-            pbar.set_postfix_str(f"Rec_root_loss: {np.mean(loss_pos):.3f}, Reg_loss: {norm:.3f}, (mean: {np.mean(losses):.3f})")
-            # pbar.set_postfix_str(f"Rec_root_loss: {np.mean(loss_pos):.3f}, (mean: {np.mean(losses):.3f})") 
-
-            """ denorm """
-            # Get Character Index
-            motion_idx = int(i * args.batch_size)
-            character_idx = int(motion_idx / args.num_motions)
-            
-            # denorm 
-            if args.normalization == 1:
-                gt_motions = train_dataset.denorm(1, character_idx, gt_motions)
-                output_motions = train_dataset.denorm(1, character_idx, output_motions)
-            
-            # Change Data Dimenstion 
-            # output_motions.transpose_(1,2)
-            # gt_motions.transpose_(1,2)
+                    
 
             """ remake root position from displacement"""
             # data: (bs, DoF, window)
@@ -111,8 +91,55 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
                         output_motions[bs][num_DoF - 2][frame + 1] += output_motions[bs][num_DoF - 2][frame]
                         output_motions[bs][num_DoF - 1][frame + 1] += output_motions[bs][num_DoF - 1][frame]
 
-            """ BVH Writing """
-            # Write gt motion for 0 epoch
+            """ denorm """
+            # Get Character Index
+            motion_idx = int(i * args.batch_size)
+            character_idx = int(motion_idx / args.num_motions)
+            
+            # denorm 
+            if args.normalization == 1:
+                gt_motions = train_dataset.denorm(1, character_idx, gt_motions)
+                output_motions = train_dataset.denorm(1, character_idx, output_motions)
+            
+
+            """ Do FK and get FK loss"""
+            fk = ForwardKinematics(args, Files[1][0].edges)
+            gt_transform  = fk.forward_from_raw(gt_motions, train_dataset.offsets[1][0]).detach()
+            gt_transform1 = fk.from_local_to_world(gt_transform)
+            output_transform = fk.forward_from_raw(output_motions, train_dataset.offsets[1][0]).detach()
+            output_transform1 = fk.from_local_to_world(output_transform)
+
+            import pdb; pdb.set_trace()
+            
+            for j in range(num_bs): # For all motions
+                for k in range(num_DoF):  # loss for all joints of 1 frame
+                    loss = criterion(output_transform1[j][k], gt_transform1[j][k])
+                    loss_sum += loss
+                    losses.append(loss.item())
+                    loss_fk.append(loss.item())
+
+
+            """ Regularization Loss Term """
+            norm = torch.as_tensor(0.).cuda()
+            for param in model.parameters():
+                norm += torch.norm(param)
+            loss_sum += norm
+
+
+            """ optimization and show info"""
+            loss_sum.backward()
+            optimizer.step()
+            pbar.update(1)
+            pbar.set_postfix_str(f"Rec_root_loss: {np.mean(loss_pos):.3f}, FK_loss: {np.mean(loss_fk):.3f}, Reg_loss: {norm:.3f}, (mean: {np.mean(losses):.3f})")
+
+
+            """ change data dimensiton : DoF (2) -> window (1) """
+            # 데이터의 1차원과 2차원을 바꿈 for bvh writing (bs, window, DoF) -> (BS, DoF, Window)
+            # output_motions = output_motions.permute(0, 2, 1)
+            # gt_motions = gt_motions.permute(0, 2, 1)
+
+            """ BVH Writing : writing 형식 (bs, DoF, window)"""
+            # Write gt motion for 0 epoch. 
             if epoch == 0:
                 save_dir_gt = save_dir + "character_{}/gt/".format(character_idx)
                 try_mkdir(save_dir_gt)
@@ -219,7 +246,7 @@ print("device: ", args.cuda_device)
 """ Changable Parameters """
 args.is_train = True # False 
 path = "./parameters/"
-save_name = "210907_transformer7_changed_skeleton_type/"
+save_name = "210914_transformer1_with_fk/"
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)
@@ -258,7 +285,7 @@ for i in range(len(characters)):
 if args.is_train is True:
     print("cuda device: ", args.cuda_device)
     for epoch in range(args.n_epoch):
-        loss = train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_dataset, BVHWriters, characters, save_name) # target_characters
+        loss = train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_dataset, Files, BVHWriters, characters, save_name) # target_characters
         wandb.log({"loss": loss})
         save(model, path + save_name, epoch)
 

@@ -114,6 +114,7 @@ class GAN_model(BaseModel):
             offsets = [self.offset_repr[i][p][offset_idx] for p in range(self.args.num_layers + 1)]
             latent, res = self.models[i].auto_encoder(motion, offsets) #
             res_denorm = self.dataset.denorm(i, offset_idx, res)
+            
             res_pos = self.models[i].fk.forward_from_raw(res_denorm, self.dataset.offsets[i][offset_idx])
             self.res_pos.append(res_pos)
             self.latents.append(latent)

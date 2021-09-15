@@ -13,7 +13,7 @@ class IntegratedModel:
     def __init__(self, args, joint_topology, origin_offsets: torch.Tensor, device, characters):
         self.args = args
         self.joint_topology = joint_topology
-        self.edges = build_edge_topology(joint_topology, torch.zeros((len(joint_topology), 3)))        
+        self.edges = build_edge_topology(joint_topology, torch.zeros((len(joint_topology), 3)))
         self.fk = ForwardKinematics(args, self.edges)
 
         self.height = [] # for normalize ee_loss

@@ -40,7 +40,8 @@ class MotionData(Dataset):
         self.data.append(new_window)
         self.data = torch.cat(self.data)
         
-        # 데이터의 1차원과 2차원을 바꿈 (112, 91, 913) -> (112, 913, 91)
+        """ 주석 유지: change data dimensiton : window (1) -> DoF (2) """
+        # 데이터의 1차원과 2차원을 바꿈 (112, 91, 913) -> (112, 913, 91)        
         self.data = self.data.permute(0, 2, 1)
 
         """ save root position as displacement """

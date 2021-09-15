@@ -102,7 +102,7 @@ class MixedData(Dataset):
             means_group = torch.cat(means_group, dim=0).to(device)
             vars_group = torch.cat(vars_group, dim=0).to(device)
 
-            # self.offsets.append(offsets_group)
+            self.offsets.append(offsets_group)
             self.means.append(means_group)
             self.vars.append(vars_group)
         

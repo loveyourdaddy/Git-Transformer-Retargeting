@@ -30,7 +30,8 @@ def get_parser():
     parser.add_argument('--num_layers', type=int, default=2, help='number of layers')
 
     # Training
-    parser.add_argument('--root_weight', type=int, default=1, help='weighted loss for root displacement')
+    parser.add_argument('--weight_root_loss', type=int, default=0, help='flag for weight_root_loss')
+    parser.add_argument('--root_weight', type=int, default=10, help='weighted loss for root displacement')
     parser.add_argument('--window_size', type=int, default=128, help='length of time axis per window')
     parser.add_argument('--batch_size', type=int, default=4, help='batch_size')
 

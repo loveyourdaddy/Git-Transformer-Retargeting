@@ -35,8 +35,10 @@ class ForwardKinematics:
         new_shape[1] += 1
         new_shape[2] = 1
         rotation_final = identity.repeat(new_shape)
+                    
         for i, j in enumerate(self.rotation_map):
             rotation_final[:, j, :, :] = rotation[:, i, :, :]
+            
         return self.forward(rotation_final, position, offset, world=world, quater=quater)
 
     '''
@@ -52,11 +54,9 @@ class ForwardKinematics:
         position = position.permute(0, 2, 1)
         result = torch.empty(rotation.shape[:-1] + (3, ), device=position.device)
 
-
         norm = torch.norm(rotation, dim=-1, keepdim=True)
         #norm[norm < 1e-10] = 1
         rotation = rotation / norm
-
 
         if quater:
             transform = self.transform_from_quaternion(rotation)
