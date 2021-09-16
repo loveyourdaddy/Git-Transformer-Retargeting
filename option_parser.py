@@ -26,7 +26,7 @@ def get_parser():
     parser.add_argument('--num_motions', type=int, default=1) # num motions for_character. dummy value 1 
     
     # Network
-    parser.add_argument('--d_hidn', type=int, default=64) # embedding dimenstion: 256
+    parser.add_argument('--d_hidn', type=int, default=256) # embedding dimenstion: 256
     parser.add_argument('--num_layers', type=int, default=2, help='number of layers')
 
     # Training

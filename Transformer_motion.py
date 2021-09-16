@@ -34,11 +34,11 @@ def motion_collate_fn(inputs): # input ???
 
 def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_dataset, Files, bvh_writers, characters, save_name):
     losses = [] # losses for 1 epoch 
-    loss_pos = []
-    loss_fk = []
+    # losses_ori = []
+    # losses_fk = []
     norm = []
     model.train()
-    root_weight = args.root_weight
+    # root_weight = args.root_weight
     
     with tqdm(total=len(train_loader)-1, desc=f"TrainEpoch {epoch}") as pbar:
         save_dir = args.save_dir + save_name
@@ -46,43 +46,78 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
         for i, value in enumerate(train_loader):
             optimizer.zero_grad()
 
-            """ Get Data """
-            # (4,91,128)
-            input_motions, gt_motions = map(lambda v : v.to(args.cuda_device), value)
-
-            """ Set value to model and get output """
+            """ 1. Get Data and Set value to model and Get output """
+            input_motions, gt_motions = map(lambda v : v.to(args.cuda_device), value)            
             enc_inputs, dec_inputs = input_motions, input_motions
-
-            # outputs: dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
-            # output_motion : (bs, DoF, window_size)
-            output_motions = model(enc_inputs, dec_inputs) [0]
+            output_motions = model(enc_inputs, dec_inputs)
             
-            """ Get Loss """
-            loss_sum = 0
+            """ root position & Joint orientaion loss """
+            # for j in range(num_bs): # For all motions
+            #     for k in range(num_DoF):  # loss for all joints of 1 frame
+            #         loss = criterion(output_motions[j][k], gt_motions[j][k])
+
+            #         """ Root의 경우 weight을 추가해줍니다. """
+            #         if k == num_DoF-2 or k == num_DoF-1 or k == num_DoF:
+            #             # if args.weight_root_loss:
+            #             #     loss *= root_weight
+            #             loss_pos.append(loss.item())
+                        
+            #         loss_sum += loss
+            #         losses.append(loss.item())
+            
+            """ 2. Get numbers """
             num_bs = gt_motions.size(0)
             num_DoF = gt_motions.size(1)
             num_frame = gt_motions.size(2)
+            
+            """ 3. Do FK """
+            # fk = ForwardKinematics(args, Files[1][0].edges)
+            # gt_transform  = fk.forward_from_raw(denorm_gt_motions, train_dataset.offsets[1][0]).detach().reshape(num_bs, num_frame, -1)
+            # output_transform = fk.forward_from_raw(denorm_output_motions, train_dataset.offsets[1][0]).detach().reshape(num_bs, num_frame, -1)
 
-            """ root position & Joint orientaion loss """
-            for j in range(num_bs): # For all motions
-                for k in range(num_DoF):  # loss for all joints of 1 frame
-                    loss = criterion(output_motions[j][k], gt_motions[j][k])
+            """ 4. Get loss (orienation & FK & regularization) """
+            # gt_all = torch.cat((gt_motions, gt_transform), dim=-1)
+            # output_all = torch.cat((output_motions, output_transform), dim=-1)
 
-                    """ Root의 경우 weight을 추가해줍니다. """
-                    if k == num_DoF-2 or k == num_DoF-1 or k == num_DoF:
-                        # if args.weight_root_loss:
-                        #     loss *= root_weight
-                        loss_pos.append(loss.item())
-                        
+            loss_sum = 0
+            for m in range(num_bs):
+                for j in range(num_DoF):
+                    loss = criterion(gt_motions[m][j], output_motions[m][j])
                     loss_sum += loss
                     losses.append(loss.item())
-                    
 
-            """ remake root position from displacement"""
+            # loss_ori = criterion(gt_all[:, :, :num_DoF], output_all[:, :, :num_DoF])
+            # loss_fk = criterion(gt_all[:, :, num_DoF:], output_all[:, :, num_DoF:])
+
+            """ Regularization Loss Term """
+            norm = torch.as_tensor(0.).cuda()
+            for param in model.parameters():
+                norm += torch.norm(param)
+            loss_sum += norm
+
+            """ 5. optimization and show info"""
+            loss_sum.backward()
+            optimizer.step()
+            pbar.update(1)
+            pbar.set_postfix_str(f"Reg_loss: {norm:.3f}, (mean: {np.mean(losses):.3f})")
+            # pbar.set_postfix_str(f"Loss_ori: {np.mean(losses_ori):.3f}, Reg_loss: {norm:.3f}, (mean: {np.mean(losses):.3f})")
+            # pbar.set_postfix_str(f"Loss_ori: {loss_ori:.3f}, loss_fk: {loss_fk:.3f}, Reg_loss: {norm:.3f}, (mean: {np.mean(losses):.3f})")
+
+
+            """ 6. remake root position from displacement and denorm for bvh_writing """
+            """ denorm """
+            # Get Character Index
+            motion_idx = int(i * args.batch_size)
+            character_idx = int(motion_idx / args.num_motions)
+            if args.normalization == 1:
+                gt_motions = train_dataset.denorm(1, character_idx, gt_motions)
+                output_motions = train_dataset.denorm(1, character_idx, output_motions)
+
+            """ remake root position """
             # data: (bs, DoF, window)
             if args.root_pos_disp == 1:
                 for bs in range(num_bs): # dim 0
-                    for frame in range(num_frame - 2): # dim 2             
+                    for frame in range(num_frame - 1): # dim 2
                         gt_motions[bs][num_DoF - 3][frame + 1] += gt_motions[bs][num_DoF - 3][frame]
                         gt_motions[bs][num_DoF - 2][frame + 1] += gt_motions[bs][num_DoF - 2][frame]
                         gt_motions[bs][num_DoF - 1][frame + 1] += gt_motions[bs][num_DoF - 1][frame]
@@ -91,54 +126,13 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
                         output_motions[bs][num_DoF - 2][frame + 1] += output_motions[bs][num_DoF - 2][frame]
                         output_motions[bs][num_DoF - 1][frame + 1] += output_motions[bs][num_DoF - 1][frame]
 
-            """ denorm """
-            # Get Character Index
-            motion_idx = int(i * args.batch_size)
-            character_idx = int(motion_idx / args.num_motions)
-            
-            # denorm 
-            if args.normalization == 1:
-                gt_motions = train_dataset.denorm(1, character_idx, gt_motions)
-                output_motions = train_dataset.denorm(1, character_idx, output_motions)
-            
-
-            """ Do FK and get FK loss"""
-            fk = ForwardKinematics(args, Files[1][0].edges)
-            gt_transform  = fk.forward_from_raw(gt_motions, train_dataset.offsets[1][0]).detach()
-            gt_transform1 = fk.from_local_to_world(gt_transform)
-            output_transform = fk.forward_from_raw(output_motions, train_dataset.offsets[1][0]).detach()
-            output_transform1 = fk.from_local_to_world(output_transform)
-
-            import pdb; pdb.set_trace()
-            
-            for j in range(num_bs): # For all motions
-                for k in range(num_DoF):  # loss for all joints of 1 frame
-                    loss = criterion(output_transform1[j][k], gt_transform1[j][k])
-                    loss_sum += loss
-                    losses.append(loss.item())
-                    loss_fk.append(loss.item())
-
-
-            """ Regularization Loss Term """
-            norm = torch.as_tensor(0.).cuda()
-            for param in model.parameters():
-                norm += torch.norm(param)
-            loss_sum += norm
-
-
-            """ optimization and show info"""
-            loss_sum.backward()
-            optimizer.step()
-            pbar.update(1)
-            pbar.set_postfix_str(f"Rec_root_loss: {np.mean(loss_pos):.3f}, FK_loss: {np.mean(loss_fk):.3f}, Reg_loss: {norm:.3f}, (mean: {np.mean(losses):.3f})")
-
 
             """ change data dimensiton : DoF (2) -> window (1) """
             # 데이터의 1차원과 2차원을 바꿈 for bvh writing (bs, window, DoF) -> (BS, DoF, Window)
             # output_motions = output_motions.permute(0, 2, 1)
             # gt_motions = gt_motions.permute(0, 2, 1)
 
-            """ BVH Writing : writing 형식 (bs, DoF, window)"""
+            """ 7. BVH Writing : writing 형식 (bs, DoF, window)"""
             # Write gt motion for 0 epoch. 
             if epoch == 0:
                 save_dir_gt = save_dir + "character_{}/gt/".format(character_idx)
@@ -246,7 +240,7 @@ print("device: ", args.cuda_device)
 """ Changable Parameters """
 args.is_train = True # False 
 path = "./parameters/"
-save_name = "210914_transformer1_with_fk/"
+save_name = "210916_linear4_orientation_loss_before_denorm/"
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)

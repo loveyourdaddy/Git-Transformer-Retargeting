@@ -40,8 +40,7 @@ class MotionData(Dataset):
         self.data.append(new_window)
         self.data = torch.cat(self.data)
         
-        """ 주석 유지: change data dimensiton : window (1) -> DoF (2) """
-        # 데이터의 1차원과 2차원을 바꿈 (112, 91, 913) -> (112, 913, 91)        
+        """ change data dimensiton : window (1) -> DoF (2) : (bs, DoF, winodw) -> (bs, window, DoF) """        
         self.data = self.data.permute(0, 2, 1)
 
         """ save root position as displacement """
@@ -60,7 +59,6 @@ class MotionData(Dataset):
                 self.data[bs][num_DoF - 3][num_frames - 1] = 0
                 self.data[bs][num_DoF - 2][num_frames - 1] = 0
                 self.data[bs][num_DoF - 1][num_frames - 1] = 0
-                
                 
         # normalization하는 부분이 position 더해주는 코드 보다 위에 있으면 동일한 normalization
         """ Get normalization mean, var of data & normalization"""

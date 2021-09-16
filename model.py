@@ -129,7 +129,7 @@ class EncoderLayer(nn.Module):
 
         # ff
         ffn_outputs = self.pos_ffn(att_outputs)
-        # residual  
+        # residual
         ffn_outputs = self.layer_norm2(ffn_outputs + att_outputs)
 
         return ffn_outputs, attn_prob, context
@@ -318,10 +318,15 @@ class Transformer(nn.Module):
 
 class MotionGenerator(nn.Module):
     def __init__(self, args, character_names, dataset):
+        # Parameters 
+        super().__init__()
+        self.args = args
+        self.input_dim = args.window_size
+        # self.d_hidn = args.window_size # args.d_hidn
 
         """ Fully Connected Layer"""
-        # self.fc1 = nn.Linear(self.args.DoF, self.args.d_hidn)
-        # self.fc2 = nn.Linear(self.args.d_hidn, self.args.DoF)
+        # self.fc1 = nn.Linear(self.input_dim, self.d_hidn)
+        # self.fc2 = nn.Linear(self.d_hidn, self.input_dim)
         """ 1d Conv layer """
         # 91 -> 64 -> 91
         # self.conv1 = nn.Conv1d(self.args.DoF, self.args.d_hidn, 1, padding=0) # d_hidn 개의 (output) kernel이 존재, kerner_size=3 # 15, 7
@@ -345,11 +350,6 @@ class MotionGenerator(nn.Module):
         # self.deconv1 = nn.ConvTranspose2d(1, 1, 3, padding=1)
 
         """ Transformer """
-        # Parameters 
-        super().__init__()
-        self.args = args
-        self.input_dim = args.window_size
-
         # layers
         self.transformer = Transformer(args)
         self.projection = nn.Linear(self.input_dim, self.input_dim)
@@ -387,7 +387,8 @@ class MotionGenerator(nn.Module):
         
         output = self.projection(dec_outputs)
 
-        return output, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
+        return output
+        # , enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
 
     # def parameters(self, recurse: bool) -> Iterator[Parameter]:
     #     return super().parameters(recurse=recurse)

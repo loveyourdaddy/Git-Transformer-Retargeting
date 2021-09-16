@@ -84,7 +84,7 @@ class BVH_writer():
         return write_bvh(self.parent, offset, rotations_full, positions, self.names, frametime, order, path)
 
     def write_raw(self, motion, order, path, frametime=1.0/30, root_y=None):
-        motion = motion.permute(1, 0).detach().cpu().numpy()
+        motion = motion.permute(1, 0).detach().cpu().numpy()  # (bs,dof,window) -> (bs,window,dof)
         # motion = motion.detach().cpu().numpy()        
         rotations = motion[:, :-3] # rotation 은 앞에서 부터 뒤의 3개 전까지 
         positions = motion[:, -3:] # position 은 뒤에 3개
