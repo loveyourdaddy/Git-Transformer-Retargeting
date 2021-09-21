@@ -69,20 +69,81 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             num_bs = gt_motions.size(0)
             num_DoF = gt_motions.size(1)
             num_frame = gt_motions.size(2)
+
+            """ 3. remake root position from displacement and denorm for bvh_writing """
+            """ denorm for fk """
+            # Get Character Index
+            motion_idx = int(i * args.batch_size)
+            character_idx = int(motion_idx / args.num_motions)
+            # and denorm
+            if args.normalization == 1:
+                denorm_gt_motions = train_dataset.denorm(1, character_idx, gt_motions)
+                denorm_output_motions = train_dataset.denorm(1, character_idx, output_motions)
+
+            """ remake root position """
+            # data: (bs, DoF, window)
+            if args.root_pos_disp == 1:
+                for bs in range(num_bs): # dim 0
+                    for frame in range(num_frame - 1): # dim 2
+                        denorm_gt_motions[bs][num_DoF - 3][frame + 1] += denorm_gt_motions[bs][num_DoF - 3][frame]
+                        denorm_gt_motions[bs][num_DoF - 2][frame + 1] += denorm_gt_motions[bs][num_DoF - 2][frame]
+                        denorm_gt_motions[bs][num_DoF - 1][frame + 1] += denorm_gt_motions[bs][num_DoF - 1][frame]
+
+                        denorm_output_motions[bs][num_DoF - 3][frame + 1] += denorm_output_motions[bs][num_DoF - 3][frame]
+                        denorm_output_motions[bs][num_DoF - 2][frame + 1] += denorm_output_motions[bs][num_DoF - 2][frame]
+                        denorm_output_motions[bs][num_DoF - 1][frame + 1] += denorm_output_motions[bs][num_DoF - 1][frame]
+
+
+            """ 4. Denorm and do FK and set all data """
+            """ Do FK"""
+            fk = ForwardKinematics(args, Files[1][0].edges)
+            gt_transform  = fk.forward_from_raw(denorm_gt_motions, train_dataset.offsets[1][0]).detach().reshape(num_bs, -1, num_frame)
+            output_transform = fk.forward_from_raw(denorm_output_motions, train_dataset.offsets[1][0]).detach().reshape(num_bs, -1, num_frame)
             
-            """ 3. Do FK """
-            # fk = ForwardKinematics(args, Files[1][0].edges)
-            # gt_transform  = fk.forward_from_raw(denorm_gt_motions, train_dataset.offsets[1][0]).detach().reshape(num_bs, num_frame, -1)
-            # output_transform = fk.forward_from_raw(denorm_output_motions, train_dataset.offsets[1][0]).detach().reshape(num_bs, num_frame, -1)
+            """ set dataset """
+            gt_all = torch.cat((gt_motions, gt_transform), dim=1)
+            output_all = torch.cat((output_motions, output_transform), dim=1)
+            
+            """ update DoF """
+            num_total_DoF = gt_all.size(1)
+                       
 
-            """ 4. Get loss (orienation & FK & regularization) """
-            # gt_all = torch.cat((gt_motions, gt_transform), dim=-1)
-            # output_all = torch.cat((output_motions, output_transform), dim=-1)
+            """ 5. Get loss (orienation & FK & regularization) """
+            def QuaternionLoss(gt_motion, output_motion):
+                losses = []
+                gt = gt_motion.transpose()
+                output = output_motion.transpose() # (128,91)
 
+                frames = gt.size(0)
+                # joints = gt_motions.size(1)
+                joint = 0
+                for f in range(frames):
+                    # norm = output[f][4 * joint]
+                    
+                    inverse_quat_gt = torch.cat((
+                        output[f][4 * joint + 0].unsqueeze(0), 
+                        output[f][4 * joint + 1].unsqueeze(0), 
+                        output[f][4 * joint + 2].unsqueeze(0), 
+                        output[f][4 * joint + 3].unsqueeze(0)))
+                    
+                    quat_output = torch.cuda.FloatTensor(
+                        output[f][4 * joint], 
+                        output[f][4 * joint + 1], 
+                        output[f][4 * joint + 2], 
+                        output[f][4 * joint + 3])
+                    joint += 1
+
+                    quat = gt[f][joint]
+                    # loss
+                return losses.mean()
+            
             loss_sum = 0
             for m in range(num_bs):
-                for j in range(num_DoF):
-                    loss = criterion(gt_motions[m][j], output_motions[m][j])
+                for f in range(num_frame):
+                    if j==0:
+                        loss = criterion(denorm_gt_motions[m][j], denorm_output_motions[m][j])
+                    else:
+                        loss = QuaternionLoss(denorm_gt_motions[m], denorm_output_motions[m])
                     loss_sum += loss
                     losses.append(loss.item())
 
@@ -95,42 +156,14 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
                 norm += torch.norm(param)
             loss_sum += norm
 
-            """ 5. optimization and show info"""
+
+            """ 6. optimization and show info"""
             loss_sum.backward()
             optimizer.step()
             pbar.update(1)
             pbar.set_postfix_str(f"Reg_loss: {norm:.3f}, (mean: {np.mean(losses):.3f})")
-            # pbar.set_postfix_str(f"Loss_ori: {np.mean(losses_ori):.3f}, Reg_loss: {norm:.3f}, (mean: {np.mean(losses):.3f})")
+            # pbar.set_postfix_str(f"Loss_ori: {np.mean(losses_oi):.3f}, Reg_loss: {norm:.3f}, (mean: {np.mean(losses):.3f})")
             # pbar.set_postfix_str(f"Loss_ori: {loss_ori:.3f}, loss_fk: {loss_fk:.3f}, Reg_loss: {norm:.3f}, (mean: {np.mean(losses):.3f})")
-
-
-            """ 6. remake root position from displacement and denorm for bvh_writing """
-            """ denorm """
-            # Get Character Index
-            motion_idx = int(i * args.batch_size)
-            character_idx = int(motion_idx / args.num_motions)
-            if args.normalization == 1:
-                gt_motions = train_dataset.denorm(1, character_idx, gt_motions)
-                output_motions = train_dataset.denorm(1, character_idx, output_motions)
-
-            """ remake root position """
-            # data: (bs, DoF, window)
-            if args.root_pos_disp == 1:
-                for bs in range(num_bs): # dim 0
-                    for frame in range(num_frame - 1): # dim 2
-                        gt_motions[bs][num_DoF - 3][frame + 1] += gt_motions[bs][num_DoF - 3][frame]
-                        gt_motions[bs][num_DoF - 2][frame + 1] += gt_motions[bs][num_DoF - 2][frame]
-                        gt_motions[bs][num_DoF - 1][frame + 1] += gt_motions[bs][num_DoF - 1][frame]
-
-                        output_motions[bs][num_DoF - 3][frame + 1] += output_motions[bs][num_DoF - 3][frame]
-                        output_motions[bs][num_DoF - 2][frame + 1] += output_motions[bs][num_DoF - 2][frame]
-                        output_motions[bs][num_DoF - 1][frame + 1] += output_motions[bs][num_DoF - 1][frame]
-
-
-            """ change data dimensiton : DoF (2) -> window (1) """
-            # 데이터의 1차원과 2차원을 바꿈 for bvh writing (bs, window, DoF) -> (BS, DoF, Window)
-            # output_motions = output_motions.permute(0, 2, 1)
-            # gt_motions = gt_motions.permute(0, 2, 1)
 
             """ 7. BVH Writing : writing 형식 (bs, DoF, window)"""
             # Write gt motion for 0 epoch. 
@@ -141,7 +174,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
                 bvh_writer = BVH_writer(file.edges, file.names)
                 for j in range(args.batch_size):
                     file_name = save_dir_gt + "motion_{}.bvh".format(int(motion_idx % args.num_motions + j))
-                    motion = gt_motions[j]
+                    motion = denorm_gt_motions[j]
                     bvh_writer.write_raw(motion, 'quaternion', file_name)
 
             # Write output motions for 10 epoch
@@ -152,7 +185,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
                 bvh_writer = BVH_writer(file.edges, file.names)
                 for j in range(args.batch_size):
                     file_name = save_dir_output + "motion_{}.bvh".format(int(motion_idx % args.num_motions + j))
-                    motion = output_motions[j]
+                    motion = denorm_output_motions[j]
                     bvh_writer.write_raw(motion, 'quaternion', file_name)
             
             torch.cuda.empty_cache()
@@ -240,7 +273,7 @@ print("device: ", args.cuda_device)
 """ Changable Parameters """
 args.is_train = True # False 
 path = "./parameters/"
-save_name = "210916_linear4_orientation_loss_before_denorm/"
+save_name = "210916_transformer3_quaternion_inverse/"
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)
