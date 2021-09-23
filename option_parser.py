@@ -78,7 +78,7 @@ def get_parser():
     parser.add_argument('--n_head', type=int, default=4)
     parser.add_argument('--d_head', type=int, default=64)
     parser.add_argument('--layer_norm_epsilon', type=float, default=1e-12)
-    parser.add_argument('--n_output', type=int, default=0)
+    parser.add_argument('--num_joints', type=int, default=0)
     parser.add_argument('--i_pad', type=int, default=0)
 
     return parser

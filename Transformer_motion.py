@@ -101,51 +101,65 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             output_transform = fk.forward_from_raw(denorm_output_motions, train_dataset.offsets[1][0]).detach().reshape(num_bs, -1, num_frame)
             
             """ set dataset """
-            gt_all = torch.cat((gt_motions, gt_transform), dim=1)
-            output_all = torch.cat((output_motions, output_transform), dim=1)
-            
+            # gt_all = torch.cat((gt_motions, gt_transform), dim=1)
+            # output_all = torch.cat((output_motions, output_transform), dim=1)
             """ update DoF """
-            num_total_DoF = gt_all.size(1)
+            # num_total_DoF = gt_all.size(1)
                        
 
             """ 5. Get loss (orienation & FK & regularization) """
-            def QuaternionLoss(gt_motion, output_motion):
+            def QuaternionLoss(gt_motion, output_motion, loss_sum):
                 losses = []
-                gt = gt_motion.transpose()
-                output = output_motion.transpose() # (128,91)
+                # num_joints = gt_motion.size(0)
+                num_joints = args.num_joints # 22 
+                # 0~3, 4~7, ..., (84,85,86,87,) 88,89,90
+                # num_joints = gt_motion.size(1)
 
-                frames = gt.size(0)
-                # joints = gt_motions.size(1)
-                joint = 0
-                for f in range(frames):
-                    # norm = output[f][4 * joint]
-                    
-                    inverse_quat_gt = torch.cat((
-                        output[f][4 * joint + 0].unsqueeze(0), 
-                        output[f][4 * joint + 1].unsqueeze(0), 
-                        output[f][4 * joint + 2].unsqueeze(0), 
-                        output[f][4 * joint + 3].unsqueeze(0)))
-                    
-                    quat_output = torch.cuda.FloatTensor(
-                        output[f][4 * joint], 
-                        output[f][4 * joint + 1], 
-                        output[f][4 * joint + 2], 
-                        output[f][4 * joint + 3])
-                    joint += 1
+                for joint in range(num_joints + 1):
+                    if joint == num_joints:  # last (position)
 
-                    quat = gt[f][joint]
-                    # loss
-                return losses.mean()
-            
+                        gt = torch.cat((
+                            gt_motion[4*joint + 0].unsqueeze(0), 
+                            gt_motion[4*joint + 1].unsqueeze(0), 
+                            gt_motion[4*joint + 2].unsqueeze(0)))
+                        output = torch.cat((
+                            output_motion[4*joint + 0].unsqueeze(0), 
+                            output_motion[4*joint + 1].unsqueeze(0), 
+                            output_motion[4*joint + 2].unsqueeze(0)))
+
+                        loss = criterion(gt, output)
+                        # loss = criterion(gt_motion[joint], output_motion[joint])
+                    else :
+                        inverse_gt = torch.cat((
+                             output_motion[4 * joint + 0].unsqueeze(0),
+                            -output_motion[4 * joint + 1].unsqueeze(0),
+                            -output_motion[4 * joint + 2].unsqueeze(0),
+                            -output_motion[4 * joint + 3].unsqueeze(0)))
+                        output = torch.cat((
+                            output_motion[4 * joint + 0].unsqueeze(0),
+                            output_motion[4 * joint + 1].unsqueeze(0),
+                            output_motion[4 * joint + 2].unsqueeze(0),
+                            output_motion[4 * joint + 3].unsqueeze(0)))
+                                    
+                        loss = torch.matmul(inverse_gt, output)
+                    loss_sum += loss
+                    losses.append(loss.item())
+                        # loss = torch.matmul(inverse_gt.unsqueeze(0), output)
+
+                        # loss = (inverse_quat_gt[0] * output_motion[4 * joint + 0] +
+                        #         inverse_quat_gt[1] * output_motion[4 * joint + 1] +
+                        #         inverse_quat_gt[2] * output_motion[4 * joint + 2] +
+                        #         inverse_quat_gt[3] * output_motion[4 * joint + 3])
+                
+                return losses, loss_sum
+                        
+            gt = denorm_gt_motions.transpose(1,2)
+            output = denorm_output_motions.transpose(1,2) # (128,91)
             loss_sum = 0
             for m in range(num_bs):
                 for f in range(num_frame):
-                    if j==0:
-                        loss = criterion(denorm_gt_motions[m][j], denorm_output_motions[m][j])
-                    else:
-                        loss = QuaternionLoss(denorm_gt_motions[m], denorm_output_motions[m])
-                    loss_sum += loss
-                    losses.append(loss.item())
+                    loss, loss_sum = QuaternionLoss(gt[m][f], output[m][f], loss_sum)
+                    losses.append(loss)
 
             # loss_ori = criterion(gt_all[:, :, :num_DoF], output_all[:, :, :num_DoF])
             # loss_fk = criterion(gt_all[:, :, num_DoF:], output_all[:, :, num_DoF:])
@@ -282,8 +296,8 @@ train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_
 print("characters:{}".format(characters))
 
 """ 2.Set Learning Parameters  """
-args.DoF = train_dataset.GetDoF()
-args.n_output = args.DoF # 91
+DoF = train_dataset.GetDoF()
+args.num_joints = int(DoF/4) # 91 = 4 * 22 (+ position 3)
 args.num_motions = len(train_dataset) / 4
 
 """ 3. Train and Test  """
