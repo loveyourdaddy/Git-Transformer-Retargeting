@@ -96,9 +96,9 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
 
             """ 4. Denorm and do FK and set all data """
             """ Do FK"""
-            fk = ForwardKinematics(args, Files[1][0].edges)
-            gt_transform  = fk.forward_from_raw(denorm_gt_motions, train_dataset.offsets[1][0]).detach().reshape(num_bs, -1, num_frame)
-            output_transform = fk.forward_from_raw(denorm_output_motions, train_dataset.offsets[1][0]).detach().reshape(num_bs, -1, num_frame)
+            # fk = ForwardKinematics(args, Files[1][0].edges)
+            # gt_transform  = fk.forward_from_raw(denorm_gt_motions, train_dataset.offsets[1][0]).detach().reshape(num_bs, -1, num_frame)
+            # output_transform = fk.forward_from_raw(denorm_output_motions, train_dataset.offsets[1][0]).detach().reshape(num_bs, -1, num_frame)
             
             """ set dataset """
             # gt_all = torch.cat((gt_motions, gt_transform), dim=1)
@@ -108,48 +108,39 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
                        
 
             """ 5. Get loss (orienation & FK & regularization) """
-            def QuaternionLoss(gt_motion, output_motion, loss_sum):
+            def QuaternionLoss(gt, output, loss_sum):
                 losses = []
-                # num_joints = gt_motion.size(0)
                 num_joints = args.num_joints # 22 
                 # 0~3, 4~7, ..., (84,85,86,87,) 88,89,90
-                # num_joints = gt_motion.size(1)
 
                 for joint in range(num_joints + 1):
                     if joint == num_joints:  # last (position)
-
-                        gt = torch.cat((
-                            gt_motion[4*joint + 0].unsqueeze(0), 
-                            gt_motion[4*joint + 1].unsqueeze(0), 
-                            gt_motion[4*joint + 2].unsqueeze(0)))
-                        output = torch.cat((
-                            output_motion[4*joint + 0].unsqueeze(0), 
-                            output_motion[4*joint + 1].unsqueeze(0), 
-                            output_motion[4*joint + 2].unsqueeze(0)))
-
-                        loss = criterion(gt, output)
-                        # loss = criterion(gt_motion[joint], output_motion[joint])
+                        gt_tensor = torch.cat((
+                            gt[4 * joint + 0].unsqueeze(0), 
+                            gt[4 * joint + 1].unsqueeze(0), 
+                            gt[4 * joint + 2].unsqueeze(0)))
+                        output_tensor = torch.cat((
+                            output[4 * joint + 0].unsqueeze(0), 
+                            output[4 * joint + 1].unsqueeze(0), 
+                            output[4 * joint + 2].unsqueeze(0)))
+                        loss = criterion(gt_tensor, output_tensor)
+                        
                     else :
-                        inverse_gt = torch.cat((
-                             output_motion[4 * joint + 0].unsqueeze(0),
-                            -output_motion[4 * joint + 1].unsqueeze(0),
-                            -output_motion[4 * joint + 2].unsqueeze(0),
-                            -output_motion[4 * joint + 3].unsqueeze(0)))
-                        output = torch.cat((
-                            output_motion[4 * joint + 0].unsqueeze(0),
-                            output_motion[4 * joint + 1].unsqueeze(0),
-                            output_motion[4 * joint + 2].unsqueeze(0),
-                            output_motion[4 * joint + 3].unsqueeze(0)))
-                                    
-                        loss = torch.matmul(inverse_gt, output)
+                        inverse_gt_tensor = torch.cat((
+                             gt[4 * joint + 0].unsqueeze(0),
+                            -gt[4 * joint + 1].unsqueeze(0),
+                            -gt[4 * joint + 2].unsqueeze(0),
+                            -gt[4 * joint + 3].unsqueeze(0)))
+                        output_tensor = torch.cat((
+                            output[4 * joint + 0].unsqueeze(0),
+                            output[4 * joint + 1].unsqueeze(0),
+                            output[4 * joint + 2].unsqueeze(0),
+                            output[4 * joint + 3].unsqueeze(0)))
+                        # loss = criterion(torch.matmul(inverse_gt_tensor, output_tensor), 0)
+                        loss = torch.square(torch.matmul(inverse_gt_tensor, output_tensor) - 1) 
+
                     loss_sum += loss
                     losses.append(loss.item())
-                        # loss = torch.matmul(inverse_gt.unsqueeze(0), output)
-
-                        # loss = (inverse_quat_gt[0] * output_motion[4 * joint + 0] +
-                        #         inverse_quat_gt[1] * output_motion[4 * joint + 1] +
-                        #         inverse_quat_gt[2] * output_motion[4 * joint + 2] +
-                        #         inverse_quat_gt[3] * output_motion[4 * joint + 3])
                 
                 return losses, loss_sum
                         
@@ -160,9 +151,6 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
                 for f in range(num_frame):
                     loss, loss_sum = QuaternionLoss(gt[m][f], output[m][f], loss_sum)
                     losses.append(loss)
-
-            # loss_ori = criterion(gt_all[:, :, :num_DoF], output_all[:, :, :num_DoF])
-            # loss_fk = criterion(gt_all[:, :, num_DoF:], output_all[:, :, num_DoF:])
 
             """ Regularization Loss Term """
             norm = torch.as_tensor(0.).cuda()
@@ -176,8 +164,6 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             optimizer.step()
             pbar.update(1)
             pbar.set_postfix_str(f"Reg_loss: {norm:.3f}, (mean: {np.mean(losses):.3f})")
-            # pbar.set_postfix_str(f"Loss_ori: {np.mean(losses_oi):.3f}, Reg_loss: {norm:.3f}, (mean: {np.mean(losses):.3f})")
-            # pbar.set_postfix_str(f"Loss_ori: {loss_ori:.3f}, loss_fk: {loss_fk:.3f}, Reg_loss: {norm:.3f}, (mean: {np.mean(losses):.3f})")
 
             """ 7. BVH Writing : writing 형식 (bs, DoF, window)"""
             # Write gt motion for 0 epoch. 
@@ -287,7 +273,7 @@ print("device: ", args.cuda_device)
 """ Changable Parameters """
 args.is_train = True # False 
 path = "./parameters/"
-save_name = "210916_transformer3_quaternion_inverse/"
+save_name = "210924_transformer2_criternion_1/"
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)
