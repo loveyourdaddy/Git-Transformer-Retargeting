@@ -34,11 +34,10 @@ def motion_collate_fn(inputs): # input ???
 
 def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_dataset, Files, bvh_writers, characters, save_name):
     losses = [] # losses for 1 epoch 
-    # losses_ori = []
-    # losses_fk = []
+    losses_quat = []
+    losses_elements = []
     norm = []
     model.train()
-    # root_weight = args.root_weight
     
     with tqdm(total=len(train_loader)-1, desc=f"TrainEpoch {epoch}") as pbar:
         save_dir = args.save_dir + save_name
@@ -50,20 +49,6 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             input_motions, gt_motions = map(lambda v : v.to(args.cuda_device), value)            
             enc_inputs, dec_inputs = input_motions, input_motions
             output_motions = model(enc_inputs, dec_inputs)
-            
-            """ root position & Joint orientaion loss """
-            # for j in range(num_bs): # For all motions
-            #     for k in range(num_DoF):  # loss for all joints of 1 frame
-            #         loss = criterion(output_motions[j][k], gt_motions[j][k])
-
-            #         """ Root의 경우 weight을 추가해줍니다. """
-            #         if k == num_DoF-2 or k == num_DoF-1 or k == num_DoF:
-            #             # if args.weight_root_loss:
-            #             #     loss *= root_weight
-            #             loss_pos.append(loss.item())
-                        
-            #         loss_sum += loss
-            #         losses.append(loss.item())
             
             """ 2. Get numbers """
             num_bs = gt_motions.size(0)
@@ -106,53 +91,53 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             """ update DoF """
             # num_total_DoF = gt_all.size(1)
                        
-
             """ 5. Get loss (orienation & FK & regularization) """
-            def QuaternionLoss(gt, output, loss_sum):
-                losses = []
-                num_joints = args.num_joints # 22 
-                # 0~3, 4~7, ..., (84,85,86,87,) 88,89,90
-
-                for joint in range(num_joints + 1):
-                    if joint == num_joints:  # last (position)
-                        gt_tensor = torch.cat((
-                            gt[4 * joint + 0].unsqueeze(0), 
-                            gt[4 * joint + 1].unsqueeze(0), 
-                            gt[4 * joint + 2].unsqueeze(0)))
-                        output_tensor = torch.cat((
-                            output[4 * joint + 0].unsqueeze(0), 
-                            output[4 * joint + 1].unsqueeze(0), 
-                            output[4 * joint + 2].unsqueeze(0)))
-                        loss = criterion(gt_tensor, output_tensor)
-                        
-                    else :
-                        inverse_gt_tensor = torch.cat((
-                             gt[4 * joint + 0].unsqueeze(0),
-                            -gt[4 * joint + 1].unsqueeze(0),
-                            -gt[4 * joint + 2].unsqueeze(0),
-                            -gt[4 * joint + 3].unsqueeze(0)))
-                        output_tensor = torch.cat((
-                            output[4 * joint + 0].unsqueeze(0),
-                            output[4 * joint + 1].unsqueeze(0),
-                            output[4 * joint + 2].unsqueeze(0),
-                            output[4 * joint + 3].unsqueeze(0)))
-                        # loss = criterion(torch.matmul(inverse_gt_tensor, output_tensor), 0)
-                        loss = torch.square(torch.matmul(inverse_gt_tensor, output_tensor) - 1) 
-
-                    loss_sum += loss
-                    losses.append(loss.item())
-                
-                return losses, loss_sum
-                        
             gt = denorm_gt_motions.transpose(1,2)
             output = denorm_output_motions.transpose(1,2) # (128,91)
             loss_sum = 0
-            for m in range(num_bs):
-                for f in range(num_frame):
-                    loss, loss_sum = QuaternionLoss(gt[m][f], output[m][f], loss_sum)
-                    losses.append(loss)
 
-            """ Regularization Loss Term """
+            """ 5-1. loss on each element """
+            for m in range(num_bs):
+                for j in range(num_DoF):
+                    loss = criterion(gt_motions[m][j], output_motions[m][j])
+                    loss_sum += loss
+                    losses_elements.append(loss.item())
+                    losses.append(loss.item())
+
+
+            # """ 5-2. position loss on root """
+            # gt_pos = gt[:, :, :3]
+            # output_pos = output[:, :, :3]
+            # loss = torch.square(gt_pos - output_pos)
+
+            # loss = loss.reshape(-1)
+            # for i in range(loss.size(0)):
+            #     loss_sum += loss[i]
+            #     losses.append(loss[i].item())
+
+
+            """ 5-3. quatnion loss on rotation  """
+            # GT: 1.rot 부분만 detach -> 2. quat 으로 만들어주기 -> 3. inverse
+            gt_rot = gt[:, :, :-3]
+            gt_rot_hat = gt_rot.reshape(gt.size(0), gt.size(1), 4, -1)
+            gt_rot_hat[:, :, 1:4, :] = -1 * gt_rot_hat[:, :, 1:4, :]
+
+            # output motion 
+            output_rot = output[:, :, :-3]
+            output_rot = output_rot.reshape(gt.size(0), gt.size(1), 4, -1)
+
+            # element-wise multiple
+            # loss = torch.square((gt_rot_hat * output_rot).sum(axis=2) - torch.ones(gt.size(0), gt.size(1), output_rot.size(-1)).to(args.cuda_device))
+            q_output = (gt_rot_hat * output_rot).sum(axis=2)
+            ones = torch.ones(gt.size(0), gt.size(1), output_rot.size(-1)).to(args.cuda_device)
+            for m in range(num_bs):
+                for j in range(num_frame):
+                    loss = criterion(q_output[m][j], ones[m][j])
+                    loss_sum += loss
+                    losses.append(loss.item())
+                    losses_quat.append(loss.item())
+        
+            """ 5-4. Regularization Loss Term  """
             norm = torch.as_tensor(0.).cuda()
             for param in model.parameters():
                 norm += torch.norm(param)
@@ -163,7 +148,8 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             loss_sum.backward()
             optimizer.step()
             pbar.update(1)
-            pbar.set_postfix_str(f"Reg_loss: {norm:.3f}, (mean: {np.mean(losses):.3f})")
+            pbar.set_postfix_str(f"elements_loss: {np.mean(losses_elements):.3f}, quat_loss: {np.mean(losses_quat):.3f} (mean: {np.mean(losses):.3f})")
+            # pbar.set_postfix_str(f"Reg_loss: {norm:.3f}, (mean: {np.mean(losses):.3f})")
 
             """ 7. BVH Writing : writing 형식 (bs, DoF, window)"""
             # Write gt motion for 0 epoch. 
@@ -273,7 +259,7 @@ print("device: ", args.cuda_device)
 """ Changable Parameters """
 args.is_train = True # False 
 path = "./parameters/"
-save_name = "210924_transformer2_criternion_1/"
+save_name = "210924_transformer3_each_elements_and_quat/"
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)
