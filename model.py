@@ -13,15 +13,16 @@ from datasets import get_character_names, create_dataset
 from models import create_model
 from models.base_model import BaseModel
 from model import *
-
+ 
 """ Attentnion Model """
 # function of Q, K, V
 class ScaledDotProductAttention(nn.Module):
-    def __init__(self, d_head):        
+    def __init__(self, args):        
         super().__init__()
 
         #d_head (64) : dim of key vector 
-        self.scale = 1 / (d_head ** 0.5)
+        self.d_head = args.d_head
+        self.scale = 1 / (self.d_head ** 0.5)
 
     def forward(self, Q, K, V, attn_mask):
         # Q,K,V: (bs, n_head, window, DoF), attn_mask: (bs, n_head, window, window)
@@ -35,6 +36,7 @@ class ScaledDotProductAttention(nn.Module):
         
         context = torch.matmul(attn_prob, V)
 
+        # import pdb; pdb.set_trace()
         # context:(bs, n_head, window, DoF) attn_prob (bs, n_head, window, window)
         return context, attn_prob
 
@@ -58,7 +60,7 @@ class MultiHeadAttention(nn.Module):
         # self.W_V = nn.Conv1d(self.DoF, self.n_head * self.d_head, kernel_size=1, padding=0)
 
         # Get attention value
-        self.scaled_dot_attn = ScaledDotProductAttention(self.d_head)
+        self.scaled_dot_attn = ScaledDotProductAttention(args)
         self.linear = nn.Linear(self.n_head * self.d_head, self.input_dim)
 
     def forward(self, Q, K, V, attn_mask):

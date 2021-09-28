@@ -33,6 +33,7 @@ class MixedData0(Dataset):
             # return [self.motions_reverse[item], self.skeleton_idx[item]]
 
 
+""" MixedData:  """
 class MixedData(Dataset):
     """ data_gruop_num * 2 * samples """
     def __init__(self, args, datasets_groups):
@@ -69,7 +70,7 @@ class MixedData(Dataset):
                 new_args.dataset = dataset
 
                 motion_data.append(MotionData(new_args, 0))
-                encoded_motion_data.append(MotionData(new_args, self.position_encoding)) # positional encoding paramerization
+                # encoded_motion_data.append(MotionData(new_args, self.position_encoding)) # positional encoding paramerization
                 # tmp : 4 character, 106 motions, 913 frames, 111 rot + pos
 
                 mean = np.load('./datasets/Mixamo/mean_var/{}_mean.npy'.format(dataset))
@@ -94,7 +95,7 @@ class MixedData(Dataset):
                 total_length = min(total_length, len(motion_data[-1]))
                 
             all_datas.append(motion_data)
-            encoded_all_datas.append(encoded_motion_data)
+            # encoded_all_datas.append(encoded_motion_data)
 
             offsets_group = torch.cat(offsets_group, dim=0)
             offsets_group = offsets_group.to(device)
@@ -108,48 +109,65 @@ class MixedData(Dataset):
         
         """ Get gt_data """
         # final_data: (2, 424, 913, 91) for 2 groups
-        for datasets in all_datas:
+        for group_idx, datasets in enumerate(all_datas):
             pt = 0
             motions = []
             skeleton_idx = []
+            offsets = torch.zeros(0)
+
+            """ option for add_offset """
+            if args.add_offset:
+                offsets = self.offsets[group_idx]
+                # (4,23,3) -> (4,69) -> (4,51,69)
+                num_motions =  len(all_datas[0][0])
+                num_frames = len(all_datas[0][0][0][-1])
+                offsets = torch.reshape(offsets, (offsets.size(0), -1)).unsqueeze(1).unsqueeze(-1).expand( -1, num_motions, -1, num_frames)
 
             # for each character in a group
-            for dataset in datasets:
-                motions.append(dataset[:])
+            for character_idx, dataset in enumerate(datasets):
+                if args.add_offset:
+                    dataset = torch.cat([dataset[:], offsets[character_idx].cpu()], dim=-2)
+
+                motions.append(dataset)
                 skeleton_idx += [pt] * len(dataset)
                 pt += 1
 
-            # (4,106, 91, 913) -> (424, 91, 913)
+            # (4,106, 91, 913) -> (424, 91, 913),  (4,51,138,128) -> (204,138,128)
             motions = torch.cat(motions, dim=0)
-            # length : num of total motions for 4 characters 
-            if self.length != 0 and self.length != len(skeleton_idx):
+            if self.length != 0 and self.length != len(skeleton_idx): # length : num of total motions for 4 characters 
                 self.length = min(self.length, len(skeleton_idx))
             else:
                 self.length = len(skeleton_idx)
 
             self.final_data.append(MixedData0(args, motions, skeleton_idx))
 
-        """ Get positional encoded input_data """
-        for datasets in encoded_all_datas:
-            pt = 0
-            motions = []
-            skeleton_idx = []
+        # """ Get encoded input_data """
+        # for datasets in encoded_all_datas:
+        #     pt = 0
+        #     motions = []
+        #     skeleton_idx = []
 
-            # for each character in a group
-            for dataset in datasets:
-                motions.append(dataset[:])
-                skeleton_idx += [pt] * len(dataset)
-                pt += 1
+        #     # for each character in a group
+        #     for i, dataset in enumerate(datasets):
+        #         """ option for add_offset """
+        #         import pdb; pdb.set_trace()
 
-            # (4,106, 91, 913) -> (424, 91, 913)
-            motions = torch.cat(motions, dim=0)
-            # length : num of total motions for 4 characters 
-            if self.length != 0 and self.length != len(skeleton_idx):
-                self.length = min(self.length, len(skeleton_idx))
-            else:
-                self.length = len(skeleton_idx)
+        #         if args.add_offset:
+        #             datasets = torch.cat(dataset, self.offsets[i])
 
-            self.encoded_final_data.append(MixedData0(args, motions, skeleton_idx))
+        #         motions.append(dataset[:])
+        #         skeleton_idx += [pt] * len(dataset)
+        #         pt += 1
+
+        #     # (4,106, 91, 913) -> (424, 91, 913)
+        #     motions = torch.cat(motions, dim=0)
+        #     # length : num of total motions for 4 characters 
+        #     if self.length != 0 and self.length != len(skeleton_idx):
+        #         self.length = min(self.length, len(skeleton_idx))
+        #     else:
+        #         self.length = len(skeleton_idx)
+
+        #     self.encoded_final_data.append(MixedData0(args, motions, skeleton_idx))
 
     def denorm(self, gid, pid, data):
         means = self.means[gid][pid, ...]
@@ -161,17 +179,17 @@ class MixedData(Dataset):
         print(f"Dof : {DoF}")
         return DoF
 
-    # def GetMaxFrame(self):
-    #     return len(self.final_data[0][0])
-
     def __len__(self):
         # total motion length for every character (4 * 106 = 424)
         return self.length
 
     def __getitem__(self, item):
+        return (torch.as_tensor(self.final_data[0][item].data), # source motion
+                torch.as_tensor(self.final_data[1][item].data)) # target motion
+                  
         # (input motion, output motion)
-        return (torch.as_tensor(self.encoded_final_data[0][item].data), # position encoded 
-                torch.as_tensor(self.final_data[0][item].data)) # gt
+        # return (torch.as_tensor(self.encoded_final_data[0][item].data), # position encoded 
+        #         torch.as_tensor(self.final_data[0][item].data)) # gt
                   
 
 

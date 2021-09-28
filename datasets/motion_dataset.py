@@ -43,12 +43,14 @@ class MotionData(Dataset):
         """ change data dimensiton : window (1) -> DoF (2) : (bs, DoF, winodw) -> (bs, window, DoF) """        
         self.data = self.data.permute(0, 2, 1)
 
-        """ save root position as displacement """
+
+        """ modify data based on options """
         # data: (bs, DoF, window)
         num_bs = self.data.size(0)
         num_DoF = self.data.size(1)
         num_frames = self.data.size(2)
         
+        """ save root position as displacement """
         if self.root_pos_disp == 1:
             for bs in range(num_bs): # 0차원(motions)에 대해
                 for frame in range(num_frames - 1): # 2차원(frames)에 대해. frame: 0 ~ 126
@@ -61,8 +63,8 @@ class MotionData(Dataset):
                 self.data[bs][num_DoF - 1][num_frames - 1] = 0
                 
         # normalization하는 부분이 position 더해주는 코드 보다 위에 있으면 동일한 normalization
-        """ Get normalization mean, var of data & normalization"""
-        if args.normalization == 1:
+        """ Get normalization  data:  mean, var of data & normalization """
+        if args.normalization:
             self.mean = torch.mean(self.data, (0, 2), keepdim=True)
             self.var = torch.var(self.data, (0, 2), keepdim=True)
             self.var = self.var ** (1/2)
@@ -74,7 +76,7 @@ class MotionData(Dataset):
             self.var = torch.ones_like(self.mean)
 
         """ positional encoding: input중 0에 해당하는 부분은 0으로 채우고, value가 있는 곳은 포지션 인덱스를 넣어줌 """
-        if positional_encoding == 1:
+        if positional_encoding:
             # (DoF) -> (1,1,DoF)
             frames_tensor = torch.arange(self.data.size(2), device=self.data.device, dtype=torch.int)
             tmp1 = torch.unsqueeze(torch.unsqueeze(frames_tensor, 0), 0)        
@@ -85,10 +87,12 @@ class MotionData(Dataset):
             # (bs, window, Dof)
             positions = positions.contiguous()
             self.data = self.data + positions
-        
+
+        """ Normalzation """
         # normalization하는 부분이 position 더해주는 코드 보다 아래에 있으면 다른 normalization
         if args.normalization == 1:        
             self.data = (self.data - self.mean) / self.var
+
 
         train_len = self.data.shape[0] * 94 // 100
         
