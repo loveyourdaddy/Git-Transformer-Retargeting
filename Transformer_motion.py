@@ -44,7 +44,8 @@ def load(model, path, epoch):
 
 
 """ 0. Set Env Parameters """
-args = option_parser.get_args()
+args_ = option_parser.get_args()
+args = args_
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 log_path = os.path.join(args.save_dir, 'logs/')
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
@@ -55,7 +56,7 @@ print("device: ", args.cuda_device)
 """ Changable Parameters """
 # args.is_train = False 
 path = "./parameters/"
-save_name = "210928_transformer0_offset/"
+save_name = "210928_transformer3_loss_1e-4/"
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)
@@ -74,7 +75,7 @@ model.to(args.cuda_device)
 wandb.watch(model)
 
 criterion = torch.nn.MSELoss() # torch.nn.CrossEntropyLoss() 
-optimizer = torch.optim.Adam(model.parameters(), lr = args.learning_rate)
+optimizer = torch.optim.Adam(model.parameters(), lr = args.learning_rate, weight_decay = args.weight_decay) 
 
 # Set BVH writers
 BVHWriters = []
@@ -90,7 +91,7 @@ for i in range(len(characters)):
     Files.append(files)
     BVHWriters.append(bvh_writers)
 
-if args.is_train is True:
+if args.is_train == 1:
     print("cuda device: ", args.cuda_device)
     for epoch in range(args.n_epoch):
         loss = train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_dataset, Files, BVHWriters, characters, save_name) # target_characters

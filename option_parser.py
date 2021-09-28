@@ -8,10 +8,11 @@ def get_parser():
     parser.add_argument('--save_dir', type=str, default='./output/', help='directory for all savings')
     parser.add_argument('--cuda_device', type=str, default='cuda:0', help='cuda device number, eg:[cuda:0]')
     parser.add_argument('--is_train', type=int, default=1)
-    parser.add_argument('--is_valid', type=int, default=0)    
+    parser.add_argument('--is_valid', type=int, default=0)
 
     # learning parameter 
-    parser.add_argument('--learning_rate', type=float, default=1e-3, help='learning rate') # 2e-4 # 5e-5
+    parser.add_argument('--learning_rate', type=float, default=1e-4, help='learning rate') # 2e-4 # 5e-5
+    parser.add_argument('--weight_decay', type=float, default=1)
     parser.add_argument('--alpha', type=float, default=0, help='penalty of sparsity')
     parser.add_argument('--upsampling', type=str, default='linear', help="'stride2' or 'nearest', 'linear'")
     parser.add_argument('--downsampling', type=str, default='stride2', help='stride2 or max_pooling')

@@ -12,6 +12,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
     losses = [] # losses for 1 epoch 
     losses_quat = []
     losses_elements = []
+    losses_norm = []
     norm = []
     model.train()
     args.epoch = epoch
@@ -27,6 +28,11 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             enc_inputs, dec_inputs = input_motions, input_motions
             output_motions = model(enc_inputs, dec_inputs)
             
+            """ 1'. remove offset part """
+            num_joint = int(output_motions.size(1)/2)
+            output_motions = output_motions[:, :num_joint,:]
+            gt_motions = gt_motions[:, :num_joint, :]
+            
             """ 2. Get numbers """
             num_bs = gt_motions.size(0)
             num_DoF = gt_motions.size(1)
@@ -37,6 +43,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             # Get Character Index
             motion_idx = int(i * args.batch_size)
             character_idx = int(motion_idx / args.num_motions)
+            
             # and denorm
             if args.normalization == 1:
                 denorm_gt_motions = train_dataset.denorm(1, character_idx, gt_motions)
@@ -97,7 +104,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
 
             """ 5-3. quatnion loss on rotation  """
             # GT: 1.rot 부분만 detach -> 2. quat 으로 만들어주기 -> 3. inverse
-            if args.rotation == 'Quaternion' :
+            if args.rotation == 'Quaternion':
                 gt_rot = gt[:, :, :-3]
                 gt_rot_hat = gt_rot.reshape(gt.size(0), gt.size(1), 4, -1)
                 gt_rot_hat[:, :, 1:4, :] = -1 * gt_rot_hat[:, :, 1:4, :]
@@ -119,18 +126,20 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
                         losses_quat.append(loss.item())
         
             """ 5-4. Regularization Loss Term """
-            norm = torch.as_tensor(0.).cuda()
-            for param in model.parameters():
-                norm += torch.norm(param)
-            loss_sum += norm
+            # norm = torch.as_tensor(0.).cuda()
+            # for param in model.parameters():
+            #     norm += torch.norm(param)
+            #     losses_norm.append(norm)
+            #     loss_sum += norm
 
 
             """ 6. optimization and show info """
             loss_sum.backward()
             optimizer.step()
             pbar.update(1)
-            pbar.set_postfix_str(f"elements_loss: {np.mean(losses_elements):.3f}, quat_loss: {np.mean(losses_quat):.3f} (mean: {np.mean(losses):.3f})")
-            # pbar.set_postfix_str(f"Reg_loss: {norm:.3f}, (mean: {np.mean(losses):.3f})")
+            pbar.set_postfix_str(f"elements_loss: {np.mean(losses_elements):.3f}, reg_loss: {np.mean(losses_norm):.3f} (mean: {np.mean(losses):.3f})")
+            # pbar.set_postfix_str(f"elements_loss: {np.mean(losses_elements):.3f}, quat_loss: {np.mean(losses_quat):.3f} (mean: {np.mean(losses):.3f})")
+
 
             """ 7. BVH Writing : writing 형식 (bs, DoF, window)"""
             # Write gt motion for 0 epoch. 
