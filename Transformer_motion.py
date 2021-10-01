@@ -7,7 +7,6 @@ from datasets import get_character_names, create_dataset
 from model import MotionGenerator
 from datasets.bvh_parser import BVH_file
 from datasets.bvh_writer import BVH_writer
-# from models.Kinematics import ForwardKinematics
 import wandb
 from train import *
 
@@ -56,7 +55,7 @@ print("device: ", args.cuda_device)
 """ Changable Parameters """
 # args.is_train = False 
 path = "./parameters/"
-save_name = "210928_transformer3_loss_1e-4/"
+save_name = "211001_transformer0_ff_wo_fk/"
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)
@@ -67,7 +66,7 @@ print("characters:{}".format(characters))
 """ 2.Set Learning Parameters  """
 DoF = train_dataset.GetDoF()
 args.num_joints = int(DoF/4) # 91 = 4 * 22 (+ position 3)
-args.num_motions = len(train_dataset) / 4
+# args.num_motions = len(train_dataset) / 4
 
 """ 3. Train and Test  """
 model = MotionGenerator(args, characters, train_dataset)

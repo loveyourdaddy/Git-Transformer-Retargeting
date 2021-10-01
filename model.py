@@ -323,12 +323,13 @@ class MotionGenerator(nn.Module):
         # Parameters 
         super().__init__()
         self.args = args
-        self.input_dim = args.window_size
-        # self.d_hidn = args.window_size # args.d_hidn
+        self.input_dim = args.window_size        
 
         """ Fully Connected Layer"""
-        # self.fc1 = nn.Linear(self.input_dim, self.d_hidn)
-        # self.fc2 = nn.Linear(self.d_hidn, self.input_dim)
+        self.d_hidn = args.window_size # args.d_hidn
+        self.fc1 = nn.Linear(self.input_dim, self.d_hidn)
+        self.fc2 = nn.Linear(self.d_hidn, self.input_dim)
+
         """ 1d Conv layer """
         # 91 -> 64 -> 91
         # self.conv1 = nn.Conv1d(self.args.DoF, self.args.d_hidn, 1, padding=0) # d_hidn 개의 (output) kernel이 존재, kerner_size=3 # 15, 7
@@ -359,11 +360,11 @@ class MotionGenerator(nn.Module):
         # self.param = self.transformer.parameters() + self.projection.parameters()
 
     """ Fuclly Connected layer Forward"""
-    # def forward(self, enc_inputs, dec_inputs):
-    #     x = self.fc1(enc_inputs)
-    #     x_act = nn.Softmax(dim = -1)(x)
-    #     y = self.fc2(x_act)
-    #     return y
+    def forward(self, enc_inputs, dec_inputs):
+        x = self.fc1(enc_inputs)
+        x_act = nn.Softmax(dim = -1)(x)
+        y = self.fc2(x_act)
+        return y
 
     """ Convolutional network Forward """
     # def forward(self, enc_inputs, dec_inputs):
@@ -384,12 +385,12 @@ class MotionGenerator(nn.Module):
     #     return y
         
     """ Transofrmer """
-    def forward(self, enc_inputs, dec_inputs):
-        dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs= self.transformer(enc_inputs, dec_inputs)
+    # def forward(self, enc_inputs, dec_inputs):
+    #     dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs= self.transformer(enc_inputs, dec_inputs)
         
-        output = self.projection(dec_outputs)
+    #     output = self.projection(dec_outputs)
 
-        return output
+    #     return output
         # , enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
 
     # def parameters(self, recurse: bool) -> Iterator[Parameter]:

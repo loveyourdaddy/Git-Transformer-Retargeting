@@ -35,10 +35,10 @@ class ForwardKinematics:
         new_shape[1] += 1
         new_shape[2] = 1
         rotation_final = identity.repeat(new_shape)
-                    
+
         for i, j in enumerate(self.rotation_map):
             rotation_final[:, j, :, :] = rotation[:, i, :, :]
-            
+
         return self.forward(rotation_final, position, offset, world=world, quater=quater)
 
     '''
@@ -50,13 +50,18 @@ class ForwardKinematics:
     def forward(self, rotation: torch.Tensor, position: torch.Tensor, offset: torch.Tensor, order='xyz', quater=False, world=True):
         if not quater and rotation.shape[-2] != 3: raise Exception('Unexpected shape of rotation')
         if quater and rotation.shape[-2] != 4: raise Exception('Unexpected shape of rotation')
+
         rotation = rotation.permute(0, 3, 1, 2)
         position = position.permute(0, 2, 1)
-        result = torch.empty(rotation.shape[:-1] + (3, ), device=position.device)
+        result = torch.empty(rotation.shape[:-1] + (3, ), device=position.device) # rand
 
         norm = torch.norm(rotation, dim=-1, keepdim=True)
         #norm[norm < 1e-10] = 1
-        rotation = rotation / norm
+
+        # 이게 정말 필요할까요? 
+        # norm 이 0 인 경우는 어떻게 해야할까요?
+        if quater:
+            rotation = rotation / norm
 
         if quater:
             transform = self.transform_from_quaternion(rotation)

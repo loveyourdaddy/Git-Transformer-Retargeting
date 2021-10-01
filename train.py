@@ -2,21 +2,26 @@ import json
 import torch
 import os
 import numpy as np
+from wandb import set_trace
 import option_parser
 from tqdm import tqdm
 
 from datasets.bvh_parser import BVH_file
 from datasets.bvh_writer import BVH_writer
 
+from models.Kinematics import ForwardKinematics
+
 def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_dataset, Files, bvh_writers, characters, save_name):
     losses = [] # losses for 1 epoch 
-    losses_quat = []
-    losses_elements = []
-    losses_norm = []
-    norm = []
+    # losses_quat = []
+    elements_losses = []
+    fk_losses = []
+    # losses_norm = []
+    # norm = []
     model.train()
     args.epoch = epoch
-    
+    character_idx = 0
+
     with tqdm(total=len(train_loader)-1, desc=f"TrainEpoch {epoch}") as pbar:
         save_dir = args.save_dir + save_name
         try_mkdir(save_dir)
@@ -38,13 +43,12 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             num_DoF = gt_motions.size(1)
             num_frame = gt_motions.size(2)
 
+            # Get Character Index
+            motion_idx = i * args.batch_size
+            character_idx = int(motion_idx / args.num_motions)
+
             """ 3. remake root position from displacement and denorm for bvh_writing """
             """ denorm for fk """
-            # Get Character Index
-            motion_idx = int(i * args.batch_size)
-            character_idx = int(motion_idx / args.num_motions)
-            
-            # and denorm
             if args.normalization == 1:
                 denorm_gt_motions = train_dataset.denorm(1, character_idx, gt_motions)
                 denorm_output_motions = train_dataset.denorm(1, character_idx, output_motions)
@@ -67,11 +71,6 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
 
 
             """ 4. Denorm and do FK and set all data """
-            """ Do FK"""
-            # fk = ForwardKinematics(args, Files[1][0].edges)
-            # gt_transform  = fk.forward_from_raw(denorm_gt_motions, train_dataset.offsets[1][0]).detach().reshape(num_bs, -1, num_frame)
-            # output_transform = fk.forward_from_raw(denorm_output_motions, train_dataset.offsets[1][0]).detach().reshape(num_bs, -1, num_frame)
-            
             """ set dataset """
             # gt_all = torch.cat((gt_motions, gt_transform), dim=1)
             # output_all = torch.cat((output_motions, output_transform), dim=1)
@@ -79,8 +78,9 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             # num_total_DoF = gt_all.size(1)
                        
             """ 5. Get loss (orienation & FK & regularization) """
-            gt = denorm_gt_motions.transpose(1,2)
-            output = denorm_output_motions.transpose(1,2) # (128,91)
+            # transpose for quaternion loss
+            # gt = denorm_gt_motions.transpose(1,2)
+            # output = denorm_output_motions.transpose(1,2) # (128,91)
             loss_sum = 0
 
             """ 5-1. loss on each element """
@@ -88,9 +88,8 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
                 for j in range(num_DoF):
                     loss = criterion(gt_motions[m][j], output_motions[m][j])
                     loss_sum += loss
-                    losses_elements.append(loss.item())
                     losses.append(loss.item())
-
+                    elements_losses.append(loss.item())
 
             # """ 5-2. position loss on root """
             # gt_pos = gt[:, :, :3]
@@ -104,40 +103,57 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
 
             """ 5-3. quatnion loss on rotation  """
             # GT: 1.rot 부분만 detach -> 2. quat 으로 만들어주기 -> 3. inverse
-            if args.rotation == 'Quaternion':
-                gt_rot = gt[:, :, :-3]
-                gt_rot_hat = gt_rot.reshape(gt.size(0), gt.size(1), 4, -1)
-                gt_rot_hat[:, :, 1:4, :] = -1 * gt_rot_hat[:, :, 1:4, :]
-                square_sum = torch.sum(torch.square(gt_rot_hat), dim=2).unsqueeze(dim=2)
-                gt_rot_hat = (1 / square_sum) * gt_rot_hat
+            # if args.rotation == 'Quaternion':
+            #     gt_rot = gt[:, :, :-3]
+            #     gt_rot_hat = gt_rot.reshape(gt.size(0), gt.size(1), 4, -1)
+            #     gt_rot_hat[:, :, 1:4, :] = -1 * gt_rot_hat[:, :, 1:4, :]
+            #     square_sum = torch.sum(torch.square(gt_rot_hat), dim=2).unsqueeze(dim=2)
+            #     gt_rot_hat = (1 / square_sum) * gt_rot_hat
 
-                # output motion 
-                output_rot = output[:, :, :-3]
-                output_rot = output_rot.reshape(gt.size(0), gt.size(1), 4, -1)
+            #     # output motion 
+            #     output_rot = output[:, :, :-3]
+            #     output_rot = output_rot.reshape(gt.size(0), gt.size(1), 4, -1)
 
-                # element-wise multiple
-                q_output = (gt_rot_hat * output_rot).sum(axis=2)
-                ones = torch.ones(gt.size(0), gt.size(1), output_rot.size(-1)).to(args.cuda_device)
-                for m in range(num_bs):
-                    for j in range(num_frame):
-                        loss = criterion(q_output[m][j], ones[m][j])
-                        loss_sum += loss
-                        losses.append(loss.item())
-                        losses_quat.append(loss.item())
+            #     # element-wise multiple
+            #     q_output = (gt_rot_hat * output_rot).sum(axis=2)
+            #     ones = torch.ones(gt.size(0), gt.size(1), output_rot.size(-1)).to(args.cuda_device)
+            #     for m in range(num_bs):
+            #         for j in range(num_frame):
+            #             loss = criterion(q_output[m][j], ones[m][j])
+            #             loss_sum += loss
+            #             losses.append(loss.item())
+            #             losses_quat.append(loss.item())
         
-            """ 5-4. Regularization Loss Term """
+            """ 5-4. Regularization Loss Ter가 """
             # norm = torch.as_tensor(0.).cuda()
             # for param in model.parameters():
             #     norm += torch.norm(param)
             #     losses_norm.append(norm)
             #     loss_sum += norm
 
+            """ 5-5. FK loss """
+            """ Do FK"""
+            # fk = ForwardKinematics(args, Files[1][0].edges)
+            # gt_transform  = fk.forward_from_raw(denorm_gt_motions, train_dataset.offsets[1][0]).reshape(num_bs, -1, num_frame)
+            # output_transform = fk.forward_from_raw(denorm_output_motions, train_dataset.offsets[1][0]).reshape(num_bs, -1, num_frame)
+
+            # for m in range(num_bs):
+            #     for j in range (num_DoF):
+            #         loss = criterion(gt_transform[m][j], output_transform[m][j])
+            #         loss_sum += loss
+            #         losses.append(loss.item())
+            #         fk_losses.append(loss.item())
+
+            """ 5-6. smoothing loss """
+            # for m in range(num_bs):
+            #     for j in range(num_DoF):
+            #         loss 
 
             """ 6. optimization and show info """
             loss_sum.backward()
             optimizer.step()
             pbar.update(1)
-            pbar.set_postfix_str(f"elements_loss: {np.mean(losses_elements):.3f}, reg_loss: {np.mean(losses_norm):.3f} (mean: {np.mean(losses):.3f})")
+            pbar.set_postfix_str(f"elements_loss: {np.mean(elements_losses):.3f}, fk_loss: {np.mean(fk_losses):.3f} (mean: {np.mean(losses):.3f})")
             # pbar.set_postfix_str(f"elements_loss: {np.mean(losses_elements):.3f}, quat_loss: {np.mean(losses_quat):.3f} (mean: {np.mean(losses):.3f})")
 
 

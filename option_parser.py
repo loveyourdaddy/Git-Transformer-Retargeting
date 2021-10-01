@@ -21,14 +21,14 @@ def get_parser():
     parser.add_argument('--n_epoch', type=int, default=1000) # duplicated 
 
     # Dataset
-    parser.add_argument('--rotation', type=str, default='xyz', help='representatio0 of rotation:euler_angle, quaternion')
-    parser.add_argument('--data_augment', type=int, default=0, help='data_augment: 1 or 0') # 1
+    parser.add_argument('--rotation', type=str, default='xyz', help='representatio0 of rotation:xyz, quaternion')
     parser.add_argument('--normalization', type=int, default = 1)
+    parser.add_argument('--add_offset', type=int, default=1, help='concat offset in dataset')
     parser.add_argument('--position_encoding', type=int, default = 0, help='positional encoding')
     parser.add_argument('--root_pos_disp', type=int, default = 1, help='represent root pos as displacement')
+    parser.add_argument('--data_augment', type=int, default=0, help='data_augment: 1 or 0') # 1
     parser.add_argument('--num_motions', type=int, default=1) # num motions for_character. dummy value 1 
-    parser.add_argument('--add_offset', type=int, default=1, help='concat offset in dataset')
-    
+        
     # Network
     parser.add_argument('--d_hidn', type=int, default=256) # embedding dimenstion: 256
     parser.add_argument('--num_layers', type=int, default=2, help='number of layers')
