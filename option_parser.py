@@ -11,7 +11,7 @@ def get_parser():
     parser.add_argument('--is_valid', type=int, default=0)
 
     # learning parameter 
-    parser.add_argument('--learning_rate', type=float, default=1e-4, help='learning rate') # 2e-4 # 5e-5
+    parser.add_argument('--learning_rate', type=float, default=3e-4, help='learning rate') # 2e-4 # 5e-5
     parser.add_argument('--weight_decay', type=float, default=1)
     parser.add_argument('--alpha', type=float, default=0, help='penalty of sparsity')
     parser.add_argument('--upsampling', type=str, default='linear', help="'stride2' or 'nearest', 'linear'")
@@ -38,7 +38,7 @@ def get_parser():
     parser.add_argument('--root_weight', type=int, default=10, help='weighted loss for root displacement')
     parser.add_argument('--window_size', type=int, default=128, help='length of time axis per window')
     parser.add_argument('--batch_size', type=int, default=4, help='batch_size')
-    parser.add_argument('--epoch', type=int, default=0, help='current_epoch')
+    # parser.add_argument('--epoch', type=int, default=0, help='current_epoch')
 
     # 필요없는건 지웁시다 from skeleton aware  
     parser.add_argument('--kernel_size', type=int, default=15, help='must be odd')

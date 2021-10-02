@@ -133,16 +133,16 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
 
             """ 5-5. FK loss """
             """ Do FK"""
-            # fk = ForwardKinematics(args, Files[1][0].edges)
-            # gt_transform  = fk.forward_from_raw(denorm_gt_motions, train_dataset.offsets[1][0]).reshape(num_bs, -1, num_frame)
-            # output_transform = fk.forward_from_raw(denorm_output_motions, train_dataset.offsets[1][0]).reshape(num_bs, -1, num_frame)
+            fk = ForwardKinematics(args, Files[1][0].edges)
+            gt_transform  = fk.forward_from_raw(denorm_gt_motions, train_dataset.offsets[1][0]).reshape(num_bs, -1, num_frame)
+            output_transform = fk.forward_from_raw(denorm_output_motions, train_dataset.offsets[1][0]).reshape(num_bs, -1, num_frame)
 
-            # for m in range(num_bs):
-            #     for j in range (num_DoF):
-            #         loss = criterion(gt_transform[m][j], output_transform[m][j])
-            #         loss_sum += loss
-            #         losses.append(loss.item())
-            #         fk_losses.append(loss.item())
+            for m in range(num_bs):
+                for j in range (num_DoF):
+                    loss = criterion(gt_transform[m][j], output_transform[m][j])
+                    loss_sum += loss
+                    losses.append(loss.item())
+                    fk_losses.append(loss.item())
 
             """ 5-6. smoothing loss """
             # for m in range(num_bs):
@@ -183,7 +183,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             torch.cuda.empty_cache()
             del gt_motions, enc_inputs, dec_inputs
     
-    return np.mean(losses)
+    return np.mean(elements_losses), np.mean(fk_losses), np.mean(losses)
 
 """ eval """
 def eval_epoch(args, model, data_loader):

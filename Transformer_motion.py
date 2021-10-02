@@ -55,7 +55,7 @@ print("device: ", args.cuda_device)
 """ Changable Parameters """
 # args.is_train = False 
 path = "./parameters/"
-save_name = "211001_transformer0_ff_wo_fk/"
+save_name = "211002_transformer1_with_fk_3e-3/"
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)
@@ -93,7 +93,9 @@ for i in range(len(characters)):
 if args.is_train == 1:
     print("cuda device: ", args.cuda_device)
     for epoch in range(args.n_epoch):
-        loss = train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_dataset, Files, BVHWriters, characters, save_name) # target_characters
+        ele_loss, fk_loss, loss = train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_dataset, Files, BVHWriters, characters, save_name) # target_characters
+        wandb.log({"ele_loss": ele_loss})
+        wandb.log({"fk_loss": fk_loss})
         wandb.log({"loss": loss})
         save(model, path + save_name, epoch)
 
