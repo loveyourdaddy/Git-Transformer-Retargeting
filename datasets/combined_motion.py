@@ -52,10 +52,11 @@ class MixedData(Dataset):
         all_datas = []
         encoded_all_datas = []
         self.position_encoding = args.position_encoding
+        self.offsets_group = []
 
         self.split_index = []
         # all_datas : (2 groups, 4 characters, 106 motions, 913 frames, rot and pos of 91 joints)
-        for group, datasets in enumerate(datasets_groups):
+        for group, datasets in enumerate(datasets_groups): # names 
             offsets_group = []
             means_group = []
             vars_group = []
@@ -99,6 +100,8 @@ class MixedData(Dataset):
 
             offsets_group = torch.cat(offsets_group, dim=0)
             offsets_group = offsets_group.to(device)
+            self.offsets_group.append(offsets_group)
+
             # (4,1,91,1 -> 4,91,1)
             means_group = torch.cat(means_group, dim=0).to(device)
             vars_group = torch.cat(vars_group, dim=0).to(device)
@@ -116,19 +119,19 @@ class MixedData(Dataset):
             offsets = torch.zeros(0)
 
             """ option for add_offset """
-            if args.add_offset:
-                offsets = self.offsets[group_idx]
-                # (4,23,3) -> (4,69) -> (4,51,69)
-                num_motions =  len(all_datas[0][0])
-                num_frames = len(all_datas[0][0][0][-1])
-                offsets = torch.reshape(offsets, (offsets.size(0), -1)).unsqueeze(1).unsqueeze(-1).expand( -1, num_motions, -1, num_frames)
+            # if args.add_offset:
+            #     offsets = self.offsets[group_idx]
+            #     # (4,23,3) -> (4,69) -> (4,51,69)
+            #     num_motions =  len(all_datas[0][0])
+            #     num_frames = len(all_datas[0][0][0][-1])
+            #     offsets = torch.reshape(offsets, (offsets.size(0), -1)).unsqueeze(1).unsqueeze(-1).expand( -1, num_motions, -1, num_frames)
 
             # for each character in a group
             max_length = int( len(datasets[0]) / args.batch_size) * args.batch_size # 48
             args.num_motions = max_length
             for character_idx, dataset in enumerate(datasets):
-                if args.add_offset:
-                    dataset = torch.cat([dataset[:], offsets[character_idx].cpu()], dim=-2)
+                # if args.add_offset:
+                #     dataset = torch.cat([dataset[:], offsets[character_idx].cpu()], dim=-2)
 
                 motions.append(dataset[:max_length])
                 skeleton_idx += [pt] * len(dataset)
@@ -181,6 +184,9 @@ class MixedData(Dataset):
         DoF = len(self.final_data[0][0])
         print(f"Dof : {DoF}")
         return DoF
+
+    def GetOffsets(self):
+        return self.offsets_group
 
     def __len__(self):
         # total motion length for every character (4 * 106 = 424)

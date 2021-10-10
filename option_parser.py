@@ -11,7 +11,7 @@ def get_parser():
     parser.add_argument('--is_valid', type=int, default=0)
 
     # learning parameter 
-    parser.add_argument('--learning_rate', type=float, default=3e-4, help='learning rate') # 2e-4 # 5e-5
+    parser.add_argument('--learning_rate', type=float, default=5e-4, help='learning rate') # 2e-4 # 5e-5
     parser.add_argument('--weight_decay', type=float, default=1)
     parser.add_argument('--alpha', type=float, default=0, help='penalty of sparsity')
     parser.add_argument('--upsampling', type=str, default='linear', help="'stride2' or 'nearest', 'linear'")

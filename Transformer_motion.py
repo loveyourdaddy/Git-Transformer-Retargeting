@@ -55,21 +55,24 @@ print("device: ", args.cuda_device)
 """ Changable Parameters """
 # args.is_train = False 
 path = "./parameters/"
-save_name = "211002_transformer1_with_fk_3e-3/"
+save_name = "211009_joint_offset/"
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)
 train_dataset = create_dataset(args, characters)
 train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=motion_collate_fn)
+# get offset of characters
+offsets = train_dataset.GetOffsets()
 print("characters:{}".format(characters))
 
 """ 2.Set Learning Parameters  """
 DoF = train_dataset.GetDoF()
 args.num_joints = int(DoF/4) # 91 = 4 * 22 (+ position 3)
+args.input_size = args.window_size + 1 # add offset
 # args.num_motions = len(train_dataset) / 4
 
 """ 3. Train and Test  """
-model = MotionGenerator(args, characters, train_dataset)
+model = MotionGenerator(args, offsets) # ,characters, train_dataset
 model.to(args.cuda_device)
 wandb.watch(model)
 

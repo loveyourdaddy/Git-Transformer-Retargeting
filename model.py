@@ -36,14 +36,13 @@ class ScaledDotProductAttention(nn.Module):
         
         context = torch.matmul(attn_prob, V)
 
-        # import pdb; pdb.set_trace()
         # context:(bs, n_head, window, DoF) attn_prob (bs, n_head, window, window)
         return context, attn_prob
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, args):
         super().__init__()
-        self.input_dim = args.window_size
+        self.input_dim = args.input_size
 
         # head parameters
         self.d_head = args.d_head
@@ -92,7 +91,7 @@ class MultiHeadAttention(nn.Module):
 class PositionFeedForwardNet(nn.Module):
     def __init__(self, args):
         super().__init__()
-        self.input_dim = args.window_size
+        self.input_dim = args.input_size
         self.linear1 = nn.Linear(in_features = self.input_dim,     out_features = self.input_dim * 4)
         self.linear2 = nn.Linear(in_features = self.input_dim * 4, out_features = self.input_dim) # 1프레임마다 1개의 feature을 추출합니다. 
         self.active = F.gelu
@@ -111,7 +110,7 @@ class EncoderLayer(nn.Module):
         super().__init__()
         # animation parameters
         self.args = args
-        self.input_dim = args.window_size
+        self.input_dim = args.input_size
         self.layer_norm_epsilon = args.layer_norm_epsilon
 
         # Layers
@@ -140,7 +139,7 @@ class DecoderLayer(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.args = args
-        self.input_dim = args.window_size
+        self.input_dim = args.input_size
 
         self.self_attn = MultiHeadAttention(self.args)
         self.layer_norm1 = nn.LayerNorm(self.input_dim, eps=self.args.layer_norm_epsilon)
@@ -185,34 +184,46 @@ def get_sinusoid_encoding_table(n_seq, d_hidn):
     # (DoF+1 , 32): each 프레임(int)들을 32dim의 float으로 나타냅니다
     return sinusoid_table
 
+""" Mask """
+# seq k에서 0인 부분을 <pad>
 def get_attn_pad_mask(seq_q, seq_k, i_pad):
     # seq: (bs, window, DoF)
-
-    # seq k에서 0인 부분을 <pad>
     valueTensor = torch.bmm(seq_q, seq_k.transpose(1,2)) # batch matrix mult
     pad_attn_mask = valueTensor.data.eq(i_pad)
 
     # (bs,window,window)
     return pad_attn_mask
 
+""" attention decoder mask: 현재단어와 이전단어는 볼 수 있고 다음단어는 볼 수 없도록 Masking 합니다. """
+def get_attn_decoder_mask(seq):
+    seq_tensor = torch.matmul(seq, seq.transpose(1,2))
+    subsequent_mask = seq_tensor.triu(diagonal=1) 
+    # subsequent_mask = torch.unsqueeze(subsequent_mask, 0)
+
+    return subsequent_mask
+
+
 """ Encoder & Decoder """
 class Encoder(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args, offset):
         super().__init__()
         self.args = args
         self.batch_size = args.batch_size
-        # self.DoF = args.DoF
-        # self.window_size = args.window_size
-        self.input_dim = args.window_size
+        self.input_dim = args.input_size
+        self.offset = offset
 
         """ Layer """
         self.layers = nn.ModuleList([EncoderLayer(self.args) for _ in range(self.args.n_layer)])
         self.fc1 = nn.Linear(self.input_dim, self.input_dim) 
 
-    def forward(self, inputs):
-        # (bs, length of frames, joints): (4, 91, 64)
+    # (bs, length of frames, joints): (4, 91, 64) # 4개의 bs 에 대해서 모두 동일한 character index을 가지고 있다. 
+    def forward(self, input_character, inputs):
+        """ option for add_offset """
+        if self.args.add_offset:
+            offset = self.offset[input_character]
+            offset = torch.reshape(offset, (-1,1)).unsqueeze(0).expand(inputs.size(0), -1, -1)
+            inputs = torch.cat([inputs, offset], dim=-1)
 
-        # (bs, DoF, window)
         outputs = self.fc1(inputs)
         # outputs = outputs + positions
         # outputs = self.fc1(outputs)
@@ -238,25 +249,13 @@ class Encoder(nn.Module):
         
         return outputs, attn_probs, context
 
-""" attention decoder mask: 현재단어와 이전단어는 볼 수 있고 다음단어는 볼 수 없도록 Masking 합니다. """
-def get_attn_decoder_mask(seq): 
-
-    # for conv2d 
-    # seq = torch.squeeze(seq, 0)    
-
-    seq_tensor = torch.matmul(seq, seq.transpose(1,2))
-    subsequent_mask = seq_tensor.triu(diagonal=1) 
-
-    # subsequent_mask = torch.unsqueeze(subsequent_mask, 0)
-    
-    return subsequent_mask
-
 class Decoder(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args, offset):
         super().__init__()
         self.args = args
-        self.input_dim = args.window_size
+        self.input_dim = args.input_size
         self.d_hidn = args.d_hidn
+        self.offset = offset
 
         # self.dec_input_emb = nn.Embedding(self.DoF, self.args.d_hidn)
         sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(self.input_dim + 1, self.args.d_hidn))
@@ -266,11 +265,17 @@ class Decoder(nn.Module):
         self.layers = nn.ModuleList([DecoderLayer(self.args) for _ in range(self.args.n_layer)])
         self.fc1 = nn.Linear(self.input_dim, self.input_dim)
 
-    def forward(self, dec_inputs, enc_inputs, enc_outputs):
-        """ 연산 """
-        # (bs, DoF, d_hidn)
-        dec_outputs = self.fc1(dec_inputs)
+    # (bs, DoF, d_hidn)
+    def forward(self, output_character, dec_inputs, enc_inputs, enc_outputs):
+    
+        if self.args.add_offset:
+            offset = self.offset[output_character]
+            offset = torch.reshape(offset, (-1,1)).unsqueeze(0).expand(dec_inputs.size(0), -1, -1)
+            enc_inputs = torch.cat([enc_inputs, offset], dim=-1)
+            dec_inputs = torch.cat([dec_inputs, offset], dim=-1)                        
+
         # dec_outputs = dec_outputs + positions
+        dec_outputs = self.fc1(dec_inputs)
         
         """ Transpose for window """
         # (bs, DoF, window) -> (bs, window, DoF) (4,128,91)
@@ -302,33 +307,33 @@ class Decoder(nn.Module):
 
 """ Transoformer Model """    
 class Transformer(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args, offsets):
         super().__init__()
         self.args = args
-        self.encoder = Encoder(args)
-        self.decoder = Decoder(args)
+        self.encoder = Encoder(args, offsets[0])
+        self.decoder = Decoder(args, offsets[1])
     
-    def forward(self, enc_inputs, dec_inputs):
+    def forward(self, input_character, output_character, enc_inputs, dec_inputs):
         # input: (bs, window, DoF), output: (bs, window, DoF)
-        enc_outputs, enc_self_attn_probs, context = self.encoder(enc_inputs)
+        enc_outputs, enc_self_attn_probs, context = self.encoder(input_character, enc_inputs)
         
         # input: (bs, window, DoF), output: (bs, window, DoF)
-        dec_outputs, dec_self_attn_probs, dec_enc_attn_probs = self.decoder(dec_inputs, enc_inputs, enc_outputs)
+        dec_outputs, dec_self_attn_probs, dec_enc_attn_probs = self.decoder(output_character, dec_inputs, enc_inputs, enc_outputs)
 
         return dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
         
 
 class MotionGenerator(nn.Module):
-    def __init__(self, args, character_names, dataset):
+    def __init__(self, args, offsets): # character_names, dataset
         # Parameters 
         super().__init__()
         self.args = args
-        self.input_dim = args.window_size        
+        self.input_dim = args.input_size        
 
         """ Fully Connected Layer"""
-        self.d_hidn = args.window_size # args.d_hidn
-        self.fc1 = nn.Linear(self.input_dim, self.d_hidn)
-        self.fc2 = nn.Linear(self.d_hidn, self.input_dim)
+        # self.d_hidn = args.window_size # args.d_hidn
+        # self.fc1 = nn.Linear(self.input_dim, self.d_hidn)
+        # self.fc2 = nn.Linear(self.d_hidn, self.input_dim)
 
         """ 1d Conv layer """
         # 91 -> 64 -> 91
@@ -354,7 +359,7 @@ class MotionGenerator(nn.Module):
 
         """ Transformer """
         # layers
-        self.transformer = Transformer(args)
+        self.transformer = Transformer(args, offsets)
         self.projection = nn.Linear(self.input_dim, self.input_dim)
         # self.projection = nn.Conv1d(self.input_dim, self.input_dim, kernel_size=1, padding=0)
         # self.param = self.transformer.parameters() + self.projection.parameters()
@@ -385,8 +390,8 @@ class MotionGenerator(nn.Module):
     #     return y
         
     """ Transofrmer """
-    def forward(self, enc_inputs, dec_inputs):
-        dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs= self.transformer(enc_inputs, dec_inputs)
+    def forward(self, input_character, output_character, enc_inputs, dec_inputs):
+        dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = self.transformer(input_character, output_character, enc_inputs, dec_inputs)
         
         output = self.projection(dec_outputs)
 

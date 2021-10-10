@@ -12,7 +12,7 @@ from datasets.bvh_writer import BVH_writer
 from models.Kinematics import ForwardKinematics
 
 def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_dataset, Files, bvh_writers, characters, save_name):
-    losses = [] # losses for 1 epoch 
+    losses = [] # losses for 1 epoch
     # losses_quat = []
     elements_losses = []
     fk_losses = []
@@ -31,21 +31,24 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             """ 1. Get Data and Set value to model and Get output """
             input_motions, gt_motions = map(lambda v : v.to(args.cuda_device), value)
             enc_inputs, dec_inputs = input_motions, input_motions
-            output_motions = model(enc_inputs, dec_inputs)
-            
-            """ 1'. remove offset part """
-            num_joint = int(output_motions.size(1)/2)
-            output_motions = output_motions[:, :num_joint,:]
-            gt_motions = gt_motions[:, :num_joint, :]
-            
-            """ 2. Get numbers """
+
+            """ 1'. Get Data numbers """
             num_bs = gt_motions.size(0)
             num_DoF = gt_motions.size(1)
             num_frame = gt_motions.size(2)
 
-            # Get Character Index
             motion_idx = i * args.batch_size
             character_idx = int(motion_idx / args.num_motions)
+
+            """ 1''. feed to network"""
+            input_character, output_character = character_idx, character_idx
+            output_motions = model(input_character, output_character, enc_inputs, dec_inputs)
+
+            """ 2. remove offset part """
+            output_motions = output_motions[:,:,:num_frame]
+            # num_joint = int(output_motions.size(1)/2)
+            # output_motions = output_motions[:, :num_joint,:]
+            # gt_motions = gt_motions[:, :num_joint, :]
 
             """ 3. remake root position from displacement and denorm for bvh_writing """
             """ denorm for fk """
@@ -58,7 +61,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
 
             """ remake root position """
             # data: (bs, DoF, window)
-            if args.root_pos_disp == 1: 
+            if args.root_pos_disp == 1:
                 for bs in range(num_bs): # dim 0
                     for frame in range(num_frame - 1): # dim 2
                         denorm_gt_motions[bs][num_DoF - 3][frame + 1] += denorm_gt_motions[bs][num_DoF - 3][frame]
@@ -74,9 +77,8 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             """ set dataset """
             # gt_all = torch.cat((gt_motions, gt_transform), dim=1)
             # output_all = torch.cat((output_motions, output_transform), dim=1)
-            """ update DoF """
-            # num_total_DoF = gt_all.size(1)
-                       
+
+
             """ 5. Get loss (orienation & FK & regularization) """
             # transpose for quaternion loss
             # gt = denorm_gt_motions.transpose(1,2)
@@ -110,7 +112,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             #     square_sum = torch.sum(torch.square(gt_rot_hat), dim=2).unsqueeze(dim=2)
             #     gt_rot_hat = (1 / square_sum) * gt_rot_hat
 
-            #     # output motion 
+            #     # output motion
             #     output_rot = output[:, :, :-3]
             #     output_rot = output_rot.reshape(gt.size(0), gt.size(1), 4, -1)
 
@@ -123,7 +125,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             #             loss_sum += loss
             #             losses.append(loss.item())
             #             losses_quat.append(loss.item())
-        
+
             """ 5-4. Regularization Loss Ter가 """
             # norm = torch.as_tensor(0.).cuda()
             # for param in model.parameters():
@@ -133,21 +135,21 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
 
             """ 5-5. FK loss """
             """ Do FK"""
-            fk = ForwardKinematics(args, Files[1][0].edges)
-            gt_transform  = fk.forward_from_raw(denorm_gt_motions, train_dataset.offsets[1][0]).reshape(num_bs, -1, num_frame)
-            output_transform = fk.forward_from_raw(denorm_output_motions, train_dataset.offsets[1][0]).reshape(num_bs, -1, num_frame)
+            # fk = ForwardKinematics(args, Files[1][0].edges)
+            # gt_transform  = fk.forward_from_raw(denorm_gt_motions, train_dataset.offsets[1][0]).reshape(num_bs, -1, num_frame)
+            # output_transform = fk.forward_from_raw(denorm_output_motions, train_dataset.offsets[1][0]).reshape(num_bs, -1, num_frame)
 
-            for m in range(num_bs):
-                for j in range (num_DoF):
-                    loss = criterion(gt_transform[m][j], output_transform[m][j])
-                    loss_sum += loss
-                    losses.append(loss.item())
-                    fk_losses.append(loss.item())
+            # for m in range(num_bs):
+            #     for j in range (num_DoF):
+            #         loss = criterion(gt_transform[m][j], output_transform[m][j])
+            #         loss_sum += loss
+            #         losses.append(loss.item())
+            #         fk_losses.append(loss.item())
 
             """ 5-6. smoothing loss """
             # for m in range(num_bs):
             #     for j in range(num_DoF):
-            #         loss 
+            #         loss
 
             """ 6. optimization and show info """
             loss_sum.backward()
@@ -158,7 +160,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
 
 
             """ 7. BVH Writing : writing 형식 (bs, DoF, window)"""
-            # Write gt motion for 0 epoch. 
+            # Write gt motion for 0 epoch.
             if epoch == 0:
                 save_dir_gt = save_dir + "character_{}/gt/".format(character_idx)
                 try_mkdir(save_dir_gt)
@@ -179,10 +181,10 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
                     file_name = save_dir_output + "motion_{}.bvh".format(int(motion_idx % args.num_motions + j))
                     motion = denorm_output_motions[j]
                     bvh_writer.write_raw(motion, args.rotation, file_name)
-            
+
             torch.cuda.empty_cache()
             del gt_motions, enc_inputs, dec_inputs
-    
+
     return np.mean(elements_losses), np.mean(fk_losses), np.mean(losses)
 
 """ eval """
@@ -193,10 +195,10 @@ def eval_epoch(args, model, data_loader):
 
     # save_dir = "./output/eval_result/"
     # try_mkdir(save_dir)
-    # save output of eval 
+    # save output of eval
 
     # validation set: included on training dataset, test set: not on training dataset
-    with tqdm(total=len(data_loader), desc=f"TestSet") as pbar: 
+    with tqdm(total=len(data_loader), desc=f"TestSet") as pbar:
         for i, value in enumerate(data_loader):
             input_motion, gt_motions = map(lambda v : v.to(args.cuda_device), value)
             enc_inputs, dec_inputs = input_motion, input_motion
@@ -205,7 +207,7 @@ def eval_epoch(args, model, data_loader):
             logits = outputs[0]
 
             pbar.update(1)
-            
+
             torch.cuda.empty_cache()
             del enc_inputs, dec_inputs
 
