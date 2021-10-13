@@ -1,5 +1,7 @@
 from torch.utils.data import Dataset
 import copy
+
+from wandb import set_trace
 from datasets.motion_dataset import MotionData
 import os
 import numpy as np
@@ -8,7 +10,9 @@ from datasets.bvh_parser import BVH_file
 from option_parser import get_std_bvh
 from datasets import get_test_set
 from datasets import get_validation_set
-
+import sys
+sys.path.append("./utils")
+from Quaternions import Quaternions
 
 class MixedData0(Dataset):
     """ Mixed data for many skeletons but one topologies """
@@ -26,11 +30,9 @@ class MixedData0(Dataset):
     def __getitem__(self, item):
         if self.args.data_augment == 0 or torch.rand(1) < 0.5:
             return self.motions[item]
-            # return [self.motions[item], self.skeleton_idx[item]]
         else:
             print("reversed MixedData0")
             return self.motions_reverse[item]
-            # return [self.motions_reverse[item], self.skeleton_idx[item]]
 
 
 """ MixedData:  """
@@ -47,10 +49,8 @@ class MixedData(Dataset):
         self.means = []
         self.vars = []
         dataset_num = 0
-        seed = 19260817
         total_length = 10000000
         all_datas = []
-        encoded_all_datas = []
         self.position_encoding = args.position_encoding
         self.offsets_group = []
 
@@ -62,8 +62,7 @@ class MixedData(Dataset):
             vars_group = []
             dataset_num += len(datasets)
             motion_data = []
-            encoded_motion_data = []
-            
+
             # for each character in a group
             for i, dataset in enumerate(datasets):
                 new_args = copy.copy(args)
@@ -71,8 +70,8 @@ class MixedData(Dataset):
                 new_args.dataset = dataset
 
                 motion_data.append(MotionData(new_args, 0))
-                # encoded_motion_data.append(MotionData(new_args, self.position_encoding)) # positional encoding paramerization
-                # tmp : 4 character, 106 motions, 913 frames, 111 rot + pos
+                total_length = min(total_length, len(motion_data[-1]))
+                # 4 character, 106 motions, 913 frames, 111 rot + pos
 
                 mean = np.load('./datasets/Mixamo/mean_var/{}_mean.npy'.format(dataset))
                 var = np.load('./datasets/Mixamo/mean_var/{}_var.npy'.format(dataset))
@@ -88,15 +87,13 @@ class MixedData(Dataset):
                 if i == 0:
                     self.joint_topologies.append(file.topology)
                     self.ee_ids.append(file.get_ee_id())
+
                 new_offset = file.offset
                 new_offset = torch.tensor(new_offset, dtype=torch.float)
                 new_offset = new_offset.reshape((1,) + new_offset.shape)
                 offsets_group.append(new_offset)
 
-                total_length = min(total_length, len(motion_data[-1]))
-                
             all_datas.append(motion_data)
-            # encoded_all_datas.append(encoded_motion_data)
 
             offsets_group = torch.cat(offsets_group, dim=0)
             offsets_group = offsets_group.to(device)
@@ -116,23 +113,11 @@ class MixedData(Dataset):
             pt = 0
             motions = []
             skeleton_idx = []
-            offsets = torch.zeros(0)
-
-            """ option for add_offset """
-            # if args.add_offset:
-            #     offsets = self.offsets[group_idx]
-            #     # (4,23,3) -> (4,69) -> (4,51,69)
-            #     num_motions =  len(all_datas[0][0])
-            #     num_frames = len(all_datas[0][0][0][-1])
-            #     offsets = torch.reshape(offsets, (offsets.size(0), -1)).unsqueeze(1).unsqueeze(-1).expand( -1, num_motions, -1, num_frames)
 
             # for each character in a group
             max_length = int( len(datasets[0]) / args.batch_size) * args.batch_size # 48
             args.num_motions = max_length
             for character_idx, dataset in enumerate(datasets):
-                # if args.add_offset:
-                #     dataset = torch.cat([dataset[:], offsets[character_idx].cpu()], dim=-2)
-
                 motions.append(dataset[:max_length])
                 skeleton_idx += [pt] * len(dataset)
                 pt += 1
@@ -140,66 +125,24 @@ class MixedData(Dataset):
             # (4,106, 91, 913) -> (424, 91, 913),  (4,51,138,128) -> (204,138,128)
             motions = torch.cat(motions, dim=0)
             self.length = motions.size(0)
-            # if self.length != 0 and self.length != len(skeleton_idx): # length : num of total motions for 4 characters 
-            #     self.length = min(self.length, len(skeleton_idx))
-            # else:
-            #     self.length = len(skeleton_idx)
 
+            import pdb; pdb.set_trace()
             self.final_data.append(MixedData0(args, motions, skeleton_idx))
-
-        # """ Get encoded input_data """
-        # for datasets in encoded_all_datas:
-        #     pt = 0
-        #     motions = []
-        #     skeleton_idx = []
-
-        #     # for each character in a group
-        #     for i, dataset in enumerate(datasets):
-        #         """ option for add_offset """
-        #         import pdb; pdb.set_trace()
-
-        #         if args.add_offset:
-        #             datasets = torch.cat(dataset, self.offsets[i])
-
-        #         motions.append(dataset[:])
-        #         skeleton_idx += [pt] * len(dataset)
-        #         pt += 1
-
-        #     # (4,106, 91, 913) -> (424, 91, 913)
-        #     motions = torch.cat(motions, dim=0)
-        #     # length : num of total motions for 4 characters 
-        #     if self.length != 0 and self.length != len(skeleton_idx):
-        #         self.length = min(self.length, len(skeleton_idx))
-        #     else:
-        #         self.length = len(skeleton_idx)
-
-        #     self.encoded_final_data.append(MixedData0(args, motions, skeleton_idx))
 
     def denorm(self, gid, pid, data):
         means = self.means[gid][pid, ...]
         var = self.vars[gid][pid, ...]
         return data * var + means
 
-    def GetDoF(self):
-        DoF = len(self.final_data[0][0])
-        print(f"Dof : {DoF}")
-        return DoF
-
-    def GetOffsets(self):
-        return self.offsets_group
+    def get_offsets(self):
+        return self.offsets
 
     def __len__(self):
-        # total motion length for every character (4 * 106 = 424)
         return self.length
 
     def __getitem__(self, item):
         return (torch.as_tensor(self.final_data[0][item].data), # source motion
                 torch.as_tensor(self.final_data[1][item].data)) # target motion
-                  
-        # (input motion, output motion)
-        # return (torch.as_tensor(self.encoded_final_data[0][item].data), # position encoded 
-        #         torch.as_tensor(self.final_data[0][item].data)) # gt
-                  
 
 
 class TestData(Dataset):
@@ -214,6 +157,7 @@ class TestData(Dataset):
         self.args = args
         self.device = torch.device(args.cuda_device)
 
+        # Get offset, mean and var from npy 
         for i, character_group in enumerate(characters):
             mean_group = []
             var_group = []
@@ -222,12 +166,12 @@ class TestData(Dataset):
                 file = BVH_file(get_std_bvh(dataset=character))                
                 if j == 0:
                     self.joint_topologies.append(file.topology)
-                    # print(self.joint_topologies)
                     self.ee_ids.append(file.get_ee_id())
                 new_offset = file.offset
                 new_offset = torch.tensor(new_offset, dtype=torch.float)
                 new_offset = new_offset.reshape((1,) + new_offset.shape)
                 offsets_group.append(new_offset)
+
                 mean = np.load('./datasets/Mixamo/mean_var/{}_mean.npy'.format(character))
                 var = np.load('./datasets/Mixamo/mean_var/{}_var.npy'.format(character))
                 mean = torch.tensor(mean)
@@ -244,174 +188,62 @@ class TestData(Dataset):
             self.var.append(var_group)
             self.offsets.append(offsets_group)
         
+        # data: (bs, DoF, window)
+        example_data = self.get_item(0, 0, 0) # (num_window for 1 motion, Dof, frames)
+        self.num_DoF = example_data.size(1)
+        self.num_frames = example_data.size(2)
 
-    def __getitem__(self, item):
+
+    """ feed test data to network """
+    def __getitem__(self, item): # item character? motin ?
+        num_DoF = self.num_DoF 
+        num_frames = self.num_frames
+
         res = []
-        bad_flag = 0
-        for i, character_group in enumerate(self.characters):            
-            res_group = []
-            ref_shape = None
+        for i, character_group in enumerate(self.characters):
             for j in range(len(character_group)):
-                new_motion =  self.get_item(i, j, item) # self.get_validation_item(i, j, item)
-                if new_motion is not None:                    
-                    new_motion = new_motion.reshape((1, ) + new_motion.shape)                                        
-                    new_motion = (new_motion - self.mean[i][j]) / self.var[i][j]
-                    ref_shape = new_motion                
-                res_group.append(new_motion)                
+                motions = self.get_item(i, j, item) 
+               
+                for m, motion in enumerate(motions):
+                    # save root position as displacement 
+                    if self.args.root_pos_disp == 1:
+                        for frame in range(num_frames - 1):
+                            motion[num_DoF - 3][frame] = motion[num_DoF - 3][frame + 1] - motion[num_DoF - 3][frame]
+                            motion[num_DoF - 2][frame] = motion[num_DoF - 2][frame + 1] - motion[num_DoF - 2][frame]
+                            motion[num_DoF - 1][frame] = motion[num_DoF - 1][frame + 1] - motion[num_DoF - 1][frame]
+                        motion[num_DoF - 3][num_frames - 1] = 0
+                        motion[num_DoF - 2][num_frames - 1] = 0
+                        motion[num_DoF - 1][num_frames - 1] = 0
 
-
-            if ref_shape is None:
-                print('Bad at {}'.format(item))
-                return None
-            for j in range(len(character_group)):
-                if res_group[j] is None:
-                    bad_flag = 1
-                    res_group[j] = torch.zeros_like(ref_shape)
-            if bad_flag:
-                print('Bad at {}'.format(item))
-                            
-            #print("size: ({}, {}, {}, {})".format(len(res_group), len(res_group[0]), len(res_group[0][0]), len(res_group[0][0][0])))
-            res_group = torch.cat(res_group, dim=0)            
-            res.append([res_group, list(range(len(character_group)))])
+                    # normalization 
+                    if self.args.normalization: 
+                        motion = motion.reshape((1, ) + motion.shape) # add 1 dimension from first  
+                        motion = (motion - self.mean[i][j]) / self.var[i][j]
                 
-        return res
+                    res.append(motion)
+        return res # ret: 하나의 모션을 window 단위로 나눈것. 
+        # return (self.res[0][item], self.res[1][item]) # source motion, target motion
 
     def __len__(self):
         return len(self.file_list)
 
     def get_item(self, gid, pid, id):
         character = self.characters[gid][pid]
-        path = './datasets/Mixamo/{}/'.format(character)           
-        #print("path:", path)     
-        #print("id {}: {}".format(id, self.file_list[id]))
+        path = './datasets/Mixamo/{}/test/'.format(character)           
+
         if isinstance(id, int):
             file = path + self.file_list[id]
         elif isinstance(id, str):
             file = id
-        else:
-            #print(file)
-            raise Exception('Wrong input file type')
         if not os.path.exists(file):
             raise Exception('Cannot find file')
-        file = BVH_file(file)
-        motion = file.to_tensor(quater=self.args.rotation == 'quaternion')
-        motion = motion[:, ::2]
-        length = motion.shape[-1]
-        length = length // 4 * 4
-        return motion[..., :length].to(self.device)
-
-    def denorm(self, gid, pid, data):
-        means = self.mean[gid][pid, ...]
-        var = self.var[gid][pid, ...]
-        return data * var + means
-
-    def normalize(self, gid, pid, data):
-        means = self.mean[gid][pid, ...]
-        var = self.var[gid][pid, ...]
-        return (data - means) / var
-
-class ValidationData(Dataset):
-    def __init__(self, args, characters):
-        self.characters = characters
-        self.file_list = get_validation_set()
-        self.mean = []
-        self.joint_topologies = []
-        self.var = []
-        self.offsets = []
-        self.ee_ids = []
-        self.args = args
-        self.device = torch.device(args.cuda_device)
-
-        print("loading validation data")
-
-        for i, character_group in enumerate(characters):
-            mean_group = []
-            var_group = []
-            offsets_group = []
-            for j, character in enumerate(character_group):
-                file = BVH_file(get_std_bvh(dataset=character))                
-                if j == 0:
-                    self.joint_topologies.append(file.topology)
-                    # print(self.joint_topologies)
-                    self.ee_ids.append(file.get_ee_id())
-                new_offset = file.offset
-                new_offset = torch.tensor(new_offset, dtype=torch.float)
-                new_offset = new_offset.reshape((1,) + new_offset.shape)
-                offsets_group.append(new_offset)
-                mean = np.load('./datasets/Mixamo/mean_var/{}_mean.npy'.format(character)) # validation/
-                var = np.load('./datasets/Mixamo/mean_var/{}_var.npy'.format(character)) # validation/
-                mean = torch.tensor(mean)
-                mean = mean.reshape((1, ) + mean.shape)
-                var = torch.tensor(var)
-                var = var.reshape((1, ) + var.shape)
-                mean_group.append(mean)
-                var_group.append(var)
-
-            mean_group = torch.cat(mean_group, dim=0).to(self.device)
-            var_group = torch.cat(var_group, dim=0).to(self.device)
-            offsets_group = torch.cat(offsets_group, dim=0).to(self.device)
-            self.mean.append(mean_group)
-            self.var.append(var_group)
-            self.offsets.append(offsets_group)
         
-
-    def __getitem__(self, item):
-        res = []
-        bad_flag = 0
-        for i, character_group in enumerate(self.characters):            
-            res_group = []
-            ref_shape = None
-            for j in range(len(character_group)):
-                new_motion = self.get_validation_item(i, j, item) # self.get_item(i, j, item)
-                if new_motion is not None:                    
-                    new_motion = new_motion.reshape((1, ) + new_motion.shape)                                        
-                    new_motion = (new_motion - self.mean[i][j]) / self.var[i][j]
-                    ref_shape = new_motion                
-                res_group.append(new_motion)                
-
-
-            if ref_shape is None:
-                print('Bad at {}'.format(item))
-                return None
-            for j in range(len(character_group)):
-                if res_group[j] is None:
-                    bad_flag = 1
-                    res_group[j] = torch.zeros_like(ref_shape)
-            if bad_flag:
-                print('Bad at {}'.format(item))
-                            
-            #print("size: ({}, {}, {}, {})".format(len(res_group), len(res_group[0]), len(res_group[0][0]), len(res_group[0][0][0])))
-            res_group = torch.cat(res_group, dim=0)            
-            res.append([res_group, list(range(len(character_group)))])
-                
-        return res
-
-    def __len__(self):
-        return len(self.file_list)
-
-    def get_validation_item(self, gid, pid, id):
-        character = self.characters[gid][pid]
-        path = './datasets/Mixamo/0_Validation/{}/'.format(character)           
-        # print("path: {} {}: {}".format(path, id, self.file_list[id]))
-
-        if isinstance(id, int):
-            file = path + self.file_list[id]
-        elif isinstance(id, str):
-            file = id
-        else:
-            #print(file)
-            raise Exception('Wrong input file type')
-        if not os.path.exists(file):
-            raise Exception('Cannot find file')
-        #print("file: ",file)
         file = BVH_file(file)
-        motion = file.to_tensor(quater=self.args.rotation == 'quaternion')       #motion : (#frames (dim0), #joints (dim1))         
+        motion = file.to_tensor()         
+        motion = self.get_windows(motion)
+        
+        return motion.to(self.device)
 
-        motion = motion[:, ::2] #2개씩 나눔 
-        length = motion.shape[-1] # #ofFrames
-        length = length // 4 * 4 # 4의 배수로 바꿈. 
-        return motion[..., :length].to(self.device)
-    
     def denorm(self, gid, pid, data):
         means = self.mean[gid][pid, ...]
         var = self.var[gid][pid, ...]
@@ -421,3 +253,41 @@ class ValidationData(Dataset):
         means = self.mean[gid][pid, ...]
         var = self.var[gid][pid, ...]
         return (data - means) / var
+
+    def get_offsets(self):
+        return self.offsets
+
+    def get_windows(self, motion):
+        new_windows = []
+        step_size = self.args.window_size // 2
+        window_size = step_size * 2
+        
+        # motion : (dof, frames )
+        # motion = self.subsample(motion)
+        n_window = motion.shape[-1] // step_size - 1 # 마지막 window에 데이터가 전부 차지 않았다면 제거 
+        print("n_window: ", n_window)
+        if n_window == 0:
+            return torch.zeros(0)
+
+        for i in range(n_window):
+            begin = i * step_size # 반절씩 겹치게 윈도우를 나눔 
+            end = begin + window_size
+
+            new = motion[:, begin:end]
+            if self.args.rotation == 'quaternion':
+                new = new.reshape(new.shape[0], -1, 3)
+                rotations = new[:, :-1, :]
+                rotations = Quaternions.from_euler(np.radians(rotations)).qs
+                rotations = rotations.reshape(rotations.shape[0], -1)
+                new = np.concatenate((rotations, new[:, -1, :].reshape(new.shape[0], -1)), axis=1)
+            
+            new = new[np.newaxis, ...]
+
+            # (1, joint dof, frames) 
+            new_window = torch.tensor(new, dtype=torch.float32)
+            new_windows.append(new_window)
+
+        return torch.cat(new_windows)
+
+    def subsample(self, motion):
+        return motion[:, ::2]

@@ -36,7 +36,7 @@ def get_parser():
     # Training
     parser.add_argument('--weight_root_loss', type=int, default=0, help='flag for weight_root_loss')
     parser.add_argument('--root_weight', type=int, default=10, help='weighted loss for root displacement')
-    parser.add_argument('--window_size', type=int, default=128, help='length of time axis per window')
+    parser.add_argument('--window_size', type=int, default=32, help='length of time axis per window')
     parser.add_argument('--batch_size', type=int, default=4, help='batch_size')
     # parser.add_argument('--epoch', type=int, default=0, help='current_epoch')
 
@@ -72,7 +72,7 @@ def get_parser():
     parser.add_argument('--adaptive_ee', type=int, default=0)
     parser.add_argument('--simple_operator', type=int, default=0)
     parser.add_argument('--use_sep_ee', type=int, default=0)
-    parser.add_argument('--eval_seq', type=int, default=0)
+    # parser.add_argument('--eval_seq', type=int, default=0)
 
     # check it needed - from 언어모델
     parser.add_argument('--n_enc_seq', type=int, default=256)
@@ -81,7 +81,7 @@ def get_parser():
     parser.add_argument('--n_head', type=int, default=4)
     parser.add_argument('--d_head', type=int, default=64)
     parser.add_argument('--layer_norm_epsilon', type=float, default=1e-12)
-    parser.add_argument('--num_joints', type=int, default=0)
+    # parser.add_argument('--num_joints', type=int, default=0)
     parser.add_argument('--i_pad', type=int, default=0)
 
     return parser

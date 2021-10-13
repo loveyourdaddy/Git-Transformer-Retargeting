@@ -11,20 +11,26 @@ import wandb
 from train import *
 
 """ motion data collate function """
-def motion_collate_fn(inputs): # input ???
-    # inputs : (32 batch, 2 character groups, 2 (motion, skeleton idx), 913 frames , 91 rotations and positoin of joints)
-    input_motions, output_motions = list(zip(*inputs)) #? output이 2개인 이유?
+def motion_collate_fn(inputs):
 
-    # TODO: padding 없애고 텐서로만 작업하기 
-    input_motions = torch.nn.utils.rnn.pad_sequence(input_motions, batch_first=True, padding_value=0)
-    output_motions = torch.nn.utils.rnn.pad_sequence(output_motions, batch_first=True, padding_value=0)
-    # dec_inputs = torch.nn.utils.rnn.pad_sequence(enc_inputs, batch_first=True, padding_value=0)
+    import pdb; pdb.set_trace()
+    # 인풋: (4,96,1,69,32) (캐릭터수, , 1, 조인트, 윈도우)
+
+    input_motions, gt_motions= list(zip(*inputs))  #  # 모션안에 있는 window 갯수에 따라 다름.  # input_motions, output_motions
+    
+    input = input_motions[0].unsqueeze(0)
+    for i in range(1, len(input_motions)):
+        input = torch.cat((input, input_motions[i].unsqueeze(0)), dim=0)
+        
+    gt = gt_motions[0].unsqueeze(0)
+    for i in range(1, len(gt_motions)):
+        gt = torch.cat((gt, gt_motions[i].unsqueeze(0)), dim=0)
 
     batch = [
-        input_motions,
-        output_motions
-        # dec_inputs
+        input, 
+        gt
     ]
+    import pdb; pdb.set_trace()
     return batch
 
 def save(model, path, epoch):
@@ -55,24 +61,22 @@ print("device: ", args.cuda_device)
 """ Changable Parameters """
 # args.is_train = False 
 path = "./parameters/"
-save_name = "211009_joint_offset/"
+save_name = "211012_window_64/"
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)
-train_dataset = create_dataset(args, characters)
-train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=motion_collate_fn)
-# get offset of characters
-offsets = train_dataset.GetOffsets()
+dataset = create_dataset(args, characters)
+loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=motion_collate_fn)
+offsets = dataset.get_offsets()
 print("characters:{}".format(characters))
 
 """ 2.Set Learning Parameters  """
-DoF = train_dataset.GetDoF()
-args.num_joints = int(DoF/4) # 91 = 4 * 22 (+ position 3)
+# DoF = dataset.GetDoF()
+# args.num_joints = int(DoF/4) # 91 = 4 * 22 (+ position 3)
 args.input_size = args.window_size + 1 # add offset
-# args.num_motions = len(train_dataset) / 4
 
 """ 3. Train and Test  """
-model = MotionGenerator(args, offsets) # ,characters, train_dataset
+model = MotionGenerator(args, offsets) 
 model.to(args.cuda_device)
 wandb.watch(model)
 
@@ -96,7 +100,10 @@ for i in range(len(characters)):
 if args.is_train == 1:
     print("cuda device: ", args.cuda_device)
     for epoch in range(args.n_epoch):
-        ele_loss, fk_loss, loss = train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_dataset, Files, BVHWriters, characters, save_name) # target_characters
+        ele_loss, fk_loss, loss = train_epoch(
+            args, epoch, model, criterion, optimizer, 
+            loader, dataset, 
+            characters, save_name)
         wandb.log({"ele_loss": ele_loss})
         wandb.log({"fk_loss": fk_loss})
         wandb.log({"loss": loss})
@@ -105,10 +112,12 @@ if args.is_train == 1:
 else:
     epoch = 10
     load(model, path + save_name, epoch)
-    eval_epoch(args, model, train_loader)
-    # 프레임별로 입력으로 주기. 
-    scores = []
+    eval_epoch(
+        args, model, 
+        dataset, loader, 
+        characters, save_name)
 
+    # scores = []
     # test score
     # score = eval_epoch(args, epoch, model, test_loader, test_dataset, vocab)
     # scores.append(score)
