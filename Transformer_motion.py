@@ -13,24 +13,26 @@ from train import *
 """ motion data collate function """
 def motion_collate_fn(inputs):
 
-    import pdb; pdb.set_trace()
     # 인풋: (4,96,1,69,32) (캐릭터수, , 1, 조인트, 윈도우)
 
-    input_motions, gt_motions= list(zip(*inputs))  #  # 모션안에 있는 window 갯수에 따라 다름.  # input_motions, output_motions
+    input_motions, gt_motions = list(zip(*inputs)) # 모션안에 있는 window 갯수에 따라 다름.  # input_motions, output_motions
     
-    input = input_motions[0].unsqueeze(0)
-    for i in range(1, len(input_motions)):
-        input = torch.cat((input, input_motions[i].unsqueeze(0)), dim=0)
+    # input = input_motions[0].unsqueeze(0)
+    # for i in range(1, len(input_motions)):
+    #     input = torch.cat((input, input_motions[i].unsqueeze(0)), dim=0)
         
-    gt = gt_motions[0].unsqueeze(0)
-    for i in range(1, len(gt_motions)):
-        gt = torch.cat((gt, gt_motions[i].unsqueeze(0)), dim=0)
+    # gt = gt_motions[0].unsqueeze(0)
+    # for i in range(1, len(gt_motions)):
+    #     gt = torch.cat((gt, gt_motions[i].unsqueeze(0)), dim=0)
+
+
+    input = torch.nn.utils.rnn.pad_sequence(input_motions, batch_first=True, padding_value=0)
+    gt = torch.nn.utils.rnn.pad_sequence(gt_motions, batch_first=True, padding_value=0)
 
     batch = [
         input, 
         gt
     ]
-    import pdb; pdb.set_trace()
     return batch
 
 def save(model, path, epoch):
@@ -61,7 +63,7 @@ print("device: ", args.cuda_device)
 """ Changable Parameters """
 # args.is_train = False 
 path = "./parameters/"
-save_name = "211012_window_64/"
+save_name = "211018_2_jittering_and_MSE/"
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)
@@ -71,9 +73,11 @@ offsets = dataset.get_offsets()
 print("characters:{}".format(characters))
 
 """ 2.Set Learning Parameters  """
-# DoF = dataset.GetDoF()
 # args.num_joints = int(DoF/4) # 91 = 4 * 22 (+ position 3)
-args.input_size = args.window_size + 1 # add offset
+if args.add_offset:
+    args.input_size = args.window_size + 1
+else:
+    args.input_size = args.window_size
 
 """ 3. Train and Test  """
 model = MotionGenerator(args, offsets) 
@@ -110,10 +114,10 @@ if args.is_train == 1:
         save(model, path + save_name, epoch)
 
 else:
-    epoch = 10
+    epoch = 100
     load(model, path + save_name, epoch)
     eval_epoch(
-        args, model, 
+        args, model, criterion, 
         dataset, loader, 
         characters, save_name)
 

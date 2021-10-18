@@ -18,11 +18,11 @@ class MotionData(Dataset):
     def __init__(self, args, positional_encoding):
         super(MotionData, self).__init__()
         self.root_pos_disp = args.root_pos_disp
-        name = args.dataset
-        file_path = './datasets/Mixamo/{}.npy'.format(name)
-
-        if args.debug:
-            file_path = file_path[:-4] + '_debug' + file_path[-4:]
+        name = args.dataset # character_name
+        if args.is_train == 1:
+            file_path = './datasets/Mixamo/{}.npy'.format(name)
+        else:
+            file_path = './datasets/Mixamo/test_{}.npy'.format(name)
 
         print('load from file {}'.format(file_path))
         self.total_frame = 0
@@ -43,15 +43,13 @@ class MotionData(Dataset):
         """ change data dimensiton : (bs, window, DoF) -> (bs, DoF, winodw) """
         self.data = self.data.permute(0, 2, 1)
 
-
         """ Modify data  """
         # data: (bs, DoF, window)
         num_bs = self.data.size(0)
         num_DoF = self.data.size(1)
         num_frames = self.data.size(2)
-        
+
         #  root position -> displacement 
-        # TODO: dimensituon 확인,. 
         if self.root_pos_disp == 1:
             for bs in range(num_bs): # 0차원(motions)에 대해
                 for frame in range(num_frames - 1): # 2차원(frames)에 대해. frame: 0 ~ 126
@@ -71,14 +69,15 @@ class MotionData(Dataset):
             self.var = self.var ** (1/2)
             idx = self.var < 1e-5
             self.var[idx] = 1
+            self.data = (self.data - self.mean) / self.var
         else:
             self.mean = torch.mean(self.data, (0, 2), keepdim=True)
             self.mean.zero_() # 왜 이렇게 하는거지?
             self.var = torch.ones_like(self.mean)
 
         # Normalzation to data 
-        if args.normalization == 1:
-            self.data = (self.data - self.mean) / self.var
+        # if args.normalization == 1:
+        #     self.data = (self.data - self.mean) / self.var
 
 
         """ save data """
@@ -89,8 +88,7 @@ class MotionData(Dataset):
         self.data_reverse = torch.tensor(self.data.numpy()[..., ::-1].copy())
 
         # (8,91,913)
-        self.test_set = self.data[train_len:, ...]
-        
+        self.test_set = self.data[train_len:, ...]       
         self.reset_length_flag = 0
         self.virtual_length = 0
 
@@ -164,7 +162,7 @@ class MotionData(Dataset):
         # motions : (motions, frames, joint DoF)
         for motion in motions:
             self.total_frame += motion.shape[0]
-            motion = self.subsample(motion)
+            # motion = self.subsample(motion)
             self.motion_length.append(motion.shape[0])
             n_window = motion.shape[0] // step_size - 1 # 마지막 window에 데이터가 전부 차지 않았다면 제거 
 

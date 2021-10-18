@@ -12,6 +12,37 @@ from datasets.bvh_writer import BVH_writer
 
 from models.Kinematics import ForwardKinematics
 
+def get_data_numbers(motion):
+    return motion.size(0), motion.size(1), motion.size(2)
+
+def get_curr_motion(iter, batch_size):
+    return iter * batch_size
+
+def get_curr_character(motion_idx, num_motions):
+    return int(motion_idx / num_motions)
+
+def denormalize(dataset, character_idx, motions):
+    return dataset.denorm(1, character_idx, motions)
+
+def remake_root_position_from_displacement(motions, num_bs, num_DoF, num_frame):
+
+    for bs in range(num_bs): # dim 0
+        for frame in range(num_frame - 1): # dim 2 # frame: 0~62. update 1 ~ 63
+            motions[bs][num_DoF - 3][frame + 1] += motions[bs][num_DoF - 3][frame]
+            motions[bs][num_DoF - 2][frame + 1] += motions[bs][num_DoF - 2][frame]
+            motions[bs][num_DoF - 1][frame + 1] += motions[bs][num_DoF - 1][frame]
+
+    return motions
+
+def write_bvh(save_dir, gt_or_output_epoch, motion, characters, character_idx, motion_idx, args):
+    save_dir_gt = save_dir + "character{}_{}/{}/".format(character_idx, characters[1][character_idx], gt_or_output_epoch)
+    try_mkdir(save_dir_gt)
+    file = BVH_file(option_parser.get_std_bvh(dataset = characters[1][character_idx]))
+    bvh_writer = BVH_writer(file.edges, file.names)
+    for j in range(args.batch_size):
+        file_name = save_dir_gt + "motion_{}.bvh".format(int(motion_idx % args.num_motions + j))
+        bvh_writer.write_raw(motion[j], args.rotation, file_name)
+    
 def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_dataset, characters, save_name):
     losses = [] # losses for 1 epoch
     elements_losses = []
@@ -23,7 +54,6 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
     with tqdm(total=len(train_loader), desc=f"TrainEpoch {epoch}") as pbar:
         save_dir = args.save_dir + save_name
         try_mkdir(save_dir)
-        import pdb; pdb.set_trace()
         for i, value in enumerate(train_loader):
             optimizer.zero_grad()
 
@@ -31,42 +61,31 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             input_motions, gt_motions = map(lambda v : v.to(args.cuda_device), value)
             enc_inputs, dec_inputs = input_motions, input_motions
 
-            # """ Get Data numbers """
-            num_bs = gt_motions.size(0)
-            num_DoF = gt_motions.size(1)
-            num_frame = gt_motions.size(2)
-
-            motion_idx = i * args.batch_size
-            character_idx = int(motion_idx / args.num_motions)
+            # """ Get Data numbers: (bs, DoF, window) """
+            num_bs, num_DoF, num_frame = get_data_numbers(gt_motions)
+            motion_idx = get_curr_motion(i, args.batch_size) 
+            character_idx = get_curr_character(motion_idx, args.num_motions)
 
             """  feed to network"""
             input_character, output_character = character_idx, character_idx
             output_motions = model(input_character, output_character, enc_inputs, dec_inputs)
 
-            """ Preocess data  """
-            # """ remove offset part """
+            """ Post-process data  """
+            # """ remove offset part of output motions """
             output_motions = output_motions[:,:,:num_frame]
 
             # """ remake root position from displacement and denorm for bvh_writing """
             if args.normalization == 1:
-                denorm_gt_motions = train_dataset.denorm(1, character_idx, gt_motions)
-                denorm_output_motions = train_dataset.denorm(1, character_idx, output_motions)
+                denorm_gt_motions = denormalize(train_dataset, character_idx, gt_motions)
+                denorm_output_motions = denormalize(train_dataset, character_idx, output_motions)
             else:
                 denorm_gt_motions = gt_motions
                 denorm_output_motions = output_motions
 
-            # """ remake root position """
-            # data: (bs, DoF, window)
+            # """ remake root position from displacement """
             if args.root_pos_disp == 1:
-                for bs in range(num_bs): # dim 0
-                    for frame in range(num_frame - 1): # dim 2
-                        denorm_gt_motions[bs][num_DoF - 3][frame + 1] += denorm_gt_motions[bs][num_DoF - 3][frame]
-                        denorm_gt_motions[bs][num_DoF - 2][frame + 1] += denorm_gt_motions[bs][num_DoF - 2][frame]
-                        denorm_gt_motions[bs][num_DoF - 1][frame + 1] += denorm_gt_motions[bs][num_DoF - 1][frame]
-
-                        denorm_output_motions[bs][num_DoF - 3][frame + 1] += denorm_output_motions[bs][num_DoF - 3][frame]
-                        denorm_output_motions[bs][num_DoF - 2][frame + 1] += denorm_output_motions[bs][num_DoF - 2][frame]
-                        denorm_output_motions[bs][num_DoF - 1][frame + 1] += denorm_output_motions[bs][num_DoF - 1][frame]
+                denorm_gt_motions = remake_root_position_from_displacement(denorm_gt_motions, num_bs, num_DoF, num_frame)
+                denorm_output_motions = remake_root_position_from_displacement(denorm_output_motions, num_bs, num_DoF, num_frame)
 
             """ Get loss (orienation & FK & regularization) """
             loss_sum = 0
@@ -89,81 +108,86 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             pbar.update(1)
             pbar.set_postfix_str(f"elements_loss: {np.mean(elements_losses):.3f}, fk_loss: {np.mean(fk_losses):.3f} (mean: {np.mean(losses):.3f})")
 
-            """ BVH Writing : writing 형식 (bs, DoF, window)"""
-            # Write gt motion for 0 epoch.
+            """ BVH Writing """
+            # Write gt motion for 0 epoch
             if epoch == 0:
-                save_dir_gt = save_dir + "character{}_{}/gt/".format(character_idx, characters[1][character_idx])
-                try_mkdir(save_dir_gt)
-                file = BVH_file(option_parser.get_std_bvh(dataset = characters[1][character_idx]))
-                bvh_writer = BVH_writer(file.edges, file.names)
-                for j in range(args.batch_size):
-                    file_name = save_dir_gt + "motion_{}.bvh".format(int(motion_idx % args.num_motions + j))
-                    motion = denorm_gt_motions[j]
-                    bvh_writer.write_raw(motion, args.rotation, file_name)
+                write_bvh(save_dir, "gt", denorm_gt_motions, characters, character_idx, motion_idx, args)
 
-            # Write output motions for 10 epoch
+            # Write output motions for every 10 epoch
             if epoch % 10 == 0:
-                save_dir_output = save_dir + "character{}_{}/output_{}/".format(character_idx, characters[1][character_idx], epoch)
-                try_mkdir(save_dir_output)
-                file = BVH_file(option_parser.get_std_bvh(dataset = characters[1][character_idx])) # get target output
-                bvh_writer = BVH_writer(file.edges, file.names)
-                for j in range(args.batch_size):
-                    file_name = save_dir_output + "motion_{}.bvh".format(int(motion_idx % args.num_motions + j))
-                    motion = denorm_output_motions[j]
-                    bvh_writer.write_raw(motion, args.rotation, file_name)
+                write_bvh(save_dir, "output_"+str(epoch), denorm_output_motions, characters, character_idx, motion_idx, args)
 
         torch.cuda.empty_cache()
         del gt_motions, enc_inputs, dec_inputs, output_motions
 
     return np.mean(elements_losses), np.mean(fk_losses), np.mean(losses)
+    # return np.mean(elements_losses), np.mean(fk_losses), np.mean(losses)
 
 """ eval """
-def eval_epoch(args, model, dataset, data_loader, characters, save_name):
+def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, save_name):
     model.eval()
-
-    with tqdm(total=len(data_loader)-1, desc=f"TestSet") as pbar:
+    losses = [] # losses for 1 epoch
+    denorm_losses = []
+    with tqdm(total=len(data_loader), desc=f"TestSet") as pbar:
         for i, value in enumerate(data_loader):
+            # 매 스텝마다 초기화 되는 loss들             
+            # denorm_losses_ = []
+
             input_motion, gt_motions = map(lambda v : v.to(args.cuda_device), value)
             enc_inputs, dec_inputs = input_motion, input_motion
 
-            output_motions = model(enc_inputs, dec_inputs)
-            pbar.update(1)
+            # """ Get Data numbers: (bs, DoF, window) """
+            num_bs, num_DoF, num_frame = get_data_numbers(gt_motions)
+            motion_idx = get_curr_motion(i, args.batch_size) 
+            character_idx = get_curr_character(motion_idx, args.num_motions)
 
-            # get data number 
-            motion_idx = i * args.batch_size
-            character_idx = int(motion_idx / args.num_motions)
+            """  feed to network"""
+            input_character, output_character = character_idx, character_idx
+            output_motions = model(input_character, output_character, enc_inputs, dec_inputs)
 
-            num_bs = output_motions.size(0)
-            num_DoF = output_motions.size(1)
-            num_frame = output_motions.size(2)
-            
-            """ 3. remake root position from displacement and denorm for bvh_writing """
-            """ denorm for fk """
+            """ Post-process data  """
+            # """ remove offset part of output motions """
+            output_motions = output_motions[:,:,:num_frame]
+
+            # """ remake root position from displacement and denorm for bvh_writing """
             if args.normalization == 1:
-                denorm_output_motions = dataset.denorm(1, character_idx, output_motions)
+                denorm_gt_motions = denormalize(test_dataset, character_idx, gt_motions)
+                denorm_output_motions = denormalize(test_dataset, character_idx, output_motions)
             else:
+                denorm_gt_motions = gt_motions
                 denorm_output_motions = output_motions
 
-            """ remake root position """
-            # data: (bs, DoF, window)
+            # """ remake root position from displacement """
             if args.root_pos_disp == 1:
-                for bs in range(num_bs): # dim 0
-                    for frame in range(num_frame - 1): # dim 2
-                        denorm_output_motions[bs][num_DoF - 3][frame + 1] += denorm_output_motions[bs][num_DoF - 3][frame]
-                        denorm_output_motions[bs][num_DoF - 2][frame + 1] += denorm_output_motions[bs][num_DoF - 2][frame]
-                        denorm_output_motions[bs][num_DoF - 1][frame + 1] += denorm_output_motions[bs][num_DoF - 1][frame]
+                denorm_gt_motions = remake_root_position_from_displacement(denorm_gt_motions, num_bs, num_DoF, num_frame)
+                denorm_output_motions = remake_root_position_from_displacement(denorm_output_motions, num_bs, num_DoF, num_frame)
 
-            # write 
-            save_dir = args.save_dir + save_name
-            save_dir_gt = save_dir + "character{}_{}/test/".format(character_idx, characters[1][character_idx])
-            try_mkdir(save_dir_gt)
-            file = BVH_file(option_parser.get_std_bvh(dataset=characters[1][character_idx]))
+            """ Get loss (orienation & FK & regularization) """
+            loss_sum = 0
+
+            # """ 5-1. loss on each element """
+            for m in range(num_bs):
+                for j in range(num_DoF):
+                    loss = criterion(gt_motions[m][j], output_motions[m][j])
+                    loss_sum += loss
+                    losses.append(loss.item())
+                    # elements_losses.append(loss.item())
+
+            for m in range(num_bs):
+                for j in range(num_DoF):
+                    loss = criterion(denorm_gt_motions[m][j], denorm_output_motions[m][j])
+                    denorm_losses.append(loss.item())
+
+            pbar.update(1)
+            pbar.set_postfix_str(f"denorm_loss: {np.mean(denorm_losses):.3f}, (mean: {np.mean(losses):.3f})")
             
-            bvh_writer = BVH_writer(file.edges, file.names)
-            for j in range(args.batch_size):
-                file_name = save_dir_gt + "motion_{}.bvh".format(int(motion_idx % args.num_motions + j))
-                motion = denorm_output_motions[j]
-                bvh_writer.write_raw(motion, args.rotation, file_name)
+            """ BVH Writing """
+            # Write gt motion for 0 epoch
+            save_dir = args.save_dir + save_name
+            write_bvh(save_dir, "test_gt", denorm_gt_motions, characters, character_idx, motion_idx, args)
+
+            # Write output motions for every 10 epoch
+            write_bvh(save_dir, "test_output", denorm_output_motions, characters, character_idx, motion_idx, args)
 
             # del 
             torch.cuda.empty_cache()

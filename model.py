@@ -221,7 +221,7 @@ class Encoder(nn.Module):
         """ option for add_offset """
         if self.args.add_offset:
             offset = self.offset[input_character]
-            offset = torch.reshape(offset, (-1,1)).unsqueeze(0).expand(inputs.size(0), -1, -1)
+            offset = torch.reshape(offset, (-1,1)).unsqueeze(0).expand(inputs.size(0), -1, -1).to(torch.device(inputs.device))
             inputs = torch.cat([inputs, offset], dim=-1)
 
         outputs = self.fc1(inputs)
@@ -270,9 +270,9 @@ class Decoder(nn.Module):
     
         if self.args.add_offset:
             offset = self.offset[output_character]
-            offset = torch.reshape(offset, (-1,1)).unsqueeze(0).expand(dec_inputs.size(0), -1, -1)
+            offset = torch.reshape(offset, (-1,1)).unsqueeze(0).expand(dec_inputs.size(0), -1, -1).to(torch.device(dec_inputs.device))
             enc_inputs = torch.cat([enc_inputs, offset], dim=-1)
-            dec_inputs = torch.cat([dec_inputs, offset], dim=-1)                        
+            dec_inputs = torch.cat([dec_inputs, offset], dim=-1)
 
         # dec_outputs = dec_outputs + positions
         dec_outputs = self.fc1(dec_inputs)
@@ -305,7 +305,7 @@ class Decoder(nn.Module):
         # (bs, DoF, d_hidn), [(bs, DoF, DoF)], [(bs, DoF, DoF)]
         return dec_outputs, self_attn_probs, dec_enc_attn_probs
 
-""" Transoformer Model """    
+""" Transoformer Model """
 class Transformer(nn.Module):
     def __init__(self, args, offsets):
         super().__init__()

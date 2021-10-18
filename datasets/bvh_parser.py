@@ -230,10 +230,10 @@ class BVH_file:
                 index.append(e[0])
             rotations = rotations[:, index, :]
         
-        # (221,27,3) -> (221, 81) 
+        # (221,27,3) -> (221, 81), (313,22,3)->(313,66)
         rotations = rotations.reshape(rotations.shape[0], -1)
         
-        # (221, 81+3)
+        # (221, 81+3), (313,66+3)->(313,69)
         # position은 가장 마지막에 존재함
         return np.concatenate((rotations, positions), axis=1)
 

@@ -21,11 +21,17 @@ def get_parser():
     parser.add_argument('--n_epoch', type=int, default=1000) # duplicated 
 
     # Dataset
-    parser.add_argument('--rotation', type=str, default='xyz', help='representatio0 of rotation:xyz, quaternion')
+    parser.add_argument('--rotation', type=str, default='quaternion', help='representatio0 of rotation:xyz, quaternion')
+    parser.add_argument('--weight_root_loss', type=int, default=0, help='flag for weight_root_loss')
+    parser.add_argument('--root_weight', type=int, default=10, help='weighted loss for root displacement')
+    parser.add_argument('--window_size', type=int, default=128, help='length of time axis per window')
+    parser.add_argument('--batch_size', type=int, default=1, help='batch_size')
+
+    # Dataset option
     parser.add_argument('--normalization', type=int, default = 1)
-    parser.add_argument('--add_offset', type=int, default=1, help='concat offset in dataset')
+    parser.add_argument('--add_offset', type=int, default=0, help='concat offset in dataset')
     parser.add_argument('--position_encoding', type=int, default = 0, help='positional encoding')
-    parser.add_argument('--root_pos_disp', type=int, default = 1, help='represent root pos as displacement')
+    parser.add_argument('--root_pos_disp', type=int, default = 0, help='represent root pos as displacement')
     parser.add_argument('--data_augment', type=int, default=0, help='data_augment: 1 or 0') # 1
     parser.add_argument('--num_motions', type=int, default=1) # num motions for_character. dummy value 1 
         
@@ -33,11 +39,6 @@ def get_parser():
     parser.add_argument('--d_hidn', type=int, default=256) # embedding dimenstion: 256
     parser.add_argument('--num_layers', type=int, default=2, help='number of layers')
 
-    # Training
-    parser.add_argument('--weight_root_loss', type=int, default=0, help='flag for weight_root_loss')
-    parser.add_argument('--root_weight', type=int, default=10, help='weighted loss for root displacement')
-    parser.add_argument('--window_size', type=int, default=32, help='length of time axis per window')
-    parser.add_argument('--batch_size', type=int, default=4, help='batch_size')
     # parser.add_argument('--epoch', type=int, default=0, help='current_epoch')
 
     # 필요없는건 지웁시다 from skeleton aware  
@@ -51,7 +52,7 @@ def get_parser():
     parser.add_argument('--dataset', type=str, default='Mixamo')
     parser.add_argument('--fk_world', type=int, default=0)
     parser.add_argument('--patch_gan', type=int, default=1)
-    parser.add_argument('--debug', type=int, default=0)
+    # parser.add_argument('--debug', type=int, default=0)
     parser.add_argument('--skeleton_info', type=str, default='concat')
     parser.add_argument('--ee_loss_fact', type=str, default='height')
     parser.add_argument('--pos_repr', type=str, default='3d')
@@ -98,6 +99,11 @@ def get_std_bvh(args=None, dataset=None):
     std_bvh = './datasets/Mixamo/std_bvhs/{}.bvh'.format(dataset)
     return std_bvh
 
+def get_test_std_bvh(args=None, dataset=None):
+    if args is None and dataset is None: raise Exception('Unexpected parameter')
+    if dataset is None: dataset = args.dataset
+    std_bvh = './datasets/Mixamo/test_std_bvhs/{}.bvh'.format(dataset)
+    return std_bvh
 
 def try_mkdir(path):
     import os
