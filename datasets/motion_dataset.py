@@ -17,12 +17,13 @@ class MotionData(Dataset):
     """
     def __init__(self, args, positional_encoding):
         super(MotionData, self).__init__()
-        self.root_pos_disp = args.root_pos_disp
         name = args.dataset # character_name
+
+        # Load motion files
         if args.is_train == 1:
             file_path = './datasets/Mixamo/{}.npy'.format(name)
         else:
-            file_path = './datasets/Mixamo/test_{}.npy'.format(name)
+            file_path = './datasets/Mixamo/{}_test.npy'.format(name)
 
         print('load from file {}'.format(file_path))
         self.total_frame = 0
@@ -50,7 +51,7 @@ class MotionData(Dataset):
         num_frames = self.data.size(2)
 
         #  root position -> displacement 
-        if self.root_pos_disp == 1:
+        if args.root_pos_disp == 1:
             for bs in range(num_bs): # 0차원(motions)에 대해
                 for frame in range(num_frames - 1): # 2차원(frames)에 대해. frame: 0 ~ 126
                     self.data[bs][num_DoF - 3][frame] = self.data[bs][num_DoF - 3][frame + 1] - self.data[bs][num_DoF - 3][frame]
@@ -64,15 +65,18 @@ class MotionData(Dataset):
 
         """ normalization data:  mean, var of data & normalization """
         if args.normalization:
-            self.mean = torch.mean(self.data, (0, 2), keepdim=True)
-            self.var = torch.var(self.data, (0, 2), keepdim=True)
+            # self.mean = torch.mean(self.data, (0, 2), keepdim=True)
+            # self.var = torch.var(self.data, (0, 2), keepdim=True)
+            self.mean = np.load('./datasets/Mixamo/mean_var/{}_mean.npy'.format(name))
+            self.var = np.load('./datasets/Mixamo/mean_var/{}_var.npy'.format(name))
+            # TODO : 캐릭터에 따라 대표 mean / var npy 파일을 만들기. normalization데이터는 고정
             self.var = self.var ** (1/2)
             idx = self.var < 1e-5
             self.var[idx] = 1
             self.data = (self.data - self.mean) / self.var
         else:
             self.mean = torch.mean(self.data, (0, 2), keepdim=True)
-            self.mean.zero_() # 왜 이렇게 하는거지?
+            self.mean.zero_()
             self.var = torch.ones_like(self.mean)
 
         # Normalzation to data 
@@ -80,6 +84,7 @@ class MotionData(Dataset):
         #     self.data = (self.data - self.mean) / self.var
 
 
+        # import pdb; pdb.set_trace()
         """ save data """
         train_len = self.data.shape[0] * 94 // 100
         
@@ -158,7 +163,7 @@ class MotionData(Dataset):
         new_windows = []
         step_size = self.args.window_size // 2
         window_size = step_size * 2
-                        
+
         # motions : (motions, frames, joint DoF)
         for motion in motions:
             self.total_frame += motion.shape[0]
@@ -190,11 +195,11 @@ class MotionData(Dataset):
     def subsample(self, motion):
         return motion[::2, :]
 
-    def denormalize(self, motion):
-        if self.args.normalization:
-            if self.var.device != motion.device:
-                self.var = self.var.to(motion.device)
-                self.mean = self.mean.to(motion.device)
-            ans = motion * self.var + self.mean
-        else: ans = motion
-        return ans
+    # def denormalize(self, motion):
+    #     if self.args.normalization:
+    #         if self.var.device != motion.device:
+    #             self.var = self.var.to(motion.device)
+    #             self.mean = self.mean.to(motion.device)
+    #         ans = motion * self.var + self.mean
+    #     else: ans = motion
+    #     return ans

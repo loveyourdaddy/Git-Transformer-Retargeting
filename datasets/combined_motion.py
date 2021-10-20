@@ -67,12 +67,16 @@ class MixedData(Dataset):
                 # new_args = copy.copy(args)
                 # new_args.data_augment = 0
                 args.dataset = character
-                motion_data.append(MotionData(args, 0))
+                motion = MotionData(args, 0)
+                motion_data.append(motion)
+
                 total_length = min(total_length, len(motion_data[-1]))
                 # 4 character, 106 motions, 913 frames, 111 rot + pos
 
                 mean = np.load('./datasets/Mixamo/mean_var/{}_mean.npy'.format(character))
                 var = np.load('./datasets/Mixamo/mean_var/{}_var.npy'.format(character))
+                # mean = motion.mean
+                # var = motion.var
                 mean = torch.tensor(mean)
                 mean = mean.reshape((1,) + mean.shape)
                 var = torch.tensor(var)
@@ -119,6 +123,7 @@ class MixedData(Dataset):
             self.length = motions.size(0)
             self.final_data.append(MixedData0(args, motions))
 
+
     def denorm(self, gid, pid, data):
         means = self.means[gid][pid, ...]
         var = self.vars[gid][pid, ...]
@@ -136,36 +141,39 @@ class MixedData(Dataset):
 
 
 class TestData(Dataset):
-    def __init__(self, args, characters):
-        self.characters = characters
-        self.file_list = get_test_set() 
+    def __init__(self, args, character_groups):
+        # self.characters = characters
+        # self.file_list = get_test_set()
         self.args = args
         self.device = torch.device(args.cuda_device)
-        self.final_data = [] 
+        self.final_data = []
         all_datas = []
         self.offsets = []
         self.means = []
         self.vars = []
 
-        for i, character_group in enumerate(characters):
+        for i, characters in enumerate(character_groups):
             motion_data = []
             offsets_group = []
             means_group = []
             vars_group = []
 
-            for j, character in enumerate(character_group):
+            for j, character in enumerate(characters):
                 file = BVH_file(get_std_bvh(dataset=character))
                 args.dataset = character
-                motion_data.append(MotionData(args, 0))
-
+                motion = MotionData(args, 0)
+                motion_data.append(motion)
+                
                 new_offset = file.offset
                 new_offset = torch.tensor(new_offset, dtype=torch.float)
                 new_offset = new_offset.reshape((1,) + new_offset.shape)
                 offsets_group.append(new_offset)
 
                 # get mean and var 
-                mean = np.load('./datasets/Mixamo/test_mean_var/test_{}_mean.npy'.format(character))
-                var = np.load('./datasets/Mixamo/test_mean_var/test_{}_var.npy'.format(character))
+                mean = np.load('./datasets/Mixamo/mean_var_test/{}_mean.npy'.format(character))
+                var = np.load('./datasets/Mixamo/mean_var_test/{}_var.npy'.format(character))
+                mean = motion.mean
+                var = motion.var
                 mean = torch.tensor(mean)
                 mean = mean.reshape((1,) + mean.shape)
                 var = torch.tensor(var)
@@ -186,12 +194,11 @@ class TestData(Dataset):
             self.means.append(means_group)
             self.vars.append(vars_group)
 
-
+        """ Get final """
         for group_idx, datasets in enumerate(all_datas): 
             motions = []
             max_length = int( len(datasets[0]) / args.batch_size) * args.batch_size 
             args.num_motions = max_length
-
             for character_idx, dataset in enumerate(datasets):
                 motions.append(dataset[:max_length])
 
@@ -199,11 +206,20 @@ class TestData(Dataset):
             motions = torch.cat(motions, dim=0)          
             self.length = motions.size(0)
             self.final_data.append(MixedData0(args, motions))
+        
 
-    """ feed test data to network """
+    def denorm(self, gid, pid, data):
+        means = self.means[gid][pid, ...]
+        var = self.vars[gid][pid, ...]
+        return data * var + means
+
+    def get_offsets(self):
+        return self.offsets
+
+    
     def __getitem__(self, item): # motion 
-        return (self.final_data[0][item], 
-        self.final_data[1][item]) # source motion, target motion
+        return (torch.as_tensor(self.final_data[0][item].data), 
+                torch.as_tensor(self.final_data[1][item].data)) # source motion, target motion
 
     def __len__(self):
         return self.length
@@ -225,18 +241,11 @@ class TestData(Dataset):
         
     #     return motion.to(self.device)
 
-    def denorm(self, gid, pid, data):
-        means = self.means[gid][pid, ...]
-        var = self.vars[gid][pid, ...]
-        return data * var + means
+    # def normalize(self, gid, pid, data):
+    #     means = self.means[gid][pid, ...]
+    #     var = self.vars[gid][pid, ...]
+    #     return (data - means) / var
 
-    def normalize(self, gid, pid, data):
-        means = self.means[gid][pid, ...]
-        var = self.vars[gid][pid, ...]
-        return (data - means) / var
-
-    def get_offsets(self):
-        return self.offsets
 
     # def get_windows(self, motion):
     #     new_windows = []

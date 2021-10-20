@@ -2,7 +2,7 @@ import json
 import torch
 import os
 import numpy as np
-from wandb import set_trace
+# from wandb import set_trace
 from datasets import get_character_names
 import option_parser
 from tqdm import tqdm
@@ -132,7 +132,7 @@ def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, sa
         for i, value in enumerate(data_loader):
             # 매 스텝마다 초기화 되는 loss들             
             # denorm_losses_ = []
-
+            
             input_motion, gt_motions = map(lambda v : v.to(args.cuda_device), value)
             enc_inputs, dec_inputs = input_motion, input_motion
 

@@ -5,8 +5,6 @@ from datasets.bvh_parser import BVH_file
 from datasets.motion_dataset import MotionData
 from option_parser import get_args, try_mkdir
 
-# for each character 캐릭터마다 실행되는 코드 
-# 모든 모션의 root pos / joint rot 저장
 def collect_bvh(data_path, character, files):
     print('begin {}'.format(character))
     motions = []
@@ -19,10 +17,17 @@ def collect_bvh(data_path, character, files):
         motions.append(new_motion)
     
     # (112, frames (differnet for motions), 84)
-    save_file = data_path + 'test_' + character + '.npy'
+    save_file = data_path + character + '_test' + '.npy'
 
     np.save(save_file, motions)
     print('Npy file saved at {}'.format(save_file))
+
+def copy_std_bvh(data_path, character, files):
+    """
+    copy an arbitrary bvh file as a static information (skeleton's offset) reference
+    """
+    cmd = 'cp \"{}\" ./datasets/Mixamo/std_bvhs_test/{}.bvh'.format(data_path + character + '/test/' + files[0], character)
+    os.system(cmd)
 
 # mean / var 저장
 def write_statistics(character, path):
@@ -38,16 +43,8 @@ def write_statistics(character, path):
     mean = mean.cpu().numpy()[0, ...]
     var = var.cpu().numpy()[0, ...]
 
-    np.save(path + 'test_{}_mean.npy'.format(character), mean)
-    np.save(path + 'test_{}_var.npy'.format(character), var)
-
-
-def copy_std_bvh(data_path, character, files):
-    """
-    copy an arbitrary bvh file as a static information (skeleton's offset) reference
-    """
-    cmd = 'cp \"{}\" ./datasets/Mixamo/test_std_bvhs/{}.bvh'.format(data_path + character + '/test/' + files[0], character)
-    os.system(cmd)
+    np.save(path + '{}_mean.npy'.format(character), mean)
+    np.save(path + '{}_var.npy'.format(character), var)
 
 
 if __name__ == '__main__':
@@ -56,16 +53,16 @@ if __name__ == '__main__':
     characters = [f for f in os.listdir(prefix) if os.path.isdir(os.path.join(prefix, f))]
     if 'std_bvhs' in characters: characters.remove('std_bvhs')
     if 'mean_var' in characters: characters.remove('mean_var')
-    if 'test_std_bvhs' in characters: characters.remove('test_std_bvhs')
-    if 'test_mean_var' in characters: characters.remove('test_mean_var')
+    if 'std_bvhs_test' in characters: characters.remove('std_bvhs_test')
+    if 'mean_var_test' in characters: characters.remove('mean_var_test')
 
-    try_mkdir(os.path.join(prefix, 'test_std_bvhs'))
-    try_mkdir(os.path.join(prefix, 'test_mean_var'))
+    try_mkdir(os.path.join(prefix, 'std_bvhs_test'))
+    try_mkdir(os.path.join(prefix, 'mean_var_test'))
 
     for character in characters:
         data_path = os.path.join(prefix, character) + '/test'
         files = sorted([f for f in os.listdir(data_path) if f.endswith(".bvh")])
 
-        collect_bvh(prefix, character, files)
-        copy_std_bvh(prefix, character, files)
-        write_statistics(character, './datasets/Mixamo/test_mean_var/')
+        collect_bvh(prefix, character, files) # motion 파일들 npy 파일에 저장
+        copy_std_bvh(prefix, character, files) #  0번째 파일을 /std_bvh 폴더에 저장함
+        write_statistics(character, './datasets/Mixamo/mean_var_test/') # std 파일의 normalization data을 저장함  

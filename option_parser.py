@@ -21,11 +21,12 @@ def get_parser():
     parser.add_argument('--n_epoch', type=int, default=1000) # duplicated 
 
     # Dataset
-    parser.add_argument('--rotation', type=str, default='quaternion', help='representatio0 of rotation:xyz, quaternion')
+    parser.add_argument('--rotation', type=str, default='xyz', help='representatio0 of rotation:xyz, quaternion')
     parser.add_argument('--weight_root_loss', type=int, default=0, help='flag for weight_root_loss')
     parser.add_argument('--root_weight', type=int, default=10, help='weighted loss for root displacement')
     parser.add_argument('--window_size', type=int, default=128, help='length of time axis per window')
     parser.add_argument('--batch_size', type=int, default=1, help='batch_size')
+    parser.add_argument('--num_motions', type=int, default=1) # num motions for_character. dummy value 1 
 
     # Dataset option
     parser.add_argument('--normalization', type=int, default = 1)
@@ -33,7 +34,6 @@ def get_parser():
     parser.add_argument('--position_encoding', type=int, default = 0, help='positional encoding')
     parser.add_argument('--root_pos_disp', type=int, default = 0, help='represent root pos as displacement')
     parser.add_argument('--data_augment', type=int, default=0, help='data_augment: 1 or 0') # 1
-    parser.add_argument('--num_motions', type=int, default=1) # num motions for_character. dummy value 1 
         
     # Network
     parser.add_argument('--d_hidn', type=int, default=256) # embedding dimenstion: 256

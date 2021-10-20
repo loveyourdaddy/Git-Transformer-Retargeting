@@ -5,8 +5,6 @@ from datasets.bvh_parser import BVH_file
 from datasets.motion_dataset import MotionData
 from option_parser import get_args, try_mkdir
 
-# for each character 캐릭터마다 실행되는 코드 
-# 모든 모션의 root pos / joint rot 저장
 def collect_bvh(data_path, character, files):
     print('begin {}'.format(character))
     motions = []
@@ -18,11 +16,17 @@ def collect_bvh(data_path, character, files):
         new_motion = file.to_tensor().permute((1, 0)).numpy()
         motions.append(new_motion)
     
-    # (112, frames (differnet for motions), 84)
     save_file = data_path + character + '.npy'
 
     np.save(save_file, motions)
     print('Npy file saved at {}'.format(save_file))
+
+def copy_std_bvh(data_path, character, files):
+    """
+    copy an arbitrary bvh file as a static information (skeleton's offset) reference
+    """
+    cmd = 'cp \"{}\" ./datasets/Mixamo/std_bvhs/{}.bvh'.format(data_path + character + '/' + files[0], character)
+    os.system(cmd)
 
 # mean / var 저장
 def write_statistics(character, path):
@@ -37,17 +41,9 @@ def write_statistics(character, path):
     var = dataset.var
     mean = mean.cpu().numpy()[0, ...]
     var = var.cpu().numpy()[0, ...]
-
     np.save(path + '{}_mean.npy'.format(character), mean)
     np.save(path + '{}_var.npy'.format(character), var)
 
-
-def copy_std_bvh(data_path, character, files):
-    """
-    copy an arbitrary bvh file as a static information (skeleton's offset) reference
-    """
-    cmd = 'cp \"{}\" ./datasets/Mixamo/std_bvhs/{}.bvh'.format(data_path + character + '/' + files[0], character)
-    os.system(cmd)
 
 
 if __name__ == '__main__':
@@ -55,8 +51,8 @@ if __name__ == '__main__':
     characters = [f for f in os.listdir(prefix) if os.path.isdir(os.path.join(prefix, f))]
     if 'std_bvhs' in characters: characters.remove('std_bvhs')
     if 'mean_var' in characters: characters.remove('mean_var')
-    if 'test_std_bvhs' in characters: characters.remove('test_std_bvhs')
-    if 'test_mean_var' in characters: characters.remove('test_mean_var')
+    if 'std_bvhs_test' in characters: characters.remove('std_bvhs_test')
+    if 'mean_var_test' in characters: characters.remove('mean_var_test')
 
     try_mkdir(os.path.join(prefix, 'std_bvhs'))
     try_mkdir(os.path.join(prefix, 'mean_var'))
