@@ -63,7 +63,7 @@ print("device: ", args.cuda_device)
 """ Changable Parameters """
 # args.is_train = False 
 path = "./parameters/"
-save_name = "211020_2_Fix_norm/"
+save_name = "211021_2_test_quat/"
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)
@@ -114,7 +114,7 @@ if args.is_train == 1:
         save(model, path + save_name, epoch)
 
 else:
-    epoch = 0
+    epoch = 280
     load(model, path + save_name, epoch)
     eval_epoch(
         args, model, criterion, 

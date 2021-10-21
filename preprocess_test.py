@@ -22,30 +22,6 @@ def collect_bvh(data_path, character, files):
     np.save(save_file, motions)
     print('Npy file saved at {}'.format(save_file))
 
-def copy_std_bvh(data_path, character, files):
-    """
-    copy an arbitrary bvh file as a static information (skeleton's offset) reference
-    """
-    cmd = 'cp \"{}\" ./datasets/Mixamo/std_bvhs_test/{}.bvh'.format(data_path + character + '/test/' + files[0], character)
-    os.system(cmd)
-
-# mean / var 저장
-def write_statistics(character, path):
-    args = get_args()
-    new_args = copy.copy(args)
-    new_args.data_augment = 0
-    new_args.dataset = character
-
-    dataset = MotionData(new_args, 0)
-
-    mean = dataset.mean
-    var = dataset.var
-    mean = mean.cpu().numpy()[0, ...]
-    var = var.cpu().numpy()[0, ...]
-
-    np.save(path + '{}_mean.npy'.format(character), mean)
-    np.save(path + '{}_var.npy'.format(character), var)
-
 
 if __name__ == '__main__':
     prefix = './datasets/Mixamo/'
@@ -64,5 +40,5 @@ if __name__ == '__main__':
         files = sorted([f for f in os.listdir(data_path) if f.endswith(".bvh")])
 
         collect_bvh(prefix, character, files) # motion 파일들 npy 파일에 저장
-        copy_std_bvh(prefix, character, files) #  0번째 파일을 /std_bvh 폴더에 저장함
-        write_statistics(character, './datasets/Mixamo/mean_var_test/') # std 파일의 normalization data을 저장함  
+        # copy_std_bvh(prefix, character, files) #  0번째 파일을 /std_bvh 폴더에 저장함
+        # write_statistics(character, './datasets/Mixamo/mean_var_test/') # std 파일의 normalization data을 저장함  

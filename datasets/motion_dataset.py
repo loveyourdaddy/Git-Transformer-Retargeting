@@ -15,11 +15,11 @@ class MotionData(Dataset):
     Clip long dataset into fixed length window for batched training
     each data is a 2d tensor with shape (Joint_num*3) * Time
     """
-    def __init__(self, args, positional_encoding):
+    def __init__(self, args, preprocess):
         super(MotionData, self).__init__()
         name = args.dataset # character_name
 
-        # Load motion files
+        # Load all motion files
         if args.is_train == 1:
             file_path = './datasets/Mixamo/{}.npy'.format(name)
         else:
@@ -65,26 +65,22 @@ class MotionData(Dataset):
 
         """ normalization data:  mean, var of data & normalization """
         if args.normalization:
-            # self.mean = torch.mean(self.data, (0, 2), keepdim=True)
-            # self.var = torch.var(self.data, (0, 2), keepdim=True)
-            self.mean = np.load('./datasets/Mixamo/mean_var/{}_mean.npy'.format(name))
-            self.var = np.load('./datasets/Mixamo/mean_var/{}_var.npy'.format(name))
-            # TODO : 캐릭터에 따라 대표 mean / var npy 파일을 만들기. normalization데이터는 고정
-            self.var = self.var ** (1/2)
-            idx = self.var < 1e-5
-            self.var[idx] = 1
+            if preprocess: # preprocess의 경우                
+                self.mean = torch.mean(self.data, (0, 2), keepdim=True) # (1,69,1)
+                self.var = torch.var(self.data, (0, 2), keepdim=True)
+                self.var = self.var ** (1/2)
+                idx = self.var < 1e-5
+                self.var[idx] = 1
+            else: # 일반적인 경우 
+                self.mean = np.load('./datasets/Mixamo/mean_var/{}_mean.npy'.format(name))
+                self.var = np.load('./datasets/Mixamo/mean_var/{}_var.npy'.format(name))            
             self.data = (self.data - self.mean) / self.var
+
         else:
             self.mean = torch.mean(self.data, (0, 2), keepdim=True)
             self.mean.zero_()
             self.var = torch.ones_like(self.mean)
 
-        # Normalzation to data 
-        # if args.normalization == 1:
-        #     self.data = (self.data - self.mean) / self.var
-
-
-        # import pdb; pdb.set_trace()
         """ save data """
         train_len = self.data.shape[0] * 94 // 100
         

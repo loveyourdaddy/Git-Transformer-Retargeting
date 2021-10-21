@@ -35,7 +35,7 @@ def write_statistics(character, path):
     new_args.data_augment = 0
     new_args.dataset = character
 
-    dataset = MotionData(new_args, 0)
+    dataset = MotionData(new_args, 1)
 
     mean = dataset.mean
     var = dataset.var
