@@ -29,11 +29,11 @@ if __name__ == '__main__':
     characters = [f for f in os.listdir(prefix) if os.path.isdir(os.path.join(prefix, f))]
     if 'std_bvhs' in characters: characters.remove('std_bvhs')
     if 'mean_var' in characters: characters.remove('mean_var')
-    if 'std_bvhs_test' in characters: characters.remove('std_bvhs_test')
-    if 'mean_var_test' in characters: characters.remove('mean_var_test')
+    # if 'std_bvhs_test' in characters: characters.remove('std_bvhs_test')
+    # if 'mean_var_test' in characters: characters.remove('mean_var_test')
 
-    try_mkdir(os.path.join(prefix, 'std_bvhs_test'))
-    try_mkdir(os.path.join(prefix, 'mean_var_test'))
+    # try_mkdir(os.path.join(prefix, 'std_bvhs_test'))
+    # try_mkdir(os.path.join(prefix, 'mean_var_test'))
 
     for character in characters:
         data_path = os.path.join(prefix, character) + '/test'

@@ -9,26 +9,26 @@ def get_parser():
     parser.add_argument('--cuda_device', type=str, default='cuda:0', help='cuda device number, eg:[cuda:0]')
     parser.add_argument('--is_train', type=int, default=1)
     parser.add_argument('--is_valid', type=int, default=0)
-
+    
     # learning parameter 
     parser.add_argument('--learning_rate', type=float, default=5e-4, help='learning rate') # 2e-4 # 5e-5
+    parser.add_argument('--batch_size', type=int, default=4, help='batch_size')
     parser.add_argument('--weight_decay', type=float, default=1)
     parser.add_argument('--alpha', type=float, default=0, help='penalty of sparsity')
-    parser.add_argument('--upsampling', type=str, default='linear', help="'stride2' or 'nearest', 'linear'")
-    parser.add_argument('--downsampling', type=str, default='stride2', help='stride2 or max_pooling')
-    # parser.add_argument('--batch_normalization', type=int, default=0, help='batch_norm: 1 or 0')
     parser.add_argument('--activation', type=str, default='LeakyReLU', help='activation: ReLU, LeakyReLU, tanh')
-    parser.add_argument('--n_epoch', type=int, default=1000) # duplicated 
+    parser.add_argument('--n_epoch', type=int, default=1001) # duplicated 
+    parser.add_argument('--epoch_begin', type=int, default=0)
+    # parser.add_argument('--upsampling', type=str, default='linear', help="'stride2' or 'nearest', 'linear'")
+    # parser.add_argument('--downsampling', type=str, default='stride2', help='stride2 or max_pooling')
+    # parser.add_argument('--batch_normalization', type=int, default=0, help='batch_norm: 1 or 0')
 
-    # Dataset
+    # Dataset representation & option
     parser.add_argument('--rotation', type=str, default='quaternion', help='representatio0 of rotation:xyz, quaternion')
     parser.add_argument('--weight_root_loss', type=int, default=0, help='flag for weight_root_loss')
     parser.add_argument('--root_weight', type=int, default=10, help='weighted loss for root displacement')
     parser.add_argument('--window_size', type=int, default=128, help='length of time axis per window')
-    parser.add_argument('--batch_size', type=int, default=4, help='batch_size')
     parser.add_argument('--num_motions', type=int, default=1) # num motions for_character. dummy value 1 
 
-    # Dataset option
     parser.add_argument('--normalization', type=int, default = 1)
     parser.add_argument('--add_offset', type=int, default=0, help='concat offset in dataset')
     parser.add_argument('--position_encoding', type=int, default = 0, help='positional encoding')
@@ -36,53 +36,11 @@ def get_parser():
     parser.add_argument('--data_augment', type=int, default=0, help='data_augment: 1 or 0') # 1
         
     # Network
-    parser.add_argument('--d_hidn', type=int, default=256) # embedding dimenstion: 256
-    parser.add_argument('--num_layers', type=int, default=2, help='number of layers')
-
-    # parser.add_argument('--epoch', type=int, default=0, help='current_epoch')
-
-    # 필요없는건 지웁시다 from skeleton aware  
-    parser.add_argument('--kernel_size', type=int, default=15, help='must be odd')
-    parser.add_argument('--base_channel_num', type=int, default=-1)
-    parser.add_argument('--verbose', type=int, default=0)
-    parser.add_argument('--skeleton_dist', type=int, default=2)
-    parser.add_argument('--skeleton_pool', type=str, default='mean')
-    parser.add_argument('--extra_conv', type=int, default=0)
-    parser.add_argument('--padding_mode', type=str, default='reflection')
-    parser.add_argument('--dataset', type=str, default='Mixamo')
-    parser.add_argument('--fk_world', type=int, default=0)
-    parser.add_argument('--patch_gan', type=int, default=1)
-    # parser.add_argument('--debug', type=int, default=0)
-    parser.add_argument('--skeleton_info', type=str, default='concat')
-    parser.add_argument('--ee_loss_fact', type=str, default='height')
-    parser.add_argument('--pos_repr', type=str, default='3d')
-    parser.add_argument('--D_global_velo', type=int, default=0)
-    parser.add_argument('--gan_mode', type=str, default='lsgan')
-    parser.add_argument('--pool_size', type=int, default=50)
-    parser.add_argument('--model', type=str, default='mul_top_mul_ske')
-    parser.add_argument('--epoch_begin', type=int, default=0)
-    parser.add_argument('--lambda_rec', type=float, default=5)
-    parser.add_argument('--lambda_cycle', type=float, default=5)
-    parser.add_argument('--lambda_ee', type=float, default=100)
-    parser.add_argument('--lambda_global_pose', type=float, default=2.5)
-    parser.add_argument('--lambda_position', type=float, default=1)
-    parser.add_argument('--ee_velo', type=int, default=1)
-    parser.add_argument('--ee_from_root', type=int, default=1)
-    parser.add_argument('--scheduler', type=str, default='none')
-    parser.add_argument('--rec_loss_mode', type=str, default='extra_global_pos')
-    parser.add_argument('--adaptive_ee', type=int, default=0)
-    parser.add_argument('--simple_operator', type=int, default=0)
-    parser.add_argument('--use_sep_ee', type=int, default=0)
-    # parser.add_argument('--eval_seq', type=int, default=0)
-
-    # check it needed - from 언어모델
-    parser.add_argument('--n_enc_seq', type=int, default=256)
-    parser.add_argument('--n_dec_seq', type=int, default=256)
     parser.add_argument('--n_layer', type=int, default=6)
+    parser.add_argument('--d_hidn', type=int, default=256) # embedding dimenstion: 256
     parser.add_argument('--n_head', type=int, default=4)
     parser.add_argument('--d_head', type=int, default=64)
     parser.add_argument('--layer_norm_epsilon', type=float, default=1e-12)
-    # parser.add_argument('--num_joints', type=int, default=0)
     parser.add_argument('--i_pad', type=int, default=0)
 
     return parser
