@@ -2,6 +2,7 @@ import json
 import torch
 import os
 import numpy as np
+from wandb import set_trace
 # from wandb import set_trace
 from datasets import get_character_names
 import option_parser
@@ -22,6 +23,7 @@ def get_curr_character(motion_idx, num_motions):
     return int(motion_idx / num_motions)
 
 def denormalize(dataset, character_idx, motions):
+    # source target 나누자.
     return dataset.denorm(1, character_idx, motions)
 
 def remake_root_position_from_displacement(motions, num_bs, num_DoF, num_frame):
@@ -43,9 +45,9 @@ def write_bvh(save_dir, gt_or_output_epoch, motion, characters, character_idx, m
         file_name = save_dir_gt + "motion_{}.bvh".format(int(motion_idx % args.num_motions + j))
         bvh_writer.write_raw(motion[j], args.rotation, file_name)
     
-def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_dataset, characters, save_name):
+def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_dataset, characters, save_name, Files):
     losses = [] # losses for 1 epoch
-    elements_losses = []
+    # elements_losses = []
     fk_losses = []
     model.train()
     args.epoch = epoch
@@ -54,6 +56,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
     with tqdm(total=len(train_loader), desc=f"TrainEpoch {epoch}") as pbar:
         save_dir = args.save_dir + save_name
         try_mkdir(save_dir)
+
         for i, value in enumerate(train_loader):
             optimizer.zero_grad()
 
@@ -65,6 +68,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             num_bs, num_DoF, num_frame = get_data_numbers(gt_motions)
             motion_idx = get_curr_motion(i, args.batch_size) 
             character_idx = get_curr_character(motion_idx, args.num_motions)
+            file = Files[1][character_idx]
 
             """  feed to network"""
             input_character, output_character = character_idx, character_idx
@@ -96,17 +100,26 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
                     loss = criterion(gt_motions[m][j], output_motions[m][j])
                     loss_sum += loss
                     losses.append(loss.item())
-                    elements_losses.append(loss.item())
 
-            # """ 5-2.same displacement loss """ 
-            # same displacement between gt / output 
-            # or, displacement is similar with previous loss 
-
+            """ fk loss """
+            fk = ForwardKinematics(args, file.edges)
+            gt_transform = fk.forward_from_raw(denorm_gt_motions, train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
+            output_transform = fk.forward_from_raw(denorm_output_motions, train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
+            
+            num_DoF = gt_transform.size(1)
+            for m in range(num_bs):
+                for j in range(num_DoF):
+                    loss = criterion(gt_transform[m][j], output_transform[m][j])
+                    fk_losses.append(loss.item())
+                    
             """ Optimization and show info """
             loss_sum.backward()
             optimizer.step()
+
+            # height = file.get_height()
+            # import pdb; pdb.set_trace()
             pbar.update(1)
-            pbar.set_postfix_str(f"elements_loss: {np.mean(elements_losses):.3f}, fk_loss: {np.mean(fk_losses):.3f} (mean: {np.mean(losses):.3f})")
+            pbar.set_postfix_str(f"fk_losses: {np.mean(fk_losses):.3f} (mean: {np.mean(losses):.3f})")
 
             """ BVH Writing """
             # Write gt motion for 0 epoch
@@ -120,14 +133,15 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
         torch.cuda.empty_cache()
         del gt_motions, enc_inputs, dec_inputs, output_motions
 
-    return np.mean(elements_losses), np.mean(fk_losses), np.mean(losses)
-    # return np.mean(elements_losses), np.mean(fk_losses), np.mean(losses)
+    return  np.mean(fk_losses), np.mean(losses)
 
 """ eval """
-def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, save_name):
+# fk_losses_all = []
+def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, save_name, Files):
     model.eval()
-    losses = [] # losses for 1 epoch
-    denorm_losses = []
+    losses = [] # losses for test epoch
+    fk_losses = []
+    fk_loss_by_motions = []
     with tqdm(total=len(data_loader), desc=f"TestSet") as pbar:
         for i, value in enumerate(data_loader):
             # 매 스텝마다 초기화 되는 loss들             
@@ -140,6 +154,7 @@ def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, sa
             num_bs, num_DoF, num_frame = get_data_numbers(gt_motions)
             motion_idx = get_curr_motion(i, args.batch_size) 
             character_idx = get_curr_character(motion_idx, args.num_motions)
+            file = Files[1][character_idx]
 
             """  feed to network"""
             input_character, output_character = character_idx, character_idx
@@ -173,13 +188,24 @@ def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, sa
                     losses.append(loss.item())
                     # elements_losses.append(loss.item())
 
+            """ fk loss """
+            fk = ForwardKinematics(args, file.edges)
+            gt_transform = fk.forward_from_raw(denorm_gt_motions.cpu(), test_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
+            output_transform = fk.forward_from_raw(denorm_output_motions.cpu(), test_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
+                        
+            num_DoF = gt_transform.size(1)
             for m in range(num_bs):
+                # fk_loss = []
                 for j in range(num_DoF):
-                    loss = criterion(denorm_gt_motions[m][j], denorm_output_motions[m][j])
-                    denorm_losses.append(loss.item())
+                    loss = criterion(gt_transform[m][j], output_transform[m][j])
+                    fk_losses.append(loss.item())
+                    # fk_loss.append(loss.item())
+                fk_loss_by_motions.append(np.mean(fk_losses))
 
-            pbar.update(1)
-            pbar.set_postfix_str(f"denorm_loss: {np.mean(denorm_losses):.3f}, (mean: {np.mean(losses):.3f})")
+            # fk_losses_all.append(np.mean(fk_losses)) # 모든 모션에 대해서 mean 을 구함 
+            # pbar.update(1)
+            # pbar.set_postfix_str(f"denorm_loss: {np.mean(fk_losses):.3f}, (mean: {np.mean(losses):.3f})")
+            # import pdb; pdb.set_trace()
             
             """ BVH Writing """
             # Write gt motion for 0 epoch
@@ -192,6 +218,12 @@ def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, sa
             # del 
             torch.cuda.empty_cache()
             del enc_inputs, dec_inputs
+    print("retargeting loss: {}".format(np.mean(fk_losses)))
+    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
+    # perframe loss은 11개 
+    # denorm_losses 몇개인지 확인: motion 의 갯수.
+    # joint / frames / motion에 대한 losses가 맞는가?
 
     # return np.sum(matchs) / len(matchs) if 0 < len(matchs) else 0
 

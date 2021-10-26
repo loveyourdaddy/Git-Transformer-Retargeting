@@ -12,8 +12,8 @@ class ForwardKinematics:
             self.topology[edge[1]] = edge[0]
             self.rotation_map.append(edge[1])
 
-        self.world = args.fk_world
-        self.pos_repr = args.pos_repr
+        self.world = 0 # args.fk_world
+        self.pos_repr = '3d' # args.pos_repr
         self.quater = args.rotation == 'quaternion'
 
     def forward_from_raw(self, raw, offset, world=None, quater=None):

@@ -155,7 +155,7 @@ class DecoderLayer(nn.Module):
         self_att_outputs = self.layer_norm1(dec_inputs + self_att_outputs)
         
         # dec_enc attention을 적용합니다. (bs, window, DoF), (bs, n_head, window, window)
-        # Q : self attn, K,V : enc_output, 
+        # Q : self attn, K,V : enc_output,
         dec_enc_att_outputs, dec_enc_attn_prob, _ = self.dec_enc_attn(self_att_outputs, enc_outputs, enc_outputs, dec_enc_attn_mask) 
         dec_enc_att_outputs = self.layer_norm2(self_att_outputs + dec_enc_att_outputs)
 

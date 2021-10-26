@@ -54,6 +54,7 @@ def load(model, path, epoch):
 args_ = option_parser.get_args()
 args = args_
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("cuda device: ", args.cuda_device)
 log_path = os.path.join(args.save_dir, 'logs/')
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 
@@ -62,11 +63,15 @@ print("device: ", args.cuda_device)
 
 """ Changable Parameters """
 path = "./parameters/"
-save_name = "211022_1_cross_retargeting_test/"
+save_name = "211026_intra_retargeting_quaternion"# "211022_0_intra_retargeting_test_xyz/"
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)
 dataset = create_dataset(args, characters)
+# if args.is_train == 1:
+#     batch_size = args.batch_size 
+# else:
+#     batch_size = 1 
 loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=motion_collate_fn)
 offsets = dataset.get_offsets()
 print("characters:{}".format(characters))
@@ -101,21 +106,22 @@ for i in range(len(characters)):
     BVHWriters.append(bvh_writers)
 
 if args.is_train == 1:
-    print("cuda device: ", args.cuda_device)
+    
+    # for every epoch 
     for epoch in range(args.n_epoch):
-        ele_loss, fk_loss, loss = train_epoch(
+        fk_loss, loss = train_epoch(
             args, epoch, model, criterion, optimizer, 
             loader, dataset, 
-            characters, save_name)
-        wandb.log({"ele_loss": ele_loss})
+            characters, save_name, Files)
+        # wandb.log({"ele_loss": ele_loss})
         wandb.log({"fk_loss": fk_loss})
         wandb.log({"loss": loss})
         save(model, path + save_name, epoch)
 
 else:
-    epoch = 400
+    epoch = 90
     load(model, path + save_name, epoch)
     eval_epoch(
         args, model, criterion, 
         dataset, loader, 
-        characters, save_name)
+        characters, save_name, Files)

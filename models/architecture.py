@@ -25,7 +25,6 @@ class GAN_model(BaseModel):
         print("cuda availiable: {}".format(torch.cuda.is_available()))
 
         for i in range(self.n_topology):
-            print(character_names[i])
             # print("in architecture, dataset.joint_topologies:{} \n\t{}".format(len(dataset.joint_topologies[i]), dataset.joint_topologies[i]))
             model = IntegratedModel(args, dataset.joint_topologies[i], None, self.device, character_names[i])
             # print("{} model done \n".format(character_names[i]))
