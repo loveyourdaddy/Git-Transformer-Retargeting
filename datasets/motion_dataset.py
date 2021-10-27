@@ -35,7 +35,7 @@ class MotionData(Dataset):
         motions = list(motions)
         
         # motions (111, 313, 69) -> new_window (192, 64,91)
-        new_window = self.get_windows(motions)
+        new_window = self.get_windows(motions)  
 
         # change data from list to tensor
         self.data.append(new_window)

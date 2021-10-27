@@ -63,7 +63,7 @@ print("device: ", args.cuda_device)
 
 """ Changable Parameters """
 path = "./parameters/"
-save_name = "211026_intra_retargeting_quaternion"# "211022_0_intra_retargeting_test_xyz/"
+save_name = "211027_TTA_intra_retargeting/" 
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)
@@ -119,7 +119,7 @@ if args.is_train == 1:
         save(model, path + save_name, epoch)
 
 else:
-    epoch = 90
+    epoch = 54
     load(model, path + save_name, epoch)
     eval_epoch(
         args, model, criterion, 

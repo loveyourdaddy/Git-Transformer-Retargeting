@@ -69,6 +69,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             motion_idx = get_curr_motion(i, args.batch_size) 
             character_idx = get_curr_character(motion_idx, args.num_motions)
             file = Files[1][character_idx]
+            # height = file.get_height()
 
             """  feed to network"""
             input_character, output_character = character_idx, character_idx
@@ -116,7 +117,6 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             loss_sum.backward()
             optimizer.step()
 
-            # height = file.get_height()
             # import pdb; pdb.set_trace()
             pbar.update(1)
             pbar.set_postfix_str(f"fk_losses: {np.mean(fk_losses):.3f} (mean: {np.mean(losses):.3f})")
@@ -186,7 +186,6 @@ def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, sa
                     loss = criterion(gt_motions[m][j], output_motions[m][j])
                     loss_sum += loss
                     losses.append(loss.item())
-                    # elements_losses.append(loss.item())
 
             """ fk loss """
             fk = ForwardKinematics(args, file.edges)
@@ -199,25 +198,20 @@ def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, sa
                 for j in range(num_DoF):
                     loss = criterion(gt_transform[m][j], output_transform[m][j])
                     fk_losses.append(loss.item())
-                    # fk_loss.append(loss.item())
                 fk_loss_by_motions.append(np.mean(fk_losses))
-
-            # fk_losses_all.append(np.mean(fk_losses)) # 모든 모션에 대해서 mean 을 구함 
-            # pbar.update(1)
-            # pbar.set_postfix_str(f"denorm_loss: {np.mean(fk_losses):.3f}, (mean: {np.mean(losses):.3f})")
-            # import pdb; pdb.set_trace()
+ 
+            pbar.update(1)
+            pbar.set_postfix_str(f"denorm_loss: {np.mean(fk_losses):.3f}, (mean: {np.mean(losses):.3f})")
             
             """ BVH Writing """
-            # Write gt motion for 0 epoch
             save_dir = args.save_dir + save_name
             write_bvh(save_dir, "test_gt", denorm_gt_motions, characters, character_idx, motion_idx, args)
-
-            # Write output motions for every 10 epoch
             write_bvh(save_dir, "test_output", denorm_output_motions, characters, character_idx, motion_idx, args)
 
             # del 
             torch.cuda.empty_cache()
             del enc_inputs, dec_inputs
+
     print("retargeting loss: {}".format(np.mean(fk_losses)))
     import pdb; pdb.set_trace()
     # import pdb; pdb.set_trace()
