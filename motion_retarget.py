@@ -63,7 +63,7 @@ print("device: ", args.cuda_device)
 
 """ Changable Parameters """
 path = "./parameters/"
-save_name = "211027_TTA_intra_retargeting/" 
+save_name = "211105_framework/" 
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)

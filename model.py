@@ -275,12 +275,10 @@ class Decoder(nn.Module):
             dec_inputs = torch.cat([dec_inputs, offset], dim=-1)
 
         # dec_outputs = dec_outputs + positions
+        # import pdb; pdb.set_trace()
         dec_outputs = self.fc1(dec_inputs)
         
-        """ Transpose for window """
-        # (bs, DoF, window) -> (bs, window, DoF) (4,128,91)
-        # dec_outputs = dec_outputs.transpose(1,2)
-        
+        """ Transpose for window """        
         # (bs, DoF, DoF)
         dec_attn_pad_mask = get_attn_pad_mask(dec_outputs, dec_outputs, self.args.i_pad)
         # (bs, DoF, DoF)
@@ -330,64 +328,10 @@ class MotionGenerator(nn.Module):
         self.args = args
         self.input_dim = args.input_size        
 
-        """ Fully Connected Layer"""
-        # self.d_hidn = args.window_size # args.d_hidn
-        # self.fc1 = nn.Linear(self.input_dim, self.d_hidn)
-        # self.fc2 = nn.Linear(self.d_hidn, self.input_dim)
-
-        """ 1d Conv layer """
-        # 91 -> 64 -> 91
-        # self.conv1 = nn.Conv1d(self.args.DoF, self.args.d_hidn, 1, padding=0) # d_hidn 개의 (output) kernel이 존재, kerner_size=3 # 15, 7
-        # self.active = F.gelu
-        # self.conv2 = nn.Conv1d(self.args.d_hidn, self.args.DoF, 1, padding=0)
-
-        """ 2d conv layer """
-        # self.conv1 = nn.Conv2d(self.args.DoF, self.args.d_hidn, (3,3), padding=1) # input_channel, output_channel, kernel(filter)_size
-        # self.active = F.gelu
-        # self.conv2 = nn.Conv2d(self.args.d_hidn, self.args.DoF, (3,3), padding=1)
-
-        """ 1d auto-encoder"""
-        # 91 -> 64 -> 91
-        # self.conv1 = nn.Conv1d(self.args.DoF, self.args.d_hidn, 3, padding=1) # d_hidn 개의 (output) kernel이 존재, kerner_size=3 # 15, 7
-        # self.active = F.gelu
-        # self.deconv1 = nn.ConvTranspose1d(self.args.d_hidn, self.args.DoF, 3, padding=1)
-
-        """ 2d auto-encoder"""
-        # self.conv1 = nn.Conv2d(1, 1, 3, padding=1) # d_hidn 개의 (output) kernel이 존재, kerner_size=3 # 15, 7
-        # self.active = F.gelu
-        # self.deconv1 = nn.ConvTranspose2d(1, 1, 3, padding=1)
-
         """ Transformer """
         # layers
         self.transformer = Transformer(args, offsets)
         self.projection = nn.Linear(self.input_dim, self.input_dim)
-        # self.projection = nn.Conv1d(self.input_dim, self.input_dim, kernel_size=1, padding=0)
-        # self.param = self.transformer.parameters() + self.projection.parameters()
-
-    """ Fuclly Connected layer Forward"""
-    # def forward(self, enc_inputs, dec_inputs):
-    #     x = self.fc1(enc_inputs)
-    #     x_act = nn.Softmax(dim = -1)(x)
-    #     y = self.fc2(x_act)
-    #     return y
-
-    """ Convolutional network Forward """
-    # def forward(self, enc_inputs, dec_inputs):
-    #     x = self.conv1(enc_inputs) 
-    #     x_pool = self.active(x)
-    #     y = self.conv2(x_pool)
-    #     # print(y.size())
-    #     # print(enc_inputs.size())
-    #     return y
-
-    """ auto-encoder Forward """
-    # def forward(self, enc_inputs, dec_inputs):
-    #     enc_inputs = torch.unsqueeze(enc_inputs,1)
-    #     x = self.conv1(enc_inputs)
-    #     x_act = self.active(x)
-    #     y = self.deconv1(x_act)
-    #     y = torch.squeeze(y,1)
-    #     return y
         
     """ Transofrmer """
     def forward(self, input_character, output_character, enc_inputs, dec_inputs):
@@ -396,7 +340,3 @@ class MotionGenerator(nn.Module):
         output = self.projection(dec_outputs)
 
         return output
-        # , enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
-
-    # def parameters(self, recurse: bool) -> Iterator[Parameter]:
-    #     return super().parameters(recurse=recurse)

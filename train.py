@@ -62,7 +62,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
 
             """ Get Data and Set value to model and Get output """
             input_motions, gt_motions = map(lambda v : v.to(args.cuda_device), value)
-            enc_inputs, dec_inputs = input_motions, input_motions
+            enc_inputs, dec_inputs = input_motions, gt_motions
 
             # """ Get Data numbers: (bs, DoF, window) """
             num_bs, num_DoF, num_frame = get_data_numbers(gt_motions)
