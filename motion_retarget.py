@@ -63,7 +63,7 @@ print("device: ", args.cuda_device)
 
 """ Changable Parameters """
 path = "./parameters/"
-save_name = "211105_framework/" 
+save_name = "211106_bs_window_DoF/" 
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)
@@ -77,14 +77,11 @@ offsets = dataset.get_offsets()
 print("characters:{}".format(characters))
 
 """ 2.Set Learning Parameters  """
-# args.num_joints = int(DoF/4) # 91 = 4 * 22 (+ position 3)
-if args.add_offset:
-    args.input_size = args.window_size + 1
-else:
-    args.input_size = args.window_size
+args.input_size = len(dataset[0][0][0])
+args.output_size = len(dataset[1][0][0])
 
 """ 3. Train and Test  """
-model = MotionGenerator(args, offsets) 
+model = MotionGenerator(args, offsets)
 model.to(args.cuda_device)
 wandb.watch(model)
 

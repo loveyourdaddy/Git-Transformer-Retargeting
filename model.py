@@ -40,9 +40,15 @@ class ScaledDotProductAttention(nn.Module):
         return context, attn_prob
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args, type):
         super().__init__()
-        self.input_dim = args.input_size
+        # self.input_dim = args.input_size
+        if type == "Enc":
+            self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.input_size, args.input_size, args.input_size, args.input_size
+        elif type == "Dec":
+            self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.output_size, args.output_size, args.output_size, args.output_size
+        else: # EncDec 
+            self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.output_size, args.output_size, args.input_size, args.input_size
 
         # head parameters
         self.d_head = args.d_head
@@ -51,12 +57,9 @@ class MultiHeadAttention(nn.Module):
         self.d_hidn = args.d_hidn
         
         """ Q, K, V Network : 전체 프레임을 한번에 읽고 attention을 찾음 """
-        self.W_Q = nn.Linear(self.input_dim, self.n_head * self.d_head) # W: (input_dim, 256)
-        self.W_K = nn.Linear(self.input_dim, self.n_head * self.d_head)
-        self.W_V = nn.Linear(self.input_dim, self.n_head * self.d_head)
-        # self.W_Q = nn.Conv1d(self.DoF, self.n_head * self.d_head, kernel_size=1, padding=0) # W: (91, 256)
-        # self.W_K = nn.Conv1d(self.DoF, self.n_head * self.d_head, kernel_size=1, padding=0)
-        # self.W_V = nn.Conv1d(self.DoF, self.n_head * self.d_head, kernel_size=1, padding=0)
+        self.W_Q = nn.Linear(self.Q_input_dim, self.n_head * self.d_head)
+        self.W_K = nn.Linear(self.K_input_dim, self.n_head * self.d_head)
+        self.W_V = nn.Linear(self.V_input_dim, self.n_head * self.d_head)
 
         # Get attention value
         self.scaled_dot_attn = ScaledDotProductAttention(args)
@@ -86,6 +89,54 @@ class MultiHeadAttention(nn.Module):
         output = self.linear(context)
 
         return output, attn_prob, context
+'''
+class MultiHeadAttention_DecEncAttn(nn.Module):
+    def __init__(self, args):
+        super().__init__()
+        self.input_dim_attn_output = args.input_size # enc dof  
+        self.input_dim_enc_output = args.input_size  # dec dof
+        # dec_input 은 어떤걸로 주지? 
+
+        # head parameters
+        self.d_head = args.d_head
+        self.n_head = args.n_head
+        # hidden vector dim
+        self.d_hidn = args.d_hidn
+        
+        """ Q, K, V Network : 전체 프레임을 한번에 읽고 attention을 찾음 """
+        self.W_Q = nn.Linear(self.input_dim, self.n_head * self.d_head)
+        self.W_K = nn.Linear(self.input_dim, self.n_head * self.d_head)
+        self.W_V = nn.Linear(self.input_dim, self.n_head * self.d_head)
+
+        # Get attention value
+        self.scaled_dot_attn = ScaledDotProductAttention(args)
+        self.linear = nn.Linear(self.n_head * self.d_head, self.input_dim)
+
+    def forward(self, Q, K, V, attn_mask):
+        # Q,K,V:(bs, window, DoF) attn_mask:(bs, window, window)
+        batch_size = Q.size(0)
+
+        """ Data Encoding 1 """
+        # (bs, *DoF, window) -> (bs, *n_head*d_head, window) -> (bs, window, *n_head, *d_head) -> (bs, *n_head, window, *d_head) 
+        q_s = self.W_Q(Q).view(batch_size, -1, self.n_head, self.d_head).transpose(1, 2)
+        k_s = self.W_K(K).view(batch_size, -1, self.n_head, self.d_head).transpose(1, 2)
+        v_s = self.W_V(V).view(batch_size, -1, self.n_head, self.d_head).transpose(1, 2)
+
+        # head 갯수만큼 차원 추가 및 복사해두기 : (bs, window, window) -> (bs, n_head, window, window)
+        attn_mask = attn_mask.unsqueeze(1).repeat(1, self.n_head, 1, 1)
+        
+        # Attentinon 계산
+        # context: (bs, n_head, window, d_head)
+        context, attn_prob = self.scaled_dot_attn(q_s, k_s, v_s, attn_mask)
+
+        # (bs, n_head, window, d_head) -> (bs, window, n_head * d_head)
+        context = context.transpose(1, 2).contiguous().view(batch_size, -1, self.n_head * self.d_head)        
+
+        # (bs,window,nhead*dhead) -> (bs, window, DoF)
+        output = self.linear(context)
+
+        return output, attn_prob, context
+'''
 
 """ Feed Forward """
 class PositionFeedForwardNet(nn.Module):
@@ -104,8 +155,8 @@ class PositionFeedForwardNet(nn.Module):
 
         return output
 
-""" Layers"""
-class EncoderLayer(nn.Module):
+""" Layers """
+class EncoderLayer(nn.Module): # (bs, 128, 91)
     def __init__(self, args):
         super().__init__()
         # animation parameters
@@ -114,23 +165,17 @@ class EncoderLayer(nn.Module):
         self.layer_norm_epsilon = args.layer_norm_epsilon
 
         # Layers
-        self.self_attn = MultiHeadAttention(self.args)
+        self.self_attn = MultiHeadAttention(self.args) # Q,K,V: (bs, 128, 91)
         self.layer_norm1 = nn.LayerNorm(self.input_dim, eps=self.layer_norm_epsilon)
         self.pos_ffn = PositionFeedForwardNet(self.args)
         self.layer_norm2 = nn.LayerNorm(self.input_dim, eps=self.layer_norm_epsilon)
 
     def forward(self, inputs, attn_mask):
-        # input & 아래 전부 (bs, window, DoF)
 
-        # attention 
         att_outputs, attn_prob, context = self.self_attn(inputs, inputs, inputs, attn_mask)
-
-        # residual in encoder & 마지막 차원에 대해 layer normalization
         att_outputs = self.layer_norm1(inputs + att_outputs)
 
-        # ff
         ffn_outputs = self.pos_ffn(att_outputs)
-        # residual
         ffn_outputs = self.layer_norm2(ffn_outputs + att_outputs)
 
         return ffn_outputs, attn_prob, context
@@ -141,30 +186,24 @@ class DecoderLayer(nn.Module):
         self.args = args
         self.input_dim = args.input_size
 
-        self.self_attn = MultiHeadAttention(self.args)
+        self.self_attn = MultiHeadAttention(self.args) # Q,K,V: (bs, 128, 111)
         self.layer_norm1 = nn.LayerNorm(self.input_dim, eps=self.args.layer_norm_epsilon)
-        self.dec_enc_attn = MultiHeadAttention(self.args)
+        self.dec_enc_attn = MultiHeadAttention(self.args) # Q: (bs, 128, 111), K,V: (bs, 128, 91)
         self.layer_norm2 = nn.LayerNorm(self.input_dim, eps=self.args.layer_norm_epsilon)
         self.pos_ffn = PositionFeedForwardNet(self.args)
         self.layer_norm3 = nn.LayerNorm(self.input_dim, eps=self.args.layer_norm_epsilon)
     
     def forward(self, dec_inputs, enc_outputs, self_attn_mask, dec_enc_attn_mask):
         
-        # dec_inputs에 Self attention을 적용합니다. (bs, DoF, d_hidn), (bs, n_head, DoF, DoF)
-        self_att_outputs, self_attn_prob, _ = self.self_attn(dec_inputs, dec_inputs, dec_inputs, self_attn_mask) #Q, K, V, attn
+        self_att_outputs, self_attn_prob, _ = self.self_attn(dec_inputs, dec_inputs, dec_inputs, self_attn_mask) # Q, K, V, attn
         self_att_outputs = self.layer_norm1(dec_inputs + self_att_outputs)
         
-        # dec_enc attention을 적용합니다. (bs, window, DoF), (bs, n_head, window, window)
-        # Q : self attn, K,V : enc_output,
         dec_enc_att_outputs, dec_enc_attn_prob, _ = self.dec_enc_attn(self_att_outputs, enc_outputs, enc_outputs, dec_enc_attn_mask) 
         dec_enc_att_outputs = self.layer_norm2(self_att_outputs + dec_enc_att_outputs)
 
-        # (bs, window, DoF)
         ffn_outputs = self.pos_ffn(dec_enc_att_outputs)
-        # residual 
         ffn_outputs = self.layer_norm3(dec_enc_att_outputs + ffn_outputs)
 
-        # (bs, window, DoF)
         return ffn_outputs, self_attn_prob, dec_enc_attn_prob
 
 """ sinusoial encoding of each sentence """ 
@@ -225,19 +264,15 @@ class Encoder(nn.Module):
             inputs = torch.cat([inputs, offset], dim=-1)
 
         outputs = self.fc1(inputs)
-        # outputs = outputs + positions
-        # outputs = self.fc1(outputs)
 
         """ Transpose for window """
         # (bs, DoF, window) -> (bs, window, DoF) (4,128,91)
         # outputs = outputs.transpose(1,2)
 
         """ Get Pad """
-        # (bs, n_head, window, window)
         attn_mask = get_attn_pad_mask(outputs, outputs, self.args.i_pad)
         
         """ 연산 """
-        # get all attn_prob of all layer
         attn_probs = []
         for layer in self.layers:
             outputs, attn_prob, context = layer(outputs, attn_mask)
@@ -253,11 +288,10 @@ class Decoder(nn.Module):
     def __init__(self, args, offset):
         super().__init__()
         self.args = args
-        self.input_dim = args.input_size
+        self.input_dim = args.output_size
         self.d_hidn = args.d_hidn
         self.offset = offset
 
-        # self.dec_input_emb = nn.Embedding(self.DoF, self.args.d_hidn)
         sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(self.input_dim + 1, self.args.d_hidn))
         self.pos_emb = nn.Embedding.from_pretrained(sinusoid_table, freeze=True)
 
@@ -340,3 +374,4 @@ class MotionGenerator(nn.Module):
         output = self.projection(dec_outputs)
 
         return output
+        

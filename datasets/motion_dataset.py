@@ -42,30 +42,32 @@ class MotionData(Dataset):
         self.data = torch.cat(self.data)
         
         """ change data dimensiton : (bs, window, DoF) -> (bs, DoF, winodw) """
-        self.data = self.data.permute(0, 2, 1)
+        # (bs, window, DoF)
+        # self.data = self.data.permute(0, 2, 1)
 
         """ Modify data  """
         # data: (bs, DoF, window)
         num_bs = self.data.size(0)
-        num_DoF = self.data.size(1)
-        num_frames = self.data.size(2)
+        num_DoF = self.data.size(2)
+        num_frames = self.data.size(1)
 
         #  root position -> displacement 
         if args.root_pos_disp == 1:
             for bs in range(num_bs): # 0차원(motions)에 대해
                 for frame in range(num_frames - 1): # 2차원(frames)에 대해. frame: 0 ~ 126
-                    self.data[bs][num_DoF - 3][frame] = self.data[bs][num_DoF - 3][frame + 1] - self.data[bs][num_DoF - 3][frame]
-                    self.data[bs][num_DoF - 2][frame] = self.data[bs][num_DoF - 2][frame + 1] - self.data[bs][num_DoF - 2][frame]
-                    self.data[bs][num_DoF - 1][frame] = self.data[bs][num_DoF - 1][frame + 1] - self.data[bs][num_DoF - 1][frame]
+                    self.data[bs][frame][num_DoF - 3] = self.data[bs][frame + 1][num_DoF - 3] - self.data[bs][frame][num_DoF - 3]
+                    self.data[bs][frame][num_DoF - 2] = self.data[bs][frame + 1][num_DoF - 2] - self.data[bs][frame][num_DoF - 2]
+                    self.data[bs][frame][num_DoF - 1] = self.data[bs][frame + 1][num_DoF - 1] - self.data[bs][frame][num_DoF - 1]
+                
                 # 마지막 프레임의 disp는 0으로 셋팅해줍니다. 
-                self.data[bs][num_DoF - 3][num_frames - 1] = 0
-                self.data[bs][num_DoF - 2][num_frames - 1] = 0
-                self.data[bs][num_DoF - 1][num_frames - 1] = 0
+                self.data[bs][num_frames - 1][num_DoF - 3] = 0
+                self.data[bs][num_frames - 1][num_DoF - 2] = 0
+                self.data[bs][num_frames - 1][num_DoF - 1] = 0
 
 
         """ normalization data:  mean, var of data & normalization """
         if args.normalization:
-            if preprocess: # preprocess의 경우                
+            if preprocess: # preprocess의 경우
                 self.mean = torch.mean(self.data, (0, 2), keepdim=True) # (1,69,1)
                 self.var = torch.var(self.data, (0, 2), keepdim=True)
                 self.var = self.var ** (1/2)
@@ -73,7 +75,7 @@ class MotionData(Dataset):
                 self.var[idx] = 1
             else: # 일반적인 경우 
                 self.mean = np.load('./datasets/Mixamo/mean_var/{}_mean.npy'.format(name))
-                self.var = np.load('./datasets/Mixamo/mean_var/{}_var.npy'.format(name))            
+                self.var = np.load('./datasets/Mixamo/mean_var/{}_var.npy'.format(name))
             self.data = (self.data - self.mean) / self.var
 
         else:
@@ -89,7 +91,7 @@ class MotionData(Dataset):
         self.data_reverse = torch.tensor(self.data.numpy()[..., ::-1].copy())
 
         # (8,91,913)
-        self.test_set = self.data[train_len:, ...]       
+        self.test_set = self.data[train_len:, ...]
         self.reset_length_flag = 0
         self.virtual_length = 0
 

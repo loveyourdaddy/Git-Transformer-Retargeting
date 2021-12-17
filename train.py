@@ -30,9 +30,9 @@ def remake_root_position_from_displacement(motions, num_bs, num_DoF, num_frame):
 
     for bs in range(num_bs): # dim 0
         for frame in range(num_frame - 1): # dim 2 # frame: 0~62. update 1 ~ 63
-            motions[bs][num_DoF - 3][frame + 1] += motions[bs][num_DoF - 3][frame]
-            motions[bs][num_DoF - 2][frame + 1] += motions[bs][num_DoF - 2][frame]
-            motions[bs][num_DoF - 1][frame + 1] += motions[bs][num_DoF - 1][frame]
+            motions[bs][frame + 1][num_DoF - 3] += motions[bs][frame][num_DoF - 3]
+            motions[bs][frame + 1][num_DoF - 2] += motions[bs][frame][num_DoF - 2]
+            motions[bs][frame + 1][num_DoF - 1] += motions[bs][frame][num_DoF - 1]
 
     return motions
 
@@ -187,11 +187,15 @@ def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, sa
                     loss_sum += loss
                     losses.append(loss.item())
 
+            # permute 
+            denorm_gt_motions = denorm_gt_motions.permute(0,2,1)
+            denorm_output_motions = denorm_output_motions.permute(0,2,1)
+
             """ fk loss """
             fk = ForwardKinematics(args, file.edges)
             gt_transform = fk.forward_from_raw(denorm_gt_motions.cpu(), test_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
             output_transform = fk.forward_from_raw(denorm_output_motions.cpu(), test_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
-                        
+
             num_DoF = gt_transform.size(1)
             for m in range(num_bs):
                 # fk_loss = []
