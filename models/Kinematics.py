@@ -25,12 +25,12 @@ class ForwardKinematics:
         elif self.pos_repr == '4d':
             raise Exception('Not support')
         if quater:
-            rotation = rotation.reshape((rotation.shape[0], -1, 4, rotation.shape[-1]))
+            rotation = rotation.reshape((rotation.shape[0], -1, 4, rotation.shape[-1])) # (16,32,4,88)
             identity = torch.tensor((1, 0, 0, 0), dtype=torch.float, device=raw.device)
         else:
             rotation = rotation.reshape((rotation.shape[0], -1, 3, rotation.shape[-1]))
             identity = torch.zeros((3, ), dtype=torch.float, device=raw.device)
-        identity = identity.reshape((1, 1, -1, 1))
+        identity = identity.reshape((1, 1, -1, 1)) # 4->(1,1,4,1)
         new_shape = list(rotation.shape)
         new_shape[1] += 1
         new_shape[2] = 1
@@ -51,11 +51,11 @@ class ForwardKinematics:
         if not quater and rotation.shape[-2] != 3: raise Exception('Unexpected shape of rotation')
         if quater and rotation.shape[-2] != 4: raise Exception('Unexpected shape of rotation')
 
-        rotation = rotation.permute(0, 3, 1, 2)
-        position = position.permute(0, 2, 1)
-        result = torch.empty(rotation.shape[:-1] + (3, ), device=position.device) # rand
+        rotation = rotation.permute(0, 3, 1, 2) # (16,22,4,128) -> 16,128,23,4
+        position = position.permute(0, 2, 1) # (16,3,128) -> 16,128,3
+        result = torch.empty(rotation.shape[:-1] + (3, ), device=position.device) # (16,128,23,2)
 
-        norm = torch.norm(rotation, dim=-1, keepdim=True)
+        norm = torch.norm(rotation, dim=-1, keepdim=True) # 16,128,23,4 -> 16,128,23,1
         #norm[norm < 1e-10] = 1
 
         # 이게 정말 필요할까요? 

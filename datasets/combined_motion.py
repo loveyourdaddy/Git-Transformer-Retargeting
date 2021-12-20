@@ -64,19 +64,14 @@ class MixedData(Dataset):
             motion_data = []
 
             for i, character in enumerate(characters):
-                # new_args = copy.copy(args)
-                # new_args.data_augment = 0
                 args.dataset = character
                 motion = MotionData(args, 0)
                 motion_data.append(motion)
-
                 total_length = min(total_length, len(motion_data[-1]))
-                # 4 character, 106 motions, 913 frames, 111 rot + pos
 
+                # 4 character, 106 motions, 913 frames, 111 rot + pos
                 mean = np.load('./datasets/Mixamo/mean_var/{}_mean.npy'.format(character))
                 var = np.load('./datasets/Mixamo/mean_var/{}_var.npy'.format(character))
-                # mean = motion.mean
-                # var = motion.var
                 mean = torch.tensor(mean)
                 mean = mean.reshape((1,) + mean.shape)
                 var = torch.tensor(var)
@@ -163,6 +158,7 @@ class TestData(Dataset):
                 args.dataset = character
                 motion = MotionData(args, 0)
                 motion_data.append(motion)
+                # import pdb; pdb.set_trace()
                 
                 new_offset = file.offset
                 new_offset = torch.tensor(new_offset, dtype=torch.float)

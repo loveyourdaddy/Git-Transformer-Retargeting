@@ -9,6 +9,7 @@ def get_parser():
     parser.add_argument('--cuda_device', type=str, default='cuda:0', help='cuda device number, eg:[cuda:0]')
     parser.add_argument('--is_train', type=int, default=1)
     parser.add_argument('--is_valid', type=int, default=0)
+    parser.add_argument('--render', type=int, default=0)
     
     # learning parameter 
     parser.add_argument('--learning_rate', type=float, default=5e-4, help='learning rate') # 2e-4 # 5e-5

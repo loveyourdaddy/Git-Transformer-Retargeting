@@ -165,13 +165,12 @@ class EncoderLayer(nn.Module): # (bs, 128, 91)
         self.layer_norm_epsilon = args.layer_norm_epsilon
 
         # Layers
-        self.self_attn = MultiHeadAttention(self.args) # Q,K,V: (bs, 128, 91)
+        self.self_attn = MultiHeadAttention(self.args, "Enc") # Q,K,V: (bs, 128, 91)
         self.layer_norm1 = nn.LayerNorm(self.input_dim, eps=self.layer_norm_epsilon)
         self.pos_ffn = PositionFeedForwardNet(self.args)
         self.layer_norm2 = nn.LayerNorm(self.input_dim, eps=self.layer_norm_epsilon)
 
     def forward(self, inputs, attn_mask):
-
         att_outputs, attn_prob, context = self.self_attn(inputs, inputs, inputs, attn_mask)
         att_outputs = self.layer_norm1(inputs + att_outputs)
 
@@ -186,9 +185,9 @@ class DecoderLayer(nn.Module):
         self.args = args
         self.input_dim = args.input_size
 
-        self.self_attn = MultiHeadAttention(self.args) # Q,K,V: (bs, 128, 111)
+        self.self_attn = MultiHeadAttention(self.args, "Dec") # Q,K,V: (bs, 128, 111)
         self.layer_norm1 = nn.LayerNorm(self.input_dim, eps=self.args.layer_norm_epsilon)
-        self.dec_enc_attn = MultiHeadAttention(self.args) # Q: (bs, 128, 111), K,V: (bs, 128, 91)
+        self.dec_enc_attn = MultiHeadAttention(self.args, "Dec") # Q: (bs, 128, 111), K,V: (bs, 128, 91)
         self.layer_norm2 = nn.LayerNorm(self.input_dim, eps=self.args.layer_norm_epsilon)
         self.pos_ffn = PositionFeedForwardNet(self.args)
         self.layer_norm3 = nn.LayerNorm(self.input_dim, eps=self.args.layer_norm_epsilon)

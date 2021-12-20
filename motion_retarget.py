@@ -13,18 +13,8 @@ from train import *
 """ motion data collate function """
 def motion_collate_fn(inputs):
 
-    # 인풋: (4,96,1,69,32) (캐릭터수, , 1, 조인트, 윈도우)
-
-    input_motions, gt_motions = list(zip(*inputs)) # 모션안에 있는 window 갯수에 따라 다름.  # input_motions, output_motions
-    
-    # input = input_motions[0].unsqueeze(0)
-    # for i in range(1, len(input_motions)):
-    #     input = torch.cat((input, input_motions[i].unsqueeze(0)), dim=0)
-        
-    # gt = gt_motions[0].unsqueeze(0)
-    # for i in range(1, len(gt_motions)):
-    #     gt = torch.cat((gt, gt_motions[i].unsqueeze(0)), dim=0)
-
+    # Data foramt: (4,96,1,69,32) (캐릭터수, , 1, 조인트, 윈도우)
+    input_motions, gt_motions = list(zip(*inputs)) 
 
     input = torch.nn.utils.rnn.pad_sequence(input_motions, batch_first=True, padding_value=0)
     gt = torch.nn.utils.rnn.pad_sequence(gt_motions, batch_first=True, padding_value=0)
@@ -39,7 +29,6 @@ def save(model, path, epoch):
     try_mkdir(path)
     path = os.path.join(path, str(epoch))
     torch.save(model.state_dict(), path)
-    # print('Save at {} succeed!'.format(path))
 
 def load(model, path, epoch):
     path = os.path.join(path, str(epoch))
@@ -63,7 +52,7 @@ print("device: ", args.cuda_device)
 
 """ Changable Parameters """
 path = "./parameters/"
-save_name = "211106_bs_window_DoF/" 
+save_name = "211220_separate_enc_dec_attn/" 
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)
@@ -85,7 +74,7 @@ model = MotionGenerator(args, offsets)
 model.to(args.cuda_device)
 wandb.watch(model)
 
-criterion = torch.nn.MSELoss() # torch.nn.CrossEntropyLoss() 
+criterion = torch.nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr = args.learning_rate, weight_decay = args.weight_decay) 
 
 # Set BVH writers
@@ -110,10 +99,10 @@ if args.is_train == 1:
             args, epoch, model, criterion, optimizer, 
             loader, dataset, 
             characters, save_name, Files)
-        # wandb.log({"ele_loss": ele_loss})
+            
+        save(model, path + save_name, epoch)
         wandb.log({"fk_loss": fk_loss})
         wandb.log({"loss": loss})
-        save(model, path + save_name, epoch)
 
 else:
     epoch = 54

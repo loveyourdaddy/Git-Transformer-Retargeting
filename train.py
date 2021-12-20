@@ -3,15 +3,13 @@ import torch
 import os
 import numpy as np
 from wandb import set_trace
-# from wandb import set_trace
 from datasets import get_character_names
 import option_parser
 from tqdm import tqdm
-
 from datasets.bvh_parser import BVH_file
 from datasets.bvh_writer import BVH_writer
-
 from models.Kinematics import ForwardKinematics
+from rendering import *
 
 def get_data_numbers(motion):
     return motion.size(0), motion.size(1), motion.size(2)
@@ -65,7 +63,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             enc_inputs, dec_inputs = input_motions, gt_motions
 
             # """ Get Data numbers: (bs, DoF, window) """
-            num_bs, num_DoF, num_frame = get_data_numbers(gt_motions)
+            num_bs, num_frame, num_DoF = get_data_numbers(gt_motions)
             motion_idx = get_curr_motion(i, args.batch_size) 
             character_idx = get_curr_character(motion_idx, args.num_motions)
             file = Files[1][character_idx]
@@ -77,7 +75,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
 
             """ Post-process data  """
             # """ remove offset part of output motions """
-            output_motions = output_motions[:,:,:num_frame]
+
 
             # """ remake root position from displacement and denorm for bvh_writing """
             if args.normalization == 1:
@@ -104,14 +102,24 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
 
             """ fk loss """
             fk = ForwardKinematics(args, file.edges)
-            gt_transform = fk.forward_from_raw(denorm_gt_motions, train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
-            output_transform = fk.forward_from_raw(denorm_output_motions, train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
-            
+            gt_transform = fk.forward_from_raw(denorm_gt_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
+            output_transform = fk.forward_from_raw(denorm_output_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
+
             num_DoF = gt_transform.size(1)
             for m in range(num_bs):
-                for j in range(num_DoF):
+                for j in range(num_DoF): #check dimension 
                     loss = criterion(gt_transform[m][j], output_transform[m][j])
                     fk_losses.append(loss.item())
+
+            """ Rendering FK result """
+            # 16,69,128 -> 16,128,69
+            gt_transform = gt_transform.permute(0,2,1)
+            output_transform = output_transform.permute(0,2,1)
+
+            if args.render == True:
+                # render 1 frame 
+                render_dots(gt_transform[0][0].reshape(-1,3)) # divide 69 -> 23,3
+
                     
             """ Optimization and show info """
             loss_sum.backward()
