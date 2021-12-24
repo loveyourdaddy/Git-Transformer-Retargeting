@@ -52,7 +52,7 @@ print("device: ", args.cuda_device)
 
 """ Changable Parameters """
 path = "./parameters/"
-save_name = "211220_separate_enc_dec_attn/" 
+save_name = "211224_learning_test/" 
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)
