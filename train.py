@@ -76,7 +76,6 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             """ Post-process data  """
             # """ remove offset part of output motions """
 
-
             # """ remake root position from displacement and denorm for bvh_writing """
             if args.normalization == 1:
                 denorm_gt_motions = denormalize(train_dataset, character_idx, gt_motions)
@@ -84,6 +83,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             else:
                 denorm_gt_motions = gt_motions
                 denorm_output_motions = output_motions
+
 
             # """ remake root position from displacement """
             if args.root_pos_disp == 1:
@@ -93,41 +93,43 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             """ Get loss (orienation & FK & regularization) """
             loss_sum = 0
 
-            # """ 5-1. loss on each element """
+            """ 1. loss on each element """
             for m in range(num_bs):
                 for j in range(num_DoF):
                     loss = criterion(gt_motions[m][j], output_motions[m][j])
                     loss_sum += loss
                     losses.append(loss.item())
 
-            """ fk loss """
-            fk = ForwardKinematics(args, file.edges)
-            gt_transform = fk.forward_from_raw(denorm_gt_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
-            output_transform = fk.forward_from_raw(denorm_output_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
+            """ 2. fk loss """
+            if args.fk_loss == 1:
+                fk = ForwardKinematics(args, file.edges)
+                gt_transform = fk.forward_from_raw(denorm_gt_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
+                output_transform = fk.forward_from_raw(denorm_output_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
 
-            num_DoF = gt_transform.size(1)
-            for m in range(num_bs):
-                for j in range(num_DoF): #check dimension 
-                    loss = criterion(gt_transform[m][j], output_transform[m][j])
-                    fk_losses.append(loss.item())
+                num_DoF = gt_transform.size(1)
+                for m in range(num_bs):
+                    for j in range(num_DoF): #check dimension 
+                        loss = criterion(gt_transform[m][j], output_transform[m][j])
+                        loss_sum += loss
+                        fk_losses.append(loss.item())
 
-            """ Rendering FK result """
-            # 16,69,128 -> 16,128,69
-            gt_transform = gt_transform.permute(0,2,1)
-            output_transform = output_transform.permute(0,2,1)
+                """ Rendering FK result """
+                # 16,69,128 -> 16,128,69
+                gt_transform = gt_transform.permute(0,2,1)
+                output_transform = output_transform.permute(0,2,1)
 
-            if args.render == True:
-                # render 1 frame 
-                render_dots(gt_transform[0][0].reshape(-1,3)) # divide 69 -> 23,3
+                if args.render == True:
+                    # render 1 frame 
+                    render_dots(gt_transform[0][0].reshape(-1,3)) # divide 69 -> 23,3
 
-                    
             """ Optimization and show info """
             loss_sum.backward()
             optimizer.step()
 
             # import pdb; pdb.set_trace()
             pbar.update(1)
-            pbar.set_postfix_str(f"fk_losses: {np.mean(fk_losses):.3f} (mean: {np.mean(losses):.3f})")
+            pbar.set_postfix_str(f"mean: {np.mean(losses):.3f}")
+            # pbar.set_postfix_str(f"fk_losses: {np.mean(fk_losses):.3f} (mean: {np.mean(losses):.3f})")
 
             """ BVH Writing """
             # Write gt motion for 0 epoch
@@ -225,12 +227,6 @@ def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, sa
             del enc_inputs, dec_inputs
 
     print("retargeting loss: {}".format(np.mean(fk_losses)))
-    import pdb; pdb.set_trace()
-    # import pdb; pdb.set_trace()
-    # perframe loss은 11개 
-    # denorm_losses 몇개인지 확인: motion 의 갯수.
-    # joint / frames / motion에 대한 losses가 맞는가?
-
     # return np.sum(matchs) / len(matchs) if 0 < len(matchs) else 0
 
 def try_mkdir(path):

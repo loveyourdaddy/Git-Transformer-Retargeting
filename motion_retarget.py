@@ -52,7 +52,7 @@ print("device: ", args.cuda_device)
 
 """ Changable Parameters """
 path = "./parameters/"
-save_name = "211224_learning_test/" 
+save_name = "211224_fc_test/" 
 
 """ 1. load Motion Dataset """
 characters = get_character_names(args)
@@ -66,8 +66,8 @@ offsets = dataset.get_offsets()
 print("characters:{}".format(characters))
 
 """ 2.Set Learning Parameters  """
-args.input_size = len(dataset[0][0][0])
-args.output_size = len(dataset[1][0][0])
+# args.input_size = len(dataset[0][0][0])
+# args.output_size = len(dataset[1][0][0])
 
 """ 3. Train and Test  """
 model = MotionGenerator(args, offsets)
