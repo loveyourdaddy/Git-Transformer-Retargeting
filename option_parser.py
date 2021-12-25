@@ -36,7 +36,7 @@ def get_parser():
     # parser.add_argument('--batch_normalization', type=int, default=0, help='batch_norm: 1 or 0')
 
     # Dataset representation & option
-    parser.add_argument('--rotation', type=str, default='quaternion', help='representatio0 of rotation:xyz, quaternion')
+    parser.add_argument('--rotation', type=str, default='xyz', help='representatio0 of rotation:xyz, quaternion')
     parser.add_argument('--root_weight', type=int, default=10, help='weighted loss for root displacement')
     parser.add_argument('--window_size', type=int, default=128, help='length of time axis per window')
     parser.add_argument('--num_motions', type=int, default=1) # num motions for_character. dummy value 1 

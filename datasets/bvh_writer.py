@@ -88,7 +88,7 @@ class BVH_writer():
         motion = motion.detach().cpu().numpy()        
         rotations = motion[:, :-3] # rotation 은 앞에서 부터 뒤의 3개 전까지 
         positions = motion[:, -3:] # position 은 뒤에 3개
-
+        
         if order == 'quaternion':
             rotations = rotations.reshape((motion.shape[0], -1, 4))
         else:

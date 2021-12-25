@@ -48,8 +48,8 @@ class MotionData(Dataset):
         """ Modify data  """
         # data: (bs, DoF, window)
         num_bs = self.data.size(0)
-        num_DoF = self.data.size(2)
         num_frames = self.data.size(1)
+        num_DoF = self.data.size(2)
 
         #  root position -> displacement 
         if args.root_pos_disp == 1:

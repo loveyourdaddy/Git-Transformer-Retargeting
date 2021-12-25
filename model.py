@@ -211,7 +211,7 @@ class Encoder(nn.Module):
         """ Layer """
         self.layers = nn.ModuleList([EncoderLayer(self.args) for _ in range(self.args.n_layer)])
         self.fc1 = nn.Linear(self.input_dim, self.input_dim)
-        self.embedding_fc = nn.Linear(self.input_dim, self.d_hidn)
+        # self.embedding_fc = nn.Linear(self.input_dim, self.d_hidn)
 
     # (bs, length of frames, joints): (4, 91, 64) # 4개의 bs 에 대해서 모두 동일한 character index을 가지고 있다. 
     def forward(self, input_character, inputs):
@@ -236,7 +236,7 @@ class Encoder(nn.Module):
             outputs, attn_prob, context = layer(outputs, attn_mask)
             attn_probs.append(attn_prob)
         
-        outputs = self.embedding_fc(outputs)
+        # outputs = self.embedding_fc(outputs)
 
         """ Transpose for window """
         # (bs, DoF, window) -> (bs, window, DoF) (4,128,91)
@@ -252,11 +252,11 @@ class Decoder(nn.Module):
         self.d_hidn = args.d_hidn
         self.offset = offset
 
-        sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(self.input_dim + 1, self.args.d_hidn))
-        self.pos_emb = nn.Embedding.from_pretrained(sinusoid_table, freeze=True)
+        # sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(self.input_dim + 1, self.args.d_hidn))
+        # self.pos_emb = nn.Embedding.from_pretrained(sinusoid_table, freeze=True)
 
         """ layers """
-        self.embedding_fc = nn.Linear(self.d_hidn, self.input_dim)
+        # self.embedding_fc = nn.Linear(self.d_hidn, self.input_dim)
         self.fc1 = nn.Linear(self.input_dim, self.input_dim)
         self.layers = nn.ModuleList([DecoderLayer(self.args) for _ in range(self.args.n_layer)])
         # self.fc2 = nn.Linear(self.input_dim, self.input_dim)
@@ -271,8 +271,8 @@ class Decoder(nn.Module):
             dec_inputs = torch.cat([dec_inputs, offset], dim=-1)
 
         # dec_outputs = dec_outputs + positions
-        enc_inputs = self.embedding_fc(enc_inputs)
-        enc_outputs = self.embedding_fc(enc_outputs)
+        # enc_inputs = self.embedding_fc(enc_inputs)
+        # enc_outputs = self.embedding_fc(enc_outputs)
         dec_outputs = self.fc1(dec_inputs)
         
         """ Transpose for window """        
@@ -329,12 +329,18 @@ class MotionGenerator(nn.Module):
         # layers
         self.transformer = Transformer(args, offsets)
         self.projection = nn.Linear(self.input_dim, self.input_dim)
+        self.activation = nn.Tanh()
         
     """ Transofrmer """
     def forward(self, input_character, output_character, enc_inputs, dec_inputs):
         dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = self.transformer(input_character, output_character, enc_inputs, dec_inputs)
         
         output = self.projection(dec_outputs)
+        
+        # output = self.projection(enc_inputs)
+        # output = self.activation(output)
+
+        # output = self.projection(output)
 
         return output
         

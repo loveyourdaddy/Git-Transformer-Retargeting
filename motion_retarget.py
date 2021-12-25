@@ -39,37 +39,25 @@ def load(model, path, epoch):
     print('load succeed')
 
 
-""" 0. Set Env Parameters """
+""" Set Env Parameters """
 args_ = option_parser.get_args()
 args = args_
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print("cuda device: ", args.cuda_device)
 log_path = os.path.join(args.save_dir, 'logs/')
+path = "./parameters/"
+save_name = "211224_only_fc_xyz/" 
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
-
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 print("device: ", args.cuda_device)
 
-""" Changable Parameters """
-path = "./parameters/"
-save_name = "211224_fc_test/" 
-
-""" 1. load Motion Dataset """
+""" load Motion Dataset """
 characters = get_character_names(args)
 dataset = create_dataset(args, characters)
-# if args.is_train == 1:
-#     batch_size = args.batch_size 
-# else:
-#     batch_size = 1 
 loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=motion_collate_fn)
 offsets = dataset.get_offsets()
 print("characters:{}".format(characters))
 
-""" 2.Set Learning Parameters  """
-# args.input_size = len(dataset[0][0][0])
-# args.output_size = len(dataset[1][0][0])
-
-""" 3. Train and Test  """
+""" Train and Test  """
 model = MotionGenerator(args, offsets)
 model.to(args.cuda_device)
 wandb.watch(model)
