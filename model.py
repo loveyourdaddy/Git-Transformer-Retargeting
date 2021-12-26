@@ -114,7 +114,7 @@ class PositionFeedForwardNet(nn.Module):
         return output
 
 """ Layers """
-class EncoderLayer(nn.Module): # (bs, 128, 91)
+class EncoderLayer(nn.Module):
     def __init__(self, args):
         super().__init__()
         # animation parameters
@@ -183,11 +183,9 @@ def get_sinusoid_encoding_table(n_seq, d_hidn):
 """ Mask """
 # seq k에서 0인 부분을 <pad>
 def get_attn_pad_mask(seq_q, seq_k, i_pad):
-    # seq: (bs, window, DoF)
     valueTensor = torch.bmm(seq_q, seq_k.transpose(1,2)) # batch matrix mult
-    pad_attn_mask = valueTensor.data.eq(i_pad)
+    pad_attn_mask = valueTensor.data.eq(i_pad) # (bs,window,window)
 
-    # (bs,window,window)
     return pad_attn_mask
 
 """ attention decoder mask: 현재단어와 이전단어는 볼 수 있고 다음단어는 볼 수 없도록 Masking 합니다. """
@@ -205,13 +203,13 @@ class Encoder(nn.Module):
         super().__init__()
         self.args = args
         self.input_dim = args.input_size
-        self.d_hidn = args.d_hidn
+        self.d_hidn =  args.d_hidn # args.input_size 
         self.offset = offset
 
         """ Layer """
         self.layers = nn.ModuleList([EncoderLayer(self.args) for _ in range(self.args.n_layer)])
         self.fc1 = nn.Linear(self.input_dim, self.input_dim)
-        # self.embedding_fc = nn.Linear(self.input_dim, self.d_hidn)
+        self.embedding_fc = nn.Linear(self.input_dim, self.d_hidn)
 
     # (bs, length of frames, joints): (4, 91, 64) # 4개의 bs 에 대해서 모두 동일한 character index을 가지고 있다. 
     def forward(self, input_character, inputs):
@@ -236,7 +234,7 @@ class Encoder(nn.Module):
             outputs, attn_prob, context = layer(outputs, attn_mask)
             attn_probs.append(attn_prob)
         
-        # outputs = self.embedding_fc(outputs)
+        outputs = self.embedding_fc(outputs)
 
         """ Transpose for window """
         # (bs, DoF, window) -> (bs, window, DoF) (4,128,91)
@@ -249,14 +247,15 @@ class Decoder(nn.Module):
         super().__init__()
         self.args = args
         self.input_dim = args.output_size
-        self.d_hidn = args.d_hidn
+        self.d_hidn = args.d_hidn # args.output_size
         self.offset = offset
 
         # sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(self.input_dim + 1, self.args.d_hidn))
         # self.pos_emb = nn.Embedding.from_pretrained(sinusoid_table, freeze=True)
 
         """ layers """
-        # self.embedding_fc = nn.Linear(self.d_hidn, self.input_dim)
+        self.embedding_fc1 = nn.Linear(self.d_hidn, self.input_dim)
+        # self.embedding_fc2 = nn.Linear(self.d_hidn, self.input_dim)
         self.fc1 = nn.Linear(self.input_dim, self.input_dim)
         self.layers = nn.ModuleList([DecoderLayer(self.args) for _ in range(self.args.n_layer)])
         # self.fc2 = nn.Linear(self.input_dim, self.input_dim)
@@ -271,8 +270,8 @@ class Decoder(nn.Module):
             dec_inputs = torch.cat([dec_inputs, offset], dim=-1)
 
         # dec_outputs = dec_outputs + positions
-        # enc_inputs = self.embedding_fc(enc_inputs)
-        # enc_outputs = self.embedding_fc(enc_outputs)
+        # enc_inputs = self.embedding_fc1(enc_inputs)
+        enc_outputs = self.embedding_fc1(enc_outputs)
         dec_outputs = self.fc1(dec_inputs)
         
         """ Transpose for window """        
