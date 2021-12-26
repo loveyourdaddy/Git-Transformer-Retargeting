@@ -255,7 +255,7 @@ class Decoder(nn.Module):
 
         """ layers """
         self.embedding_fc1 = nn.Linear(self.d_hidn, self.input_dim)
-        # self.embedding_fc2 = nn.Linear(self.d_hidn, self.input_dim)
+        self.embedding_fc2 = nn.Linear(self.d_hidn, self.input_dim)
         self.fc1 = nn.Linear(self.input_dim, self.input_dim)
         self.layers = nn.ModuleList([DecoderLayer(self.args) for _ in range(self.args.n_layer)])
         # self.fc2 = nn.Linear(self.input_dim, self.input_dim)
@@ -270,11 +270,11 @@ class Decoder(nn.Module):
             dec_inputs = torch.cat([dec_inputs, offset], dim=-1)
 
         # dec_outputs = dec_outputs + positions
-        # enc_inputs = self.embedding_fc1(enc_inputs)
-        enc_outputs = self.embedding_fc1(enc_outputs)
+        enc_inputs = self.embedding_fc1(enc_inputs)
+        enc_outputs = self.embedding_fc2(enc_outputs)
         dec_outputs = self.fc1(dec_inputs)
         
-        """ Transpose for window """        
+        """ Transpose for window """
         # (bs, DoF, DoF)
         dec_attn_pad_mask = get_attn_pad_mask(dec_outputs, dec_outputs, self.args.i_pad)
         # (bs, DoF, DoF)
