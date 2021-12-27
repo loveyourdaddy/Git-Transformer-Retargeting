@@ -9,6 +9,7 @@ from datasets.bvh_parser import BVH_file
 from datasets.bvh_writer import BVH_writer
 import wandb
 from train import *
+from test import *
 
 """ motion data collate function """
 def motion_collate_fn(inputs):
@@ -45,7 +46,7 @@ args = args_
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "211225_cross_with_euler_and_fc_embeding91/" 
+save_name = "211225_cross_with_euler_and_fc_embeding32/" 
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 print("device: ", args.cuda_device)
@@ -93,7 +94,7 @@ if args.is_train == 1:
         wandb.log({"loss": loss})
 
 else:
-    epoch = 54
+    epoch = 1000
     load(model, path + save_name, epoch)
     eval_epoch(
         args, model, criterion, 

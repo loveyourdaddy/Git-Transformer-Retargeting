@@ -45,7 +45,6 @@ def write_statistics(character, path):
     np.save(path + '{}_var.npy'.format(character), var)
 
 
-
 if __name__ == '__main__':
     prefix = './datasets/Mixamo/'
     characters = [f for f in os.listdir(prefix) if os.path.isdir(os.path.join(prefix, f))]

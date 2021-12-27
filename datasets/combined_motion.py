@@ -206,6 +206,9 @@ class TestData(Dataset):
             self.length = motions.size(0)
             self.final_data.append(MixedData0(args, motions))
         
+        """ update input/output dimension of network """
+        args.input_size = self.final_data[0][0].size(1)
+        args.output_size = self.final_data[1][0].size(1)
 
     def denorm(self, gid, pid, data):
         means = self.means[gid][pid, ...]

@@ -35,6 +35,7 @@ class MotionData(Dataset):
         motions = list(motions)
         
         # motions (111, 313, 69) -> new_window (192, 64,91)
+        print(file_path)
         new_window = self.get_windows(motions)  
 
         # change data from list to tensor
@@ -51,7 +52,7 @@ class MotionData(Dataset):
         num_frames = self.data.size(1)
         num_DoF = self.data.size(2)
 
-        #  root position -> displacement 
+        # root position -> displacement 
         if args.root_pos_disp == 1:
             for bs in range(num_bs): # 0차원(motions)에 대해
                 for frame in range(num_frames - 1): # 2차원(frames)에 대해. frame: 0 ~ 126

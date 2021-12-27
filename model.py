@@ -270,8 +270,10 @@ class Decoder(nn.Module):
             dec_inputs = torch.cat([dec_inputs, offset], dim=-1)
 
         # dec_outputs = dec_outputs + positions
-        enc_inputs = self.embedding_fc1(enc_inputs)
-        enc_outputs = self.embedding_fc2(enc_outputs)
+        # enc_inputs = self.embedding_fc1(enc_inputs)
+        enc_outputs = self.embedding_fc1(enc_outputs)
+        enc_inputs = enc_outputs # check : 이렇게 해도 의미 될지 확인.
+        import pdb; pdb.set_trace()
         dec_outputs = self.fc1(dec_inputs)
         
         """ Transpose for window """

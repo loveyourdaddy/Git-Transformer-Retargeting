@@ -10,9 +10,9 @@ def collect_bvh(data_path, character, files):
     motions = []
 
     for i, motion in enumerate(files):
-        if not os.path.exists(data_path + character + '/test/' + motion):
+        if not os.path.exists(data_path + character + '/test/validation/' + motion):
             continue
-        file = BVH_file(data_path + character + '/test/' + motion)
+        file = BVH_file(data_path + character + '/test/validation/' + motion)
         new_motion = file.to_tensor().permute((1, 0)).numpy()
         motions.append(new_motion)
     
@@ -22,21 +22,15 @@ def collect_bvh(data_path, character, files):
     np.save(save_file, motions)
     print('Npy file saved at {}'.format(save_file))
 
-
 if __name__ == '__main__':
     prefix = './datasets/Mixamo/'
 
     characters = [f for f in os.listdir(prefix) if os.path.isdir(os.path.join(prefix, f))]
     if 'std_bvhs' in characters: characters.remove('std_bvhs')
     if 'mean_var' in characters: characters.remove('mean_var')
-    # if 'std_bvhs_test' in characters: characters.remove('std_bvhs_test')
-    # if 'mean_var_test' in characters: characters.remove('mean_var_test')
-
-    # try_mkdir(os.path.join(prefix, 'std_bvhs_test'))
-    # try_mkdir(os.path.join(prefix, 'mean_var_test'))
 
     for character in characters:
-        data_path = os.path.join(prefix, character) + '/test'
+        data_path = os.path.join(prefix, character) + '/test/validation'
         files = sorted([f for f in os.listdir(data_path) if f.endswith(".bvh")])
 
         collect_bvh(prefix, character, files) # motion 파일들 npy 파일에 저장
