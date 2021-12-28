@@ -43,9 +43,11 @@ class MultiHeadAttention(nn.Module):
     def __init__(self, args, type):
         super().__init__()
         # self.input_dim = args.input_size
-        if type == "Enc":
+        if type == "Enc": # 69 (enc_input)
             self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.input_size, args.input_size, args.input_size, args.input_size
-        elif type == "Dec":
+        elif type == "Dec": # 84? 69? (dec_input = enc_input? )
+            self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.output_size, args.output_size, args.output_size, args.output_size
+        elif type == "Dec_enc": # Q: 84(첫번째 Attn_output), K,V: 69(enc_output)
             self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.output_size, args.output_size, args.output_size, args.output_size
         else: # EncDec 
             self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.output_size, args.output_size, args.input_size, args.input_size
@@ -145,7 +147,7 @@ class DecoderLayer(nn.Module):
 
         self.self_attn = MultiHeadAttention(self.args, "Dec") # Q,K,V: (bs, 128, 111)
         self.layer_norm1 = nn.LayerNorm(self.input_dim, eps=self.args.layer_norm_epsilon)
-        self.dec_enc_attn = MultiHeadAttention(self.args, "Dec") # Q: (bs, 128, 111), K,V: (bs, 128, 91)
+        self.dec_enc_attn = MultiHeadAttention(self.args, "Dec_enc") # Q: (bs, 128, 111), K,V: (bs, 128, 91)
         self.layer_norm2 = nn.LayerNorm(self.input_dim, eps=self.args.layer_norm_epsilon)
         self.pos_ffn = PositionFeedForwardNet(self.args, "Dec")
         self.layer_norm3 = nn.LayerNorm(self.input_dim, eps=self.args.layer_norm_epsilon)
