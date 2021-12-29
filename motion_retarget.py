@@ -15,13 +15,15 @@ from test import *
 def motion_collate_fn(inputs):
 
     # Data foramt: (4,96,1,69,32) (캐릭터수, , 1, 조인트, 윈도우)
-    input_motions, gt_motions = list(zip(*inputs)) 
+    enc_input_motions, dec_input_motions, gt_motions = list(zip(*inputs)) 
 
-    input = torch.nn.utils.rnn.pad_sequence(input_motions, batch_first=True, padding_value=0)
+    enc_input = torch.nn.utils.rnn.pad_sequence(enc_input_motions, batch_first=True, padding_value=0)
+    dec_input = torch.nn.utils.rnn.pad_sequence(dec_input_motions, batch_first=True, padding_value=0)
     gt = torch.nn.utils.rnn.pad_sequence(gt_motions, batch_first=True, padding_value=0)
 
     batch = [
-        input, 
+        enc_input, 
+        dec_input, 
         gt
     ]
     return batch
@@ -33,7 +35,7 @@ def save(model, path, epoch):
 
 def load(model, path, epoch):
     path = os.path.join(path, str(epoch))
-    print('loading from ', path)
+
     if not os.path.exists(path):
         raise Exception('Unknown loading path')
     model.load_state_dict(torch.load(path))
@@ -46,7 +48,7 @@ args = args_
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "211225_cross_with_euler_and_fc_embeding32/" 
+save_name = "211229_cross_cropped_window/" 
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 print("device: ", args.cuda_device)
@@ -81,7 +83,6 @@ for i in range(len(characters)):
     BVHWriters.append(bvh_writers)
 
 if args.is_train == 1:
-    
     # for every epoch 
     for epoch in range(args.n_epoch):
         fk_loss, loss = train_epoch(
@@ -94,7 +95,8 @@ if args.is_train == 1:
         wandb.log({"loss": loss})
 
 else:
-    epoch = 1000
+    epoch = 44
+
     load(model, path + save_name, epoch)
     eval_epoch(
         args, model, criterion, 

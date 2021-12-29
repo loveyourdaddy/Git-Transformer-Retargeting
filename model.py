@@ -24,13 +24,12 @@ class ScaledDotProductAttention(nn.Module):
         self.d_head = args.d_head
         self.scale = 1 / (self.d_head ** 0.5)
 
-    def forward(self, Q, K, V, attn_mask):
-        # Q,K,V: (bs, n_head, window, DoF), attn_mask: (bs, n_head, window, window)
+    def forward(self, Q, K, V):
+        # Q,K,V: (bs, n_head, window, DoF)
 
         # (bs, n_head, window, window)
         scores = torch.matmul(Q, K.transpose(-1, -2)).mul_(self.scale)
-        scores.masked_fill_(attn_mask, -1e9)
-
+        
         # Softmax on last dim 
         attn_prob = nn.Softmax(dim = -1)(scores)
         
@@ -67,8 +66,8 @@ class MultiHeadAttention(nn.Module):
         self.scaled_dot_attn = ScaledDotProductAttention(args)
         self.linear = nn.Linear(self.n_head * self.d_head, self.input_dim)
 
-    def forward(self, Q, K, V, attn_mask):
-        # Q,K,V:(bs, window, DoF) attn_mask:(bs, window, window)
+    def forward(self, Q, K, V):
+        # Q,K,V:(bs, window, DoF)
         batch_size = Q.size(0)
 
         """ Data Encoding 1 """
@@ -76,13 +75,10 @@ class MultiHeadAttention(nn.Module):
         q_s = self.W_Q(Q).view(batch_size, -1, self.n_head, self.d_head).transpose(1, 2)
         k_s = self.W_K(K).view(batch_size, -1, self.n_head, self.d_head).transpose(1, 2)
         v_s = self.W_V(V).view(batch_size, -1, self.n_head, self.d_head).transpose(1, 2)
-
-        # head 갯수만큼 차원 추가 및 복사해두기 : (bs, window, window) -> (bs, n_head, window, window)
-        attn_mask = attn_mask.unsqueeze(1).repeat(1, self.n_head, 1, 1)
         
         # Attentinon 계산
         # context: (bs, n_head, window, d_head)
-        context, attn_prob = self.scaled_dot_attn(q_s, k_s, v_s, attn_mask)
+        context, attn_prob = self.scaled_dot_attn(q_s, k_s, v_s)
 
         # (bs, n_head, window, d_head) -> (bs, window, n_head * d_head)
         context = context.transpose(1, 2).contiguous().view(batch_size, -1, self.n_head * self.d_head)        
@@ -130,8 +126,8 @@ class EncoderLayer(nn.Module):
         self.pos_ffn = PositionFeedForwardNet(self.args, "Enc")
         self.layer_norm2 = nn.LayerNorm(self.input_dim, eps=self.layer_norm_epsilon)
 
-    def forward(self, inputs, attn_mask):
-        att_outputs, attn_prob, context = self.self_attn(inputs, inputs, inputs, attn_mask)
+    def forward(self, inputs):
+        att_outputs, attn_prob, context = self.self_attn(inputs, inputs, inputs)
         att_outputs = self.layer_norm1(inputs + att_outputs)
 
         ffn_outputs = self.pos_ffn(att_outputs)
@@ -152,12 +148,12 @@ class DecoderLayer(nn.Module):
         self.pos_ffn = PositionFeedForwardNet(self.args, "Dec")
         self.layer_norm3 = nn.LayerNorm(self.input_dim, eps=self.args.layer_norm_epsilon)
     
-    def forward(self, dec_inputs, enc_outputs, self_attn_mask, dec_enc_attn_mask):
+    def forward(self, dec_inputs, enc_outputs):
         
-        self_att_outputs, self_attn_prob, _ = self.self_attn(dec_inputs, dec_inputs, dec_inputs, self_attn_mask) # Q, K, V, attn
+        self_att_outputs, self_attn_prob, _ = self.self_attn(dec_inputs, dec_inputs, dec_inputs) # Q, K, V, attn
         self_att_outputs = self.layer_norm1(dec_inputs + self_att_outputs)
         
-        dec_enc_att_outputs, dec_enc_attn_prob, _ = self.dec_enc_attn(self_att_outputs, enc_outputs, enc_outputs, dec_enc_attn_mask) 
+        dec_enc_att_outputs, dec_enc_attn_prob, _ = self.dec_enc_attn(self_att_outputs, enc_outputs, enc_outputs) 
         dec_enc_att_outputs = self.layer_norm2(self_att_outputs + dec_enc_att_outputs)
 
         ffn_outputs = self.pos_ffn(dec_enc_att_outputs)
@@ -181,22 +177,6 @@ def get_sinusoid_encoding_table(n_seq, d_hidn):
 
     # (DoF+1 , 32): each 프레임(int)들을 32dim의 float으로 나타냅니다
     return sinusoid_table
-
-""" Mask """
-# seq k에서 0인 부분을 <pad>
-def get_attn_pad_mask(seq_q, seq_k, i_pad):
-    valueTensor = torch.bmm(seq_q, seq_k.transpose(1,2)) # batch matrix mult
-    pad_attn_mask = valueTensor.data.eq(i_pad) # (bs,window,window)
-
-    return pad_attn_mask
-
-""" attention decoder mask: 현재단어와 이전단어는 볼 수 있고 다음단어는 볼 수 없도록 Masking 합니다. """
-def get_attn_decoder_mask(seq):
-    seq_tensor = torch.matmul(seq, seq.transpose(1,2))
-    subsequent_mask = seq_tensor.triu(diagonal=1) 
-    # subsequent_mask = torch.unsqueeze(subsequent_mask, 0)
-
-    return subsequent_mask
 
 
 """ Encoder & Decoder """
@@ -226,14 +206,11 @@ class Encoder(nn.Module):
         """ Transpose for window """
         # (bs, DoF, window) -> (bs, window, DoF) (4,128,91)
         # outputs = outputs.transpose(1,2)
-
-        """ Get Pad """
-        attn_mask = get_attn_pad_mask(outputs, outputs, self.args.i_pad)
         
         """ 연산 """
         attn_probs = []
         for layer in self.layers:
-            outputs, attn_prob, context = layer(outputs, attn_mask)
+            outputs, attn_prob, context = layer(outputs)
             attn_probs.append(attn_prob)
         
         outputs = self.embedding_fc(outputs)
@@ -275,30 +252,15 @@ class Decoder(nn.Module):
         # enc_inputs = self.embedding_fc1(enc_inputs)
         enc_outputs = self.embedding_fc1(enc_outputs)
         enc_inputs = enc_outputs # check : 이렇게 해도 의미 될지 확인.
-        import pdb; pdb.set_trace()
         dec_outputs = self.fc1(dec_inputs)
         
-        """ Transpose for window """
-        # (bs, DoF, DoF)
-        dec_attn_pad_mask = get_attn_pad_mask(dec_outputs, dec_outputs, self.args.i_pad)
-        # (bs, DoF, DoF)
-        dec_attn_decoder_mask = get_attn_decoder_mask(dec_outputs)
-
-        # (32, 913, 913)
-        dec_self_attn_mask = torch.gt((dec_attn_pad_mask + dec_attn_decoder_mask), 0)
-        dec_enc_attn_mask = get_attn_pad_mask(dec_outputs, enc_inputs, self.args.i_pad)
-
         self_attn_probs, dec_enc_attn_probs = [], []
         for layer in self.layers:
-            dec_outputs, self_attn_prob, dec_enc_attn_prob = layer(dec_outputs, enc_outputs, dec_self_attn_mask, dec_enc_attn_mask)
+            dec_outputs, self_attn_prob, dec_enc_attn_prob = layer(dec_outputs, enc_outputs)
 
             # 모든 layer의 attn 을 쌓기 
             self_attn_probs.append(self_attn_prob)
             dec_enc_attn_probs.append(dec_enc_attn_prob)
-
-        """ Transpose for window """
-        # (bs, window, DoF) ->  (bs, DoF, window) (4,91,128)
-        # dec_outputs = dec_outputs.transpose(1,2)
 
         # (bs, DoF, d_hidn), [(bs, DoF, DoF)], [(bs, DoF, DoF)]
         return dec_outputs, self_attn_probs, dec_enc_attn_probs

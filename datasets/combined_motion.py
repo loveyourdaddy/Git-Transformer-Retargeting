@@ -41,6 +41,10 @@ class MixedData(Dataset):
     def __init__(self, args, character_groups): # characters
         device = torch.device(args.cuda_device if (torch.cuda.is_available()) else 'cpu')
         self.final_data = []
+        self.enc_inputs = []
+        self.dec_inputs = []
+        self.gt = []
+
         self.encoded_final_data = []
         self.length = 0
         self.offsets = []
@@ -106,21 +110,27 @@ class MixedData(Dataset):
         """ Get final """
         for group_idx, datasets in enumerate(all_datas): # final_data: (2, 424, 913, 91) for 2 groups
             motions = []
-            max_length = int( len(datasets[0]) / args.batch_size) * args.batch_size  #총 모션의 갯수가  batch_size의 배수가 되게 하기 위한 Cropping 
-            print("max_length: ", max_length)
-            args.num_motions = max_length
+            # 총 모션의 갯수가  batch_size의 배수가 되게 하기 위한 Cropping
+            num_motions = int(len(datasets[0]) / args.batch_size) * args.batch_size
+            print("max_length: ", num_motions)
+            args.num_motions = num_motions
             
             for character_idx, dataset in enumerate(datasets): # for each character in a group
-                motions.append(dataset[:max_length])
+                motions.append(dataset[:num_motions])
 
             # (4,106, 91, 913) -> (424, 91, 913),  (4,51,138,128) -> (204,138,128)
             motions = torch.cat(motions, dim=0)
             self.length = motions.size(0)
             self.final_data.append(MixedData0(args, motions))
         
+        """ Get enc / dec input motions """
+        self.gt = self.final_data[1][:] # 마지막 프레임 제외
+        self.enc_inputs = self.final_data[0][:] # 마지막 프레임 제외  
+        self.dec_inputs = self.final_data[1][:] # 첫번째 프레임 제외
+        
         """ update input/output dimension of network """
-        args.input_size = self.final_data[0][0].size(1)
-        args.output_size = self.final_data[1][0].size(1)
+        args.input_size = self.enc_inputs.size(2)
+        args.output_size = self.dec_inputs.size(2)
 
     def denorm(self, gid, pid, data):
         means = self.means[gid][pid, ...]
@@ -134,8 +144,9 @@ class MixedData(Dataset):
         return self.length
 
     def __getitem__(self, item):
-        return (torch.as_tensor(self.final_data[0][item].data), # source motion
-                torch.as_tensor(self.final_data[1][item].data)) # target motion
+        return (torch.as_tensor(self.enc_inputs[item].data),    # source motion
+                torch.as_tensor(self.dec_inputs[item].data),    # decoder source motion
+                torch.as_tensor(self.gt[item].data)) # gt target motion
 
 
 class TestData(Dataset):
@@ -206,6 +217,11 @@ class TestData(Dataset):
             self.length = motions.size(0)
             self.final_data.append(MixedData0(args, motions))
         
+        """ Get enc / dec input motions """
+        self.gt = self.final_data[1][:] # 마지막 프레임 제외
+        self.enc_inputs = self.final_data[0][:] # 마지막 프레임 제외  
+        self.dec_inputs = self.final_data[1][:] # 첫번째 프레임 제외
+        
         """ update input/output dimension of network """
         args.input_size = self.final_data[0][0].size(1)
         args.output_size = self.final_data[1][0].size(1)
@@ -219,9 +235,10 @@ class TestData(Dataset):
         return self.offsets
 
     
-    def __getitem__(self, item): # motion 
-        return (torch.as_tensor(self.final_data[0][item].data), 
-                torch.as_tensor(self.final_data[1][item].data)) # source motion, target motion
+    def __getitem__(self, item):
+        return (torch.as_tensor(self.enc_inputs[item].data),    # source motion
+                torch.as_tensor(self.dec_inputs[item].data),    # decoder source motion
+                torch.as_tensor(self.gt[item].data)) # gt target motion
 
     def __len__(self):
         return self.length

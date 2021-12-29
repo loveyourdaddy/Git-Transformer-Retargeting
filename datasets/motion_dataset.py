@@ -34,14 +34,17 @@ class MotionData(Dataset):
         motions = np.load(file_path, allow_pickle=True)
         motions = list(motions)
         
-        # motions (111, 313, 69) -> new_window (192, 64,91)
+        # motions (111, 313, 69) -> new_window (192, 64, 91)
         print(file_path)
         new_window = self.get_windows(motions)  
 
         # change data from list to tensor
         self.data.append(new_window)
         self.data = torch.cat(self.data)
-        
+
+        """ Crop motion dimesnion """
+        self.data = self.data[:, :-1, :]
+
         """ change data dimensiton : (bs, window, DoF) -> (bs, DoF, winodw) """
         # (bs, window, DoF)
         # self.data = self.data.permute(0, 2, 1)
@@ -64,7 +67,6 @@ class MotionData(Dataset):
                 self.data[bs][num_frames - 1][num_DoF - 3] = 0
                 self.data[bs][num_frames - 1][num_DoF - 2] = 0
                 self.data[bs][num_frames - 1][num_DoF - 1] = 0
-
 
         """ normalization data:  mean, var of data & normalization """
         if args.normalization:
@@ -160,8 +162,8 @@ class MotionData(Dataset):
 
     def get_windows(self, motions):
         new_windows = []
-        step_size = self.args.window_size // 2
-        window_size = step_size * 2
+        step_size = self.args.window_size // 2 + 1
+        window_size = step_size * 2 - 1
 
         # motions : (motions, frames, joint DoF)
         for motion in motions:
@@ -188,7 +190,6 @@ class MotionData(Dataset):
                 # (1,64,91)
                 new_window = torch.tensor(new, dtype=torch.float32)
                 new_windows.append(new_window)
-
         return torch.cat(new_windows)
 
     def subsample(self, motion):

@@ -24,8 +24,8 @@ def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, sa
             # 매 스텝마다 초기화 되는 loss들             
             # denorm_losses_ = []
             
-            input_motion, gt_motions = map(lambda v : v.to(args.cuda_device), value)
-            enc_inputs, dec_inputs = input_motion, input_motion
+            enc_inputs, dec_inputs, gt_motions = map(lambda v : v.to(args.cuda_device), value)
+            # enc_inputs, dec_inputs = enc_motions, input_motion
 
             # """ Get Data numbers: (bs, DoF, window) """
             num_bs, num_DoF, num_frame = get_data_numbers(gt_motions)
@@ -33,13 +33,12 @@ def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, sa
             character_idx = get_curr_character(motion_idx, args.num_motions)
             file = Files[1][character_idx]
 
-            """  feed to network"""
-            input_character, output_character = character_idx, character_idx
-            output_motions = model(input_character, output_character, enc_inputs, dec_inputs)
+            """ feed to network """
+            # input_character_idx, output_character_idx = character_idx, character_idx
+            output_motions = model(character_idx, character_idx, enc_inputs, dec_inputs)
 
             """ Post-process data  """
             # """ remove offset part of output motions """
-            output_motions = output_motions[:,:,:num_frame]
 
             # """ remake root position from displacement and denorm for bvh_writing """
             if args.normalization == 1:
@@ -90,13 +89,12 @@ def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, sa
             # denorm_gt_motions = denorm_gt_motions.permute(0,2,1)
             # denorm_output_motions = denorm_output_motions.permute(0,2,1)
 
-            num_DoF = gt_transform.size(1)
-            for m in range(num_bs):
-                # fk_loss = []
-                for j in range(num_DoF):
-                    loss = criterion(gt_transform[m][j], output_transform[m][j])
-                    fk_losses.append(loss.item())
-                fk_loss_by_motions.append(np.mean(fk_losses))
+            # num_DoF = gt_motions.size(2)
+            # for m in range(num_bs):
+            #     for j in range(num_DoF):
+            #         loss = criterion(gt_transform[m][j], output_transform[m][j])
+                    # fk_losses.append(loss.item())
+                # fk_loss_by_motions.append(np.mean(fk_losses))
  
             """ show info """
             pbar.update(1)
@@ -111,7 +109,7 @@ def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, sa
         torch.cuda.empty_cache()
         del enc_inputs, dec_inputs
 
-    print("retargeting loss: {}".format(np.mean(fk_losses)))
+    print("retargeting loss: {}".format(np.mean(losses)))
     # return np.sum(matchs) / len(matchs) if 0 < len(matchs) else 0
 
 def try_mkdir(path):

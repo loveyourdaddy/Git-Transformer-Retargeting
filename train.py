@@ -48,8 +48,7 @@ def try_mkdir(path):
         os.system('mkdir -p {}'.format(path))
 
 def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_dataset, characters, save_name, Files):
-    losses = [] # losses for 1 epoch
-    # elements_losses = []
+    losses = [] # losses for 1 epoch (for all motion, all batch_size)
     fk_losses = []
     model.train()
     args.epoch = epoch
@@ -63,8 +62,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             optimizer.zero_grad()
 
             """ Get Data and Set value to model and Get output """
-            input_motions, gt_motions = map(lambda v : v.to(args.cuda_device), value)
-            enc_inputs, dec_inputs = input_motions, gt_motions
+            enc_inputs, dec_inputs, gt_motions = map(lambda v : v.to(args.cuda_device), value)
 
             # """ Get Data numbers: (bs, DoF, window) """
             num_bs, num_frame, num_DoF = get_data_numbers(gt_motions)
@@ -73,14 +71,12 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             file = Files[1][character_idx]
             # height = file.get_height()
 
-            """  feed to network"""
-            input_character, output_character = character_idx, character_idx
-            output_motions = model(input_character, output_character, enc_inputs, dec_inputs)
+            """ feed to NETWORK """
+            # input_character, output_character = character_idx, character_idx
+            output_motions = model(character_idx, character_idx, enc_inputs, dec_inputs)
 
-            """ Post-process data  """
-            # """ remove offset part of output motions """
 
-            # """ remake root position from displacement and denorm for bvh_writing """
+            """ denorm for bvh_writing """
             if args.normalization == 1:
                 denorm_gt_motions = denormalize(train_dataset, character_idx, gt_motions)
                 denorm_output_motions = denormalize(train_dataset, character_idx, output_motions)
@@ -88,13 +84,12 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
                 denorm_gt_motions = gt_motions
                 denorm_output_motions = output_motions
 
-
             # """ remake root position from displacement """
             if args.root_pos_disp == 1:
                 denorm_gt_motions = remake_root_position_from_displacement(denorm_gt_motions, num_bs, num_DoF, num_frame)
                 denorm_output_motions = remake_root_position_from_displacement(denorm_output_motions, num_bs, num_DoF, num_frame)
 
-            """ Get loss (orienation & FK & regularization) """
+            """ Get LOSS (orienation & FK & regularization) """
             loss_sum = 0
 
             """ 1. loss on each element """

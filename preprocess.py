@@ -3,7 +3,9 @@ import numpy as np
 import copy
 from datasets.bvh_parser import BVH_file
 from datasets.motion_dataset import MotionData
-from option_parser import get_args, try_mkdir
+# from option_parser import get_args, try_mkdir
+from option_parser import *
+import option_parser
 
 def collect_bvh(data_path, character, files):
     print('begin {}'.format(character))
@@ -29,23 +31,31 @@ def copy_std_bvh(data_path, character, files):
     os.system(cmd)
 
 # mean / var 저장
-def write_statistics(character, path):
-    args = get_args()
-    new_args = copy.copy(args)
-    new_args.data_augment = 0
-    new_args.dataset = character
+def write_statistics(args, character, path):
+    # args = option_parser.get_args()
+    # new_args = copy.copy(args)
+    args.data_augment = 0
+    args.dataset = character
 
-    dataset = MotionData(new_args, 1)
+    dataset = MotionData(args, 1)
 
     mean = dataset.mean
     var = dataset.var
     mean = mean.cpu().numpy()[0, ...]
     var = var.cpu().numpy()[0, ...]
-    np.save(path + '{}_mean.npy'.format(character), mean)
-    np.save(path + '{}_var.npy'.format(character), var)
+    if args.is_train == 1:
+        np.save(path + '{}_mean.npy'.format(character), mean)
+        np.save(path + '{}_var.npy'.format(character), var)
+    elif args.is_train == 0 :
+        np.save(path + '{}_mean_test.npy'.format(character), mean)
+        np.save(path + '{}_var_test.npy'.format(character), var)
+    else: 
+        print("error")
 
 
 if __name__ == '__main__':
+    args = option_parser.get_args()
+
     prefix = './datasets/Mixamo/'
     characters = [f for f in os.listdir(prefix) if os.path.isdir(os.path.join(prefix, f))]
     if 'std_bvhs' in characters: characters.remove('std_bvhs')
@@ -55,9 +65,15 @@ if __name__ == '__main__':
     try_mkdir(os.path.join(prefix, 'mean_var'))
 
     for character in characters:
-        data_path = os.path.join(prefix, character)
+        if args.is_train == 1:
+            data_path = os.path.join(prefix, character)
+        elif args.is_train == 0:
+            data_path = os.path.join(prefix, character) + '/test/validation'
+        else:
+            print("Error")
+
         files = sorted([f for f in os.listdir(data_path) if f.endswith(".bvh")])
 
         collect_bvh(prefix, character, files)
         copy_std_bvh(prefix, character, files)
-        write_statistics(character, './datasets/Mixamo/mean_var/')
+        write_statistics(args, character, './datasets/Mixamo/mean_var/')

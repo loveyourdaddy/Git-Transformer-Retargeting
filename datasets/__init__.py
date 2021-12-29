@@ -6,7 +6,6 @@ def get_character_names(args):
 
     # cross strucutre retargeting
     characters = [['Aj', 'BigVegas', 'Kaya', 'SportyGranny'], ['Mousey_m', 'Goblin_m', 'Mremireh_m', 'Vampire_m']]
-    # characters = [['Aj', 'BigVegas', 'Kaya', 'SportyGranny'], ['SMPL', 'SMPL', 'SMPL', 'SMPL']]
 
     return characters
 
