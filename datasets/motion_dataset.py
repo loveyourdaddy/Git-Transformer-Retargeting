@@ -89,13 +89,12 @@ class MotionData(Dataset):
 
         """ save data """
         # motion window 데이터의 6%을 테스트 데이터로 사용함 
+        # remove this
         train_len = self.data.shape[0] * 94 // 100
         
-        # (104,91,913)
         self.data = self.data[:train_len, ...]
         self.data_reverse = torch.tensor(self.data.numpy()[..., ::-1].copy())
 
-        # (8,91,913)
         self.test_set = self.data[train_len:, ...]
         self.reset_length_flag = 0
         self.virtual_length = 0
@@ -170,10 +169,10 @@ class MotionData(Dataset):
         # motions : (motions, frames, joint DoF)
         for motion in motions:
             self.total_frame += motion.shape[0]
-            # motion = self.subsample(motion)
             self.motion_length.append(motion.shape[0])
-            n_window = motion.shape[0] // step_size - 1 # 마지막 window에 데이터가 전부 차지 않았다면 제거 
-
+            n_window = motion.shape[0] // step_size - 1 # -1 : 마지막 window에 데이터가 전부 차지 않았다면 제거 
+            
+            # import pdb; pdb.set_trace()
             for i in range(n_window):
                 begin = i * step_size
                 end = begin + window_size
@@ -187,21 +186,11 @@ class MotionData(Dataset):
                     rotations = rotations.reshape(rotations.shape[0], -1)
                     new = np.concatenate((rotations, new[:, -1, :].reshape(new.shape[0], -1)), axis=1)
                 
-                new = new[np.newaxis, ...]
-
-                # (1,64,91)
+                new = new[np.newaxis, ...] # (1,64,91)
                 new_window = torch.tensor(new, dtype=torch.float32)
                 new_windows.append(new_window)
+                
         return torch.cat(new_windows)
 
     def subsample(self, motion):
         return motion[::2, :]
-
-    # def denormalize(self, motion):
-    #     if self.args.normalization:
-    #         if self.var.device != motion.device:
-    #             self.var = self.var.to(motion.device)
-    #             self.mean = self.mean.to(motion.device)
-    #         ans = motion * self.var + self.mean
-    #     else: ans = motion
-    #     return ans

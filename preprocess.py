@@ -10,11 +10,19 @@ import option_parser
 def collect_bvh(args, data_path, character, files):
     print('begin {}'.format(character))
     motions = []
-
+    
     for i, motion in enumerate(files):
-        if not os.path.exists(data_path + character + '/' + motion):
+        if args.is_train == 1:
+            path = data_path + character + '/' + motion
+        elif args.is_train == 0:
+            path = data_path + character + '/test/' + motion
+        else:
+            print("error")
+
+        if not os.path.exists(path):
+            print("no data")
             continue
-        file = BVH_file(data_path + character + '/' + motion)
+        file = BVH_file(path)
         new_motion = file.to_tensor().permute((1, 0)).numpy()
         motions.append(new_motion)
 
@@ -28,11 +36,16 @@ def collect_bvh(args, data_path, character, files):
     np.save(save_file, motions)
     print('Npy file saved at {}'.format(save_file))
 
-def copy_std_bvh(data_path, character, files):
+def copy_std_bvh(args, data_path, character, files):
     """
     copy an arbitrary bvh file as a static information (skeleton's offset) reference
     """
-    cmd = 'cp \"{}\" ./datasets/Mixamo/std_bvhs/{}.bvh'.format(data_path + character + '/' + files[0], character)
+    if args.is_train == 1:
+        cmd = 'cp \"{}\" ./datasets/Mixamo/std_bvhs/{}.bvh'.format(data_path + character + '/' + files[0], character)
+    elif args.is_train == 0:
+        cmd = 'cp \"{}\" ./datasets/Mixamo/std_bvhs/{}.bvh'.format(data_path + character + '/test/' + files[0], character)
+    else:
+        print("error")
     os.system(cmd)
 
 # mean / var 저장
@@ -74,11 +87,11 @@ if __name__ == '__main__':
         if args.is_train == 1:
             data_path = os.path.join(prefix, character)
         elif args.is_train == 0:
-            data_path = os.path.join(prefix, character) + '/test/validation'
+            data_path = os.path.join(prefix, character) + '/test' # /validation
         else:
             print("Error")
 
         files = sorted([f for f in os.listdir(data_path) if f.endswith(".bvh")])
         collect_bvh(args, prefix, character, files)
-        copy_std_bvh(prefix, character, files)
+        copy_std_bvh(args, prefix, character, files)
         write_statistics(args, character, './datasets/Mixamo/mean_var/')
