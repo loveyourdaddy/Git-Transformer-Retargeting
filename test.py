@@ -13,16 +13,13 @@ from rendering import *
 from train import *
 
 """ eval """
-# fk_losses_all = []
 def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, save_name, Files):
     model.eval()
-    losses = [] # losses for test epoch
+    losses = [] # losses for test epoch # 매 스텝마다 초기화 되는 loss들   
     fk_losses = []
-    fk_loss_by_motions = []
+    # fk_loss_by_motions = []
     with tqdm(total=len(data_loader), desc=f"TestSet") as pbar:
         for i, value in enumerate(data_loader):
-            # 매 스텝마다 초기화 되는 loss들             
-            # denorm_losses_ = []
             
             enc_inputs, dec_inputs, gt_motions = map(lambda v : v.to(args.cuda_device), value)
             # enc_inputs, dec_inputs = enc_motions, input_motion
@@ -69,7 +66,7 @@ def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, sa
                 gt_transform = fk.forward_from_raw(denorm_gt_motions.permute(0,2,1), test_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
                 output_transform = fk.forward_from_raw(denorm_output_motions.permute(0,2,1), test_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
 
-                num_DoF = gt_transform.size(1)
+                num_DoF = gt_motions.size(1)
                 for m in range(num_bs):
                     for j in range(num_DoF): #check dimension 
                         loss = criterion(gt_transform[m][j], output_transform[m][j])
@@ -85,27 +82,22 @@ def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, sa
                     # render 1 frame 
                     render_dots(gt_transform[0][0].reshape(-1,3)) # divide 69 -> 23,3
 
-            # permute 
-            # denorm_gt_motions = denorm_gt_motions.permute(0,2,1)
-            # denorm_output_motions = denorm_output_motions.permute(0,2,1)
-
-            # num_DoF = gt_motions.size(2)
-            # for m in range(num_bs):
-            #     for j in range(num_DoF):
-            #         loss = criterion(gt_transform[m][j], output_transform[m][j])
-                    # fk_losses.append(loss.item())
-                # fk_loss_by_motions.append(np.mean(fk_losses))
+                for m in range(num_bs):
+                    for j in range(num_DoF):
+                        loss = criterion(gt_transform[m][j], output_transform[m][j])
+                        fk_losses.append(loss.item())
  
             """ show info """
             pbar.update(1)
-            pbar.set_postfix_str(f"denorm_loss: {np.mean(fk_losses):.3f}, (mean: {np.mean(losses):.3f})")
+            pbar.set_postfix_str(f"denorm_loss: (mean: {np.mean(losses):.3f})")
+            # pbar.set_postfix_str(f"denorm_loss: {np.mean(fk_losses):.3f}, (mean: {np.mean(losses):.3f})")
             
             """ BVH Writing """
             save_dir = args.save_dir + save_name
             write_bvh(save_dir, "test_gt", denorm_gt_motions, characters, character_idx, motion_idx, args)
             write_bvh(save_dir, "test_output", denorm_output_motions, characters, character_idx, motion_idx, args)
 
-            # del 
+        # del 
         torch.cuda.empty_cache()
         del enc_inputs, dec_inputs
 

@@ -75,7 +75,6 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             # input_character, output_character = character_idx, character_idx
             output_motions = model(character_idx, character_idx, enc_inputs, dec_inputs)
 
-
             """ denorm for bvh_writing """
             if args.normalization == 1:
                 denorm_gt_motions = denormalize(train_dataset, character_idx, gt_motions)

@@ -34,7 +34,6 @@ class MotionData(Dataset):
         motions = np.load(file_path, allow_pickle=True)
         motions = list(motions)
         
-        # motions (111, 313, 69) -> new_window (192, 64, 91)
         print(file_path)
         new_window = self.get_windows(motions)  
 
@@ -44,10 +43,6 @@ class MotionData(Dataset):
 
         """ Crop motion dimesnion """
         self.data = self.data[:, :-1, :]
-
-        """ change data dimensiton : (bs, window, DoF) -> (bs, DoF, winodw) """
-        # (bs, window, DoF)
-        # self.data = self.data.permute(0, 2, 1)
 
         """ Modify data  """
         # data: (bs, DoF, window)
@@ -77,8 +72,14 @@ class MotionData(Dataset):
                 idx = self.var < 1e-5
                 self.var[idx] = 1
             else: # 일반적인 경우 
-                self.mean = np.load('./datasets/Mixamo/mean_var/{}_mean.npy'.format(name))
-                self.var = np.load('./datasets/Mixamo/mean_var/{}_var.npy'.format(name))
+                if args.is_train == 1:
+                    self.mean = np.load('./datasets/Mixamo/mean_var/{}_mean.npy'.format(name))
+                    self.var = np.load('./datasets/Mixamo/mean_var/{}_var.npy'.format(name))
+                elif args.is_train == 0:
+                    self.mean = np.load('./datasets/Mixamo/mean_var/{}_mean_test.npy'.format(name))
+                    self.var = np.load('./datasets/Mixamo/mean_var/{}_var_test.npy'.format(name))
+                else:
+                    print("Error")
             self.data = (self.data - self.mean) / self.var
 
         else:
@@ -87,6 +88,7 @@ class MotionData(Dataset):
             self.var = torch.ones_like(self.mean)
 
         """ save data """
+        # motion window 데이터의 6%을 테스트 데이터로 사용함 
         train_len = self.data.shape[0] * 94 // 100
         
         # (104,91,913)

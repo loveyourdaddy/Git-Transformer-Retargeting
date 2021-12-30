@@ -48,7 +48,7 @@ args = args_
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "211229_cross_cropped_window/" 
+save_name = "211230_cross_correcting_data/" 
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 print("device: ", args.cuda_device)
@@ -95,7 +95,7 @@ if args.is_train == 1:
         wandb.log({"loss": loss})
 
 else:
-    epoch = 44
+    epoch = 500
 
     load(model, path + save_name, epoch)
     eval_epoch(

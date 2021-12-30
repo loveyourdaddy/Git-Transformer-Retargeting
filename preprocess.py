@@ -7,7 +7,7 @@ from datasets.motion_dataset import MotionData
 from option_parser import *
 import option_parser
 
-def collect_bvh(data_path, character, files):
+def collect_bvh(args, data_path, character, files):
     print('begin {}'.format(character))
     motions = []
 
@@ -17,8 +17,13 @@ def collect_bvh(data_path, character, files):
         file = BVH_file(data_path + character + '/' + motion)
         new_motion = file.to_tensor().permute((1, 0)).numpy()
         motions.append(new_motion)
-    
-    save_file = data_path + character + '.npy'
+
+    if args.is_train == 1:
+        save_file = data_path + character + '.npy'
+    elif args.is_train == 0:
+        save_file = data_path + character + '_test.npy'
+    else:
+        print("error")
 
     np.save(save_file, motions)
     print('Npy file saved at {}'.format(save_file))
@@ -43,6 +48,7 @@ def write_statistics(args, character, path):
     var = dataset.var
     mean = mean.cpu().numpy()[0, ...]
     var = var.cpu().numpy()[0, ...]
+
     if args.is_train == 1:
         np.save(path + '{}_mean.npy'.format(character), mean)
         np.save(path + '{}_var.npy'.format(character), var)
@@ -73,7 +79,6 @@ if __name__ == '__main__':
             print("Error")
 
         files = sorted([f for f in os.listdir(data_path) if f.endswith(".bvh")])
-
-        collect_bvh(prefix, character, files)
+        collect_bvh(args, prefix, character, files)
         copy_std_bvh(prefix, character, files)
         write_statistics(args, character, './datasets/Mixamo/mean_var/')

@@ -180,8 +180,8 @@ class TestData(Dataset):
                 offsets_group.append(new_offset)
 
                 # get mean and var 
-                mean = np.load('./datasets/Mixamo/mean_var/{}_mean.npy'.format(character))
-                var = np.load('./datasets/Mixamo/mean_var/{}_var.npy'.format(character))
+                mean = np.load('./datasets/Mixamo/mean_var/{}_mean_test.npy'.format(character))
+                var = np.load('./datasets/Mixamo/mean_var/{}_var_test.npy'.format(character))
                 mean = motion.mean
                 var = motion.var
                 mean = torch.tensor(mean)
