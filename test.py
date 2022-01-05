@@ -25,7 +25,7 @@ def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, sa
             # enc_inputs, dec_inputs = enc_motions, input_motion
 
             # """ Get Data numbers: (bs, DoF, window) """
-            num_bs, num_DoF, num_frame = get_data_numbers(gt_motions)
+            num_bs, num_frame, num_DoF = get_data_numbers(gt_motions)
             motion_idx = get_curr_motion(i, args.batch_size) 
             character_idx = get_curr_character(motion_idx, args.num_motions)
             file = Files[1][character_idx]
@@ -47,8 +47,8 @@ def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, sa
 
             # """ remake root position from displacement """
             if args.root_pos_disp == 1:
-                denorm_gt_motions = remake_root_position_from_displacement(denorm_gt_motions, num_bs, num_DoF, num_frame)
-                denorm_output_motions = remake_root_position_from_displacement(denorm_output_motions, num_bs, num_DoF, num_frame)
+                denorm_gt_motions = remake_root_position_from_displacement(denorm_gt_motions, num_bs, num_frame, num_DoF)
+                denorm_output_motions = remake_root_position_from_displacement(denorm_output_motions, num_bs, num_frame, num_DoF)
 
             """ 1. Get loss (orienation & FK & regularization) """
             loss_sum = 0

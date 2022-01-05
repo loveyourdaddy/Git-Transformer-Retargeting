@@ -23,7 +23,7 @@ def get_curr_character(motion_idx, num_motions):
 def denormalize(dataset, character_idx, motions):
     return dataset.denorm(1, character_idx, motions)
 
-def remake_root_position_from_displacement(motions, num_bs, num_DoF, num_frame):
+def remake_root_position_from_displacement(motions, num_bs, num_frame, num_DoF):
 
     for bs in range(num_bs): # dim 0
         for frame in range(num_frame - 1): # dim 2 # frame: 0~62. update 1 ~ 63
@@ -85,8 +85,8 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
 
             # """ remake root position from displacement """
             if args.root_pos_disp == 1:
-                denorm_gt_motions = remake_root_position_from_displacement(denorm_gt_motions, num_bs, num_DoF, num_frame)
-                denorm_output_motions = remake_root_position_from_displacement(denorm_output_motions, num_bs, num_DoF, num_frame)
+                denorm_gt_motions = remake_root_position_from_displacement(denorm_gt_motions, num_bs, num_frame, num_DoF)
+                denorm_output_motions = remake_root_position_from_displacement(denorm_output_motions, num_bs, num_frame, num_DoF)
 
             """ Get LOSS (orienation & FK & regularization) """
             loss_sum = 0

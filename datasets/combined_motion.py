@@ -39,6 +39,7 @@ class MixedData0(Dataset):
 class MixedData(Dataset):
     """ data_gruop_num * 2 * samples """
     def __init__(self, args, character_groups): # characters
+        self.args = args
         device = torch.device(args.cuda_device if (torch.cuda.is_available()) else 'cpu')
         self.final_data = []
         self.enc_inputs = []
@@ -135,7 +136,12 @@ class MixedData(Dataset):
     def denorm(self, gid, pid, data):
         means = self.means[gid][pid, ...]
         var = self.vars[gid][pid, ...]
-        return data * var + means
+        data_tmp = data 
+        data = data * var + means
+
+        if self.args.root_pos_disp == 1: 
+            data[:,:,-3:] = data_tmp[:,:,-3:]
+        return data
 
     def get_offsets(self):
         return self.offsets
@@ -229,7 +235,13 @@ class TestData(Dataset):
     def denorm(self, gid, pid, data):
         means = self.means[gid][pid, ...]
         var = self.vars[gid][pid, ...]
-        return data * var + means
+        data_tmp = data 
+        data = data * var + means
+
+        if self.args.root_pos_disp == 1: 
+            data[:,:,-3:] = data_tmp[:,:,-3:]
+        return data
+
 
     def get_offsets(self):
         return self.offsets
@@ -242,61 +254,3 @@ class TestData(Dataset):
 
     def __len__(self):
         return self.length
-
-    # def get_item(self, gid, pid, id):
-    #     character = self.characters[gid][pid]
-    #     path = './datasets/Mixamo/{}/test/'.format(character)           
-
-    #     if isinstance(id, int):
-    #         file = path + self.file_list[id]
-    #     elif isinstance(id, str):
-    #         file = id
-    #     if not os.path.exists(file):
-    #         raise Exception('Cannot find file')
-
-    #     file = BVH_file(file)
-    #     motion = file.to_tensor()
-    #     motion = self.get_windows(motion)
-        
-    #     return motion.to(self.device)
-
-    # def normalize(self, gid, pid, data):
-    #     means = self.means[gid][pid, ...]
-    #     var = self.vars[gid][pid, ...]
-    #     return (data - means) / var
-
-
-    # def get_windows(self, motion):
-    #     new_windows = []
-    #     step_size = self.args.window_size // 2
-    #     window_size = step_size * 2
-        
-    #     # motion : (dof, frames )
-    #     # motion = self.subsample(motion)
-    #     n_window = motion.shape[-1] // step_size - 1 # 마지막 window에 데이터가 전부 차지 않았다면 제거 
-    #     print("n_window: ", n_window)
-    #     if n_window == 0:
-    #         return torch.zeros(0)
-
-    #     for i in range(n_window):
-    #         begin = i * step_size # 반절씩 겹치게 윈도우를 나눔 
-    #         end = begin + window_size
-
-    #         new = motion[:, begin:end]
-    #         if self.args.rotation == 'quaternion':
-    #             new = new.reshape(new.shape[0], -1, 3)
-    #             rotations = new[:, :-1, :]
-    #             rotations = Quaternions.from_euler(np.radians(rotations)).qs
-    #             rotations = rotations.reshape(rotations.shape[0], -1)
-    #             new = np.concatenate((rotations, new[:, -1, :].reshape(new.shape[0], -1)), axis=1)
-            
-    #         new = new[np.newaxis, ...]
-
-    #         # (1, joint dof, frames) 
-    #         new_window = torch.tensor(new, dtype=torch.float32)
-    #         new_windows.append(new_window)
-
-    #     return torch.cat(new_windows)
-
-    # def subsample(self, motion):
-    #     return motion[:, ::2]
