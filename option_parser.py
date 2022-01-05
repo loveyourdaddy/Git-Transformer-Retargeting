@@ -37,8 +37,8 @@ def get_parser():
     parser.add_argument('--fk_loss', type=int, default=0, help='fk loss')
     
     # learning parameter 
+    parser.add_argument('--batch_size', type=int, default=16, help='batch_size') # 16
     parser.add_argument('--learning_rate', type=float, default=5e-4, help='learning rate') # 2e-4 # 5e-5
-    parser.add_argument('--batch_size', type=int, default=16, help='batch_size')
     parser.add_argument('--weight_decay', type=float, default=1)
     parser.add_argument('--alpha', type=float, default=0, help='penalty of sparsity')
     parser.add_argument('--activation', type=str, default='LeakyReLU', help='activation: ReLU, LeakyReLU, tanh')

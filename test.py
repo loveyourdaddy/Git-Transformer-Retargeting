@@ -94,8 +94,8 @@ def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, sa
             
             """ BVH Writing """
             save_dir = args.save_dir + save_name
-            write_bvh(save_dir, "test_gt", denorm_gt_motions, characters, character_idx, motion_idx, args)
-            write_bvh(save_dir, "test_output", denorm_output_motions, characters, character_idx, motion_idx, args)
+            write_bvh(save_dir, "0_test_gt", denorm_gt_motions, characters, character_idx, motion_idx, args)
+            write_bvh(save_dir, "0_test_output", denorm_output_motions, characters, character_idx, motion_idx, args)
 
         # del 
         torch.cuda.empty_cache()

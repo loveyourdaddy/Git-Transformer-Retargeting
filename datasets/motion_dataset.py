@@ -72,16 +72,9 @@ class MotionData(Dataset):
                 idx = self.var < 1e-5
                 self.var[idx] = 1
             else: # 일반적인 경우 
-                if args.is_train == 1:
-                    self.mean = np.load('./datasets/Mixamo/mean_var/{}_mean.npy'.format(name))
-                    self.var = np.load('./datasets/Mixamo/mean_var/{}_var.npy'.format(name))
-                elif args.is_train == 0:
-                    self.mean = np.load('./datasets/Mixamo/mean_var/{}_mean_test.npy'.format(name))
-                    self.var = np.load('./datasets/Mixamo/mean_var/{}_var_test.npy'.format(name))
-                else:
-                    print("Error")
+                self.mean = np.load('./datasets/Mixamo/mean_var/{}_mean.npy'.format(name))
+                self.var = np.load('./datasets/Mixamo/mean_var/{}_var.npy'.format(name))
             self.data = (self.data - self.mean) / self.var
-
         else:
             self.mean = torch.mean(self.data, (0, 2), keepdim=True)
             self.mean.zero_()
@@ -90,12 +83,12 @@ class MotionData(Dataset):
         """ save data """
         # motion window 데이터의 6%을 테스트 데이터로 사용함 
         # remove this
-        train_len = self.data.shape[0] * 94 // 100
+        # train_len = self.data.shape[0] * 94 // 100
         
-        self.data = self.data[:train_len, ...]
+        # self.data = self.data[:train_len, ...]
         self.data_reverse = torch.tensor(self.data.numpy()[..., ::-1].copy())
 
-        self.test_set = self.data[train_len:, ...]
+        # self.test_set = self.data[train_len:, ...]
         self.reset_length_flag = 0
         self.virtual_length = 0
 

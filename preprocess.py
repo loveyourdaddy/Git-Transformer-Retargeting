@@ -65,7 +65,7 @@ def write_statistics(args, character, path):
     if args.is_train == 1:
         np.save(path + '{}_mean.npy'.format(character), mean)
         np.save(path + '{}_var.npy'.format(character), var)
-    elif args.is_train == 0 :
+    elif args.is_train == 0:
         np.save(path + '{}_mean_test.npy'.format(character), mean)
         np.save(path + '{}_var_test.npy'.format(character), var)
     else: 
@@ -95,3 +95,4 @@ if __name__ == '__main__':
         collect_bvh(args, prefix, character, files)
         copy_std_bvh(args, prefix, character, files)
         write_statistics(args, character, './datasets/Mixamo/mean_var/')
+   

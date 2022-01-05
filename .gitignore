@@ -130,5 +130,8 @@ __pycache__/*
 parameters/*
 output/*
 datasets/Mixamo/*
+datasets/FBX/*
+datasets/FBX_backup/*
+datasets/BVH/*
 datasets/tmp/*
 datasets/__pycache/*

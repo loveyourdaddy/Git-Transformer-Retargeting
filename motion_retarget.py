@@ -95,7 +95,7 @@ if args.is_train == 1:
         wandb.log({"loss": loss})
 
 else:
-    epoch = 20 # 500
+    epoch = 1000 # 1000
 
     load(model, path + save_name, epoch)
     eval_epoch(
