@@ -12,6 +12,10 @@ from models.Kinematics import ForwardKinematics
 from rendering import *
 from train import *
 
+
+SAVE_ATTENTION_DIR = "attention_vis/test"
+os.makedirs(SAVE_ATTENTION_DIR, exist_ok=True)
+
 """ eval """
 def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, save_name, Files):
     model.eval()
@@ -32,7 +36,23 @@ def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, sa
 
             """ feed to network """
             # input_character_idx, output_character_idx = character_idx, character_idx
-            output_motions = model(character_idx, character_idx, enc_inputs, dec_inputs)
+            output_motions, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = model(character_idx, character_idx, enc_inputs, dec_inputs)
+
+            bs = enc_self_attn_probs[0].size(0)
+            for att_index, enc_self_attn_prob in enumerate(enc_self_attn_probs):
+                att_map = enc_self_attn_prob.view(bs*4,-1,128,128)
+                torchvision.utils.save_image(att_map, \
+                    f"./{SAVE_ATTENTION_DIR}/enc_{att_index}_{i:05d}.jpg",range=(torch.min(att_map).item(), torch.max(att_map).item()), normalize=True)
+
+            for att_index, dec_self_attn_prob in enumerate(dec_self_attn_probs):
+                att_map = dec_self_attn_prob.view(bs*4,-1,128,128)
+                torchvision.utils.save_image(att_map, \
+                    f"./{SAVE_ATTENTION_DIR}/enc_{att_index}_{i:05d}.jpg",range=(torch.min(att_map).item(), torch.max(att_map).item()), normalize=True)
+
+            for att_index, dec_enc_attn_prob in enumerate(dec_enc_attn_probs):
+                att_map = dec_enc_attn_prob.view(bs*4,-1,128,128)
+                torchvision.utils.save_image(att_map, \
+                    f"./{SAVE_ATTENTION_DIR}/enc_{att_index}_{i:05d}.jpg",range=(torch.min(att_map).item(), torch.max(att_map).item()), normalize=True)
 
             """ Post-process data  """
             # """ remove offset part of output motions """

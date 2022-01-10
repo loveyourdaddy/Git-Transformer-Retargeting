@@ -129,9 +129,11 @@ venv/*
 __pycache__/*
 parameters/*
 output/*
+attention_vis/*
 datasets/Mixamo/*
 datasets/FBX/*
 datasets/FBX_backup/*
 datasets/BVH/*
+datasets/BVH_backup/*
 datasets/tmp/*
 datasets/__pycache/*

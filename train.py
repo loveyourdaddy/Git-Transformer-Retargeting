@@ -10,6 +10,12 @@ from datasets.bvh_parser import BVH_file
 from datasets.bvh_writer import BVH_writer
 from models.Kinematics import ForwardKinematics
 from rendering import *
+import torchvision
+
+
+
+SAVE_ATTENTION_DIR = "attention_vis"
+os.makedirs(SAVE_ATTENTION_DIR, exist_ok=True)
 
 def get_data_numbers(motion):
     return motion.size(0), motion.size(1), motion.size(2)
@@ -50,6 +56,7 @@ def try_mkdir(path):
 def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_dataset, characters, save_name, Files):
     losses = [] # losses for 1 epoch (for all motion, all batch_size)
     fk_losses = []
+    reg_losses = []
     model.train()
     args.epoch = epoch
     character_idx = 0
@@ -73,7 +80,25 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
 
             """ feed to NETWORK """
             # input_character, output_character = character_idx, character_idx
-            output_motions = model(character_idx, character_idx, enc_inputs, dec_inputs)
+            output_motions, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = model(character_idx, character_idx, enc_inputs, dec_inputs)
+
+            if epoch % 10 ==0 and i % 40 == 0:
+                # att_num = len(enc_self_attn_probs)
+                bs = enc_self_attn_probs[0].size(0)
+                for att_index, enc_self_attn_prob in enumerate(enc_self_attn_probs):
+                    att_map = enc_self_attn_prob.view(bs*4,-1,128,128)
+                    torchvision.utils.save_image(att_map, \
+                        f"./{SAVE_ATTENTION_DIR}/enc_{att_index}_{epoch:04d}_{i:05d}.jpg",range=(0,1), normalize=True)
+
+                for att_index, dec_self_attn_prob in enumerate(dec_self_attn_probs):
+                    att_map = dec_self_attn_prob.view(bs*4,-1,128,128)
+                    torchvision.utils.save_image(att_map, \
+                        f"./{SAVE_ATTENTION_DIR}/dec_{att_index}_{epoch:04d}_{i:05d}.jpg",range=(0,1), normalize=True)
+
+                for att_index, dec_enc_attn_prob in enumerate(dec_enc_attn_probs):
+                    att_map = dec_enc_attn_prob.view(bs*4,-1,128,128)
+                    torchvision.utils.save_image(att_map, \
+                        f"./{SAVE_ATTENTION_DIR}/enc_dec_{att_index}_{epoch:04d}_{i:05d}.jpg",range=(0,1), normalize=True)
 
             """ denorm for bvh_writing """
             if args.normalization == 1:
@@ -120,20 +145,39 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
                     # render 1 frame 
                     render_dots(gt_transform[0][0].reshape(-1,3)) # divide 69 -> 23,3
 
+            """ 3. atten score loss """
+            n_layer = len(enc_self_attn_probs)            
+            size = enc_self_attn_probs[0].size()
+            n_batch, n_heads, window_size, window_size = size 
+
+            reg_weight = args.reg_weight
+            zero_tensor = torch.zeros(n_batch, n_heads, window_size, window_size, device=args.cuda_device)
+            if args.reg_loss == 1:
+                for l in range(n_layer):
+                    loss = reg_weight * criterion(enc_self_attn_probs[l], zero_tensor)
+                    loss_sum += loss
+                    reg_losses.append(loss.item())
+
+                    loss = reg_weight * criterion(dec_self_attn_probs[l], zero_tensor)
+                    loss_sum += loss
+                    reg_losses.append(loss.item())
+
+                    loss = reg_weight * criterion(dec_enc_attn_probs[l], zero_tensor)
+                    loss_sum += loss
+                    reg_losses.append(loss.item())
+
             """ Optimization and show info """
             loss_sum.backward()
             optimizer.step()
 
             pbar.update(1)
-            pbar.set_postfix_str(f"mean: {np.mean(losses):.3f}")
-            # pbar.set_postfix_str(f"fk_losses: {np.mean(fk_losses):.3f} (mean: {np.mean(losses):.3f})")
+            # pbar.set_postfix_str(f"mean: {np.mean(losses):.3f}")
+            pbar.set_postfix_str(f"Total mean: {np.mean(losses):.3f}, reg_loss: {np.mean(reg_losses):.3f}")
 
             """ BVH Writing """
-            # Write gt motion for 0 epoch
             if epoch == 0:
                 write_bvh(save_dir, "gt", denorm_gt_motions, characters, character_idx, motion_idx, args)
 
-            # Write output motions for every 10 epoch
             if epoch % 10 == 0:
                 write_bvh(save_dir, "output_"+str(epoch), denorm_output_motions, characters, character_idx, motion_idx, args)
 

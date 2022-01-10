@@ -13,7 +13,11 @@ from datasets import get_character_names, create_dataset
 from models import create_model
 from models.base_model import BaseModel
 from model import *
- 
+import torchvision
+
+SAVE_ATTENTION_DIR = "attention_vis/test"
+# i = 0 
+
 """ Attentnion Model """
 # function of Q, K, V
 class ScaledDotProductAttention(nn.Module):
@@ -23,6 +27,7 @@ class ScaledDotProductAttention(nn.Module):
         #d_head (64) : dim of key vector 
         self.d_head = args.d_head
         self.scale = 1 / (self.d_head ** 0.5)
+        # self.V_index = 0
 
     def forward(self, Q, K, V):
         # Q,K,V: (bs, n_head, window, DoF)
@@ -30,10 +35,25 @@ class ScaledDotProductAttention(nn.Module):
         # (bs, n_head, window, window)
         scores = torch.matmul(Q, K.transpose(-1, -2)).mul_(self.scale)
         
+        # bs = scores.size(0)
+        
         # Softmax on last dim 
         attn_prob = nn.Softmax(dim = -1)(scores)
-        
+        # attn_prob = nn.Softmax(dim = -1)(scores.view(bs,4,1,128*128)).view(bs,4,128, 128)
+                
         context = torch.matmul(attn_prob, V)
+        
+        # heads = V[0].size(0)
+        # V = V.view(heads,-1,128,64)
+        
+        # for head_idx, 
+        # for i in range():
+        #     torchvision.utils.save_image(V, \
+        #         f"./{SAVE_ATTENTION_DIR}/V_{self.V_index}.jpg",range=(torch.min(V).item(), torch.max(V).item()), normalize=True)
+        # self.V_index += 0
+            
+        # img = attn_prob.view(bs*4,-1,128,128)
+        # torchvision.utils.save_image(img, f"attention.png",range=(0,1), normalize=True)
 
         # context:(bs, n_head, window, DoF) attn_prob (bs, n_head, window, window)
         return context, attn_prob
@@ -307,5 +327,5 @@ class MotionGenerator(nn.Module):
 
         # output = self.projection(output)
 
-        return output
+        return output, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
         

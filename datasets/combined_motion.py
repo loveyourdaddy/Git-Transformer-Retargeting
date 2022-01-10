@@ -229,6 +229,7 @@ class TestData(Dataset):
         self.dec_inputs = self.final_data[1][:] # 첫번째 프레임 제외
         
         """ update input/output dimension of network """
+        # import pdb; pdb.set_trace()
         args.input_size = self.final_data[0][0].size(1)
         args.output_size = self.final_data[1][0].size(1)
 
