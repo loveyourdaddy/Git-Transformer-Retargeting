@@ -39,22 +39,9 @@ class ScaledDotProductAttention(nn.Module):
         
         # Softmax on last dim 
         attn_prob = nn.Softmax(dim = -1)(scores)
-        # attn_prob = nn.Softmax(dim = -1)(scores.view(bs,4,1,128*128)).view(bs,4,128, 128)
                 
         context = torch.matmul(attn_prob, V)
         
-        # heads = V[0].size(0)
-        # V = V.view(heads,-1,128,64)
-        
-        # for head_idx, 
-        # for i in range():
-        #     torchvision.utils.save_image(V, \
-        #         f"./{SAVE_ATTENTION_DIR}/V_{self.V_index}.jpg",range=(torch.min(V).item(), torch.max(V).item()), normalize=True)
-        # self.V_index += 0
-            
-        # img = attn_prob.view(bs*4,-1,128,128)
-        # torchvision.utils.save_image(img, f"attention.png",range=(0,1), normalize=True)
-
         # context:(bs, n_head, window, DoF) attn_prob (bs, n_head, window, window)
         return context, attn_prob
 
@@ -62,14 +49,15 @@ class MultiHeadAttention(nn.Module):
     def __init__(self, args, type):
         super().__init__()
         # self.input_dim = args.input_size
-        if type == "Enc": # 69 (enc_input)
-            self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.input_size, args.input_size, args.input_size, args.input_size
-        elif type == "Dec": # 84? 69? (dec_input = enc_input? )
-            self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.output_size, args.output_size, args.output_size, args.output_size
-        elif type == "Dec_enc": # Q: 84(첫번째 Attn_output), K,V: 69(enc_output)
-            self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.output_size, args.output_size, args.output_size, args.output_size
-        else: # EncDec 
-            self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.output_size, args.output_size, args.input_size, args.input_size
+        self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.embedding_dim, args.embedding_dim, args.embedding_dim, args.embedding_dim
+        # if type == "Enc": # 69 (enc_input)
+        #     self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.input_size, args.input_size, args.input_size, args.input_size
+        # elif type == "Dec": # 84? 69? (dec_input = enc_input? )
+        #     self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.output_size, args.output_size, args.output_size, args.output_size
+        # elif type == "Dec_enc": # Q: 84(첫번째 Attn_output), K,V: 69(enc_output)
+        #     self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.output_size, args.output_size, args.output_size, args.output_size
+        # else: # EncDec 
+        #     self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.output_size, args.output_size, args.input_size, args.input_size
 
         # head parameters
         self.d_head = args.d_head
@@ -113,9 +101,9 @@ class PositionFeedForwardNet(nn.Module):
     def __init__(self, args, type):
         super().__init__()
         if type == "Enc":
-            self.input_dim = args.input_size
+            self.input_dim = args.embedding_dim# args.input_size
         elif type == "Dec":
-            self.input_dim = args.output_size
+            self.input_dim = args.embedding_dim # args.output_size
         else: # EncDec 
             print("error")
 
@@ -137,7 +125,7 @@ class EncoderLayer(nn.Module):
         super().__init__()
         # animation parameters
         self.args = args
-        self.input_dim = args.input_size
+        self.input_dim = args.embedding_dim # args.input_size
         self.layer_norm_epsilon = args.layer_norm_epsilon
 
         # Layers
@@ -159,7 +147,7 @@ class DecoderLayer(nn.Module):
     def __init__(self, args):
         super().__init__()
         self.args = args
-        self.input_dim = args.output_size
+        self.input_dim = args.embedding_dim
 
         self.self_attn = MultiHeadAttention(self.args, "Dec") # Q,K,V: (bs, 128, 111)
         self.layer_norm1 = nn.LayerNorm(self.input_dim, eps=self.args.layer_norm_epsilon)
@@ -183,7 +171,7 @@ class DecoderLayer(nn.Module):
 
 """ sinusoial encoding of each sentence """ 
 # n_seq: num of total seq(Sentence), d_hidn: 단어를 표시하는 벡터의 크기
-def get_sinusoid_encoding_table(n_seq, d_hidn):
+def get_sinusoid_encoding_table(n_seq, d_hidn): # seq의 길이,embedding 차원 
     # 포지션을 angle로 나타냄
     def cal_angle(position, i_hidn):
         return position / np.power(10000, 2 * (i_hidn // 2) / d_hidn)
@@ -204,28 +192,46 @@ class Encoder(nn.Module):
     def __init__(self, args, offset):
         super().__init__()
         self.args = args
-        self.input_dim = args.input_size
-        self.d_hidn =  args.d_hidn # args.input_size 
         self.offset = offset
+        self.input_dim = args.input_size 
+        self.embedding_dim = args.embedding_dim
+        self.d_hidn = args.d_hidn # args.input_size 
+
+        """ Embedding networks """
+        # input embedding 
+        self.input_embedding = nn.Linear(self.input_dim, self.embedding_dim)
+
+        # Positional Embedding
+        self.sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(self.args.window_size + 1, self.embedding_dim))
+        self.pos_emb = nn.Embedding.from_pretrained(self.sinusoid_table, freeze=True)
 
         """ Layer """
+        self.fc1 = nn.Linear(self.embedding_dim, self.embedding_dim)
         self.layers = nn.ModuleList([EncoderLayer(self.args) for _ in range(self.args.n_layer)])
-        self.fc1 = nn.Linear(self.input_dim, self.input_dim)
-        self.embedding_fc = nn.Linear(self.input_dim, self.d_hidn)
+        self.projection = nn.Linear(self.embedding_dim, self.d_hidn)
 
     # (bs, length of frames, joints): (4, 91, 64) # 4개의 bs 에 대해서 모두 동일한 character index을 가지고 있다. 
     def forward(self, input_character, inputs):
+        
         """ option for add_offset """
         if self.args.add_offset:
             offset = self.offset[input_character]
             offset = torch.reshape(offset, (-1,1)).unsqueeze(0).expand(inputs.size(0), -1, -1).to(torch.device(inputs.device))
             inputs = torch.cat([inputs, offset], dim=-1)
 
-        outputs = self.fc1(inputs)
+        """ Get Position and Embedding """
+        if self.args.position_encoding:            
+            # (128) -> (1,128,1) -> (16,128)
+            positions = torch.arange(inputs.size(1), device=inputs.device, dtype=torch.long).unsqueeze(0).expand(inputs.size(0), inputs.size(1)).contiguous() + 1
+            
+            # (16,128,256)
+            position_encoding = self.pos_emb(positions)
 
-        """ Transpose for window """
-        # (bs, DoF, window) -> (bs, window, DoF) (4,128,91)
-        # outputs = outputs.transpose(1,2)
+            input_embedding = self.input_embedding(inputs)
+
+            inputs = input_embedding + position_encoding
+        
+        outputs = self.fc1(inputs)
         
         """ 연산 """
         attn_probs = []
@@ -233,11 +239,7 @@ class Encoder(nn.Module):
             outputs, attn_prob, context = layer(outputs)
             attn_probs.append(attn_prob)
         
-        outputs = self.embedding_fc(outputs)
-
-        """ Transpose for window """
-        # (bs, DoF, window) -> (bs, window, DoF) (4,128,91)
-        # outputs = outputs.transpose(1,2)
+        outputs = self.projection(outputs)
         
         return outputs, attn_probs, context
 
@@ -245,19 +247,29 @@ class Decoder(nn.Module):
     def __init__(self, args, offset):
         super().__init__()
         self.args = args
-        self.input_dim = args.output_size
-        self.d_hidn = args.d_hidn # args.output_size
         self.offset = offset
+        # self.input_dim = args.output_size
+        self.embedding_dim = args.embedding_dim
+        self.d_hidn = args.d_hidn # args.output_size
+        self.output_dim = args.output_size
 
         # sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(self.input_dim + 1, self.args.d_hidn))
         # self.pos_emb = nn.Embedding.from_pretrained(sinusoid_table, freeze=True)
 
         """ layers """
-        self.embedding_fc1 = nn.Linear(self.d_hidn, self.input_dim)
-        self.embedding_fc2 = nn.Linear(self.d_hidn, self.input_dim)
-        self.fc1 = nn.Linear(self.input_dim, self.input_dim)
+        self.deprojection = nn.Linear(self.d_hidn, self.embedding_dim)
+        self.fc1 = nn.Linear(self.embedding_dim, self.embedding_dim) 
         self.layers = nn.ModuleList([DecoderLayer(self.args) for _ in range(self.args.n_layer)])
         # self.fc2 = nn.Linear(self.input_dim, self.input_dim)
+
+        """ De-embedding / Embedding networks """
+        # input embedding 
+        self.input_embedding = nn.Linear(self.output_dim, self.embedding_dim)
+        # Positional Embedding
+        self.sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(self.args.window_size + 1, self.embedding_dim))
+        self.pos_emb = nn.Embedding.from_pretrained(self.sinusoid_table, freeze=True)
+
+        self.de_embedding = nn.Linear(self.embedding_dim, self.output_dim)
 
     # (bs, DoF, d_hidn)
     def forward(self, output_character, dec_inputs, enc_inputs, enc_outputs):
@@ -268,11 +280,24 @@ class Decoder(nn.Module):
             enc_inputs = torch.cat([enc_inputs, offset], dim=-1)
             dec_inputs = torch.cat([dec_inputs, offset], dim=-1)
 
-        # dec_outputs = dec_outputs + positions
-        # enc_inputs = self.embedding_fc1(enc_inputs)
-        enc_outputs = self.embedding_fc1(enc_outputs)
-        enc_inputs = enc_outputs # check : 이렇게 해도 의미 될지 확인.
-        dec_outputs = self.fc1(dec_inputs)
+        # 1. enc output
+        enc_outputs = self.deprojection(enc_outputs)
+        # enc_inputs = enc_outputs # check : enc_input에 deprojection한것을 넣어도 될지. 이렇게 해도 의미 될지 확인.
+
+        # if self.args.position_encoding:            
+        #     # (128) -> (1,128,1) -> (16,128)
+        #     positions = torch.arange(dec_inputs.size(1), device=dec_inputs.device, dtype=torch.long).unsqueeze(0).expand(dec_inputs.size(0), dec_inputs.size(1)).contiguous() + 1
+            
+        #     # (16,128,256)
+        #     position_encoding = self.pos_emb(positions)
+
+        #     input_embedding = self.input_embedding(dec_inputs)
+
+        #     dec_inputs = input_embedding + position_encoding
+        
+        # 2. dec input
+        # dec_outputs = self.fc1(dec_inputs) # check: dec input의 value가 정답이 아닌지 확인. 
+        dec_outputs = enc_outputs
         
         self_attn_probs, dec_enc_attn_probs = [], []
         for layer in self.layers:
@@ -281,6 +306,8 @@ class Decoder(nn.Module):
             # 모든 layer의 attn 을 쌓기 
             self_attn_probs.append(self_attn_prob)
             dec_enc_attn_probs.append(dec_enc_attn_prob)
+
+        dec_outputs = self.de_embedding(dec_outputs)
 
         # (bs, DoF, d_hidn), [(bs, DoF, DoF)], [(bs, DoF, DoF)]
         return dec_outputs, self_attn_probs, dec_enc_attn_probs

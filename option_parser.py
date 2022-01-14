@@ -17,15 +17,17 @@ def get_parser():
     parser.add_argument('--num_motions', type=int, default=1) # num motions for_character. dummy value 1 
     parser.add_argument('--normalization', type=int, default = 1)
     parser.add_argument('--add_offset', type=int, default=0, help='concat offset in dataset')
-    parser.add_argument('--position_encoding', type=int, default = 0, help='positional encoding')
+    parser.add_argument('--position_encoding', type=int, default = 1, help='positional encoding')
     parser.add_argument('--root_pos_disp', type=int, default = 1, help='represent root pos as displacement')
     parser.add_argument('--data_augment', type=int, default=0, help='data_augment: 1 or 0') 
     parser.add_argument('--input_size', type=int, default=0, help='') 
+    parser.add_argument('--embedding_dim', type=int, default=256, help='embedding dimension') 
     parser.add_argument('--output_size', type=int, default=0, help='')
+    parser.add_argument('--n_enc_seq', type=int, default=0, help='')
 
     # Network
     parser.add_argument('--n_layer', type=int, default=6)
-    parser.add_argument('--d_hidn', type=int, default=32) # embedding dimenstion: 69 -> (64) -> 32 
+    parser.add_argument('--d_hidn', type=int, default=64) # embedding dimenstion: 69 -> (64) -> 32 
     parser.add_argument('--n_head', type=int, default=4)
     parser.add_argument('--d_head', type=int, default=64)
     parser.add_argument('--layer_norm_epsilon', type=float, default=1e-12)
@@ -37,7 +39,6 @@ def get_parser():
     parser.add_argument('--reg_weight', type=int, default=1000, help='reg_weight')
     parser.add_argument('--root_weight', type=int, default=10, help='weighted loss for root displacement')
     parser.add_argument('--weight_root_loss', type=int, default=0, help='flag for weight_root_loss')
-    
     
     # learning parameter 
     parser.add_argument('--batch_size', type=int, default=16, help='batch_size') # 16
