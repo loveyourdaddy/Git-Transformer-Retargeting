@@ -35,14 +35,14 @@ class MotionData(Dataset):
         motions = list(motions)
         
         print(file_path)
-        new_window = self.get_windows(motions)  
+        new_window = self.get_windows(motions)
 
         # change data from list to tensor
         self.data.append(new_window)
         self.data = torch.cat(self.data)
 
         """ Crop motion dimesnion """
-        self.data = self.data[:, :-1, :]
+        # self.data = self.data[:, :-1, :]
 
         """ Modify data  """
         # data: (bs, DoF, window)
@@ -62,7 +62,7 @@ class MotionData(Dataset):
                 self.data[bs][num_frames - 1][num_DoF - 3] = 0
                 self.data[bs][num_frames - 1][num_DoF - 2] = 0
                 self.data[bs][num_frames - 1][num_DoF - 1] = 0
-
+        
         """ normalization data:  mean, var of data & normalization """
         if args.normalization:
             if preprocess: # preprocess의 경우
@@ -86,7 +86,6 @@ class MotionData(Dataset):
 
         """ save data """
         # motion window 데이터의 6%을 테스트 데이터로 사용함 
-        # remove this
         # train_len = self.data.shape[0] * 94 // 100
         
         # self.data = self.data[:train_len, ...]
@@ -160,8 +159,8 @@ class MotionData(Dataset):
 
     def get_windows(self, motions):
         new_windows = []
-        step_size = self.args.window_size // 2 + 1
-        window_size = step_size * 2 - 1
+        step_size = self.args.window_size // 2
+        window_size = step_size * 2
 
         # motions : (motions, frames, joint DoF)
         for motion in motions:
@@ -169,7 +168,6 @@ class MotionData(Dataset):
             self.motion_length.append(motion.shape[0])
             n_window = motion.shape[0] // step_size - 1 # -1 : 마지막 window에 데이터가 전부 차지 않았다면 제거 
             
-            # import pdb; pdb.set_trace()
             for i in range(n_window):
                 begin = i * step_size
                 end = begin + window_size

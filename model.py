@@ -220,16 +220,17 @@ class Encoder(nn.Module):
             inputs = torch.cat([inputs, offset], dim=-1)
 
         """ Get Position and Embedding """
-        if self.args.position_encoding:            
+        if self.args.data_encoding:            
             # (128) -> (1,128,1) -> (16,128)
             positions = torch.arange(inputs.size(1), device=inputs.device, dtype=torch.long).unsqueeze(0).expand(inputs.size(0), inputs.size(1)).contiguous() + 1
             
             # (16,128,256)
-            position_encoding = self.pos_emb(positions)
+            # position_encoding = self.pos_emb(positions)
 
             input_embedding = self.input_embedding(inputs)
 
-            inputs = input_embedding + position_encoding
+            # inputs = input_embedding + position_encoding
+            inputs = input_embedding
         
         outputs = self.fc1(inputs)
         

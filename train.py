@@ -82,8 +82,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             # input_character, output_character = character_idx, character_idx
             output_motions, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = model(character_idx, character_idx, enc_inputs, dec_inputs)
 
-            if epoch % 10 ==0 and i % 40 == 0:
-                # att_num = len(enc_self_attn_probs)
+            if epoch % 10 ==0:
                 bs = enc_self_attn_probs[0].size(0)
                 for att_index, enc_self_attn_prob in enumerate(enc_self_attn_probs):
                     att_map = enc_self_attn_prob.view(bs*4,-1,128,128)
@@ -171,8 +170,8 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             optimizer.step()
 
             pbar.update(1)
-            # pbar.set_postfix_str(f"mean: {np.mean(losses):.3f}")
-            pbar.set_postfix_str(f"Total mean: {np.mean(losses):.3f}, reg_loss: {np.mean(reg_losses):.3f}")
+            pbar.set_postfix_str(f"mean: {np.mean(losses):.3f}")
+            # pbar.set_postfix_str(f"Total mean: {np.mean(losses):.3f}, reg_loss: {np.mean(reg_losses):.3f}")
 
             """ BVH Writing """
             if epoch == 0:
@@ -184,4 +183,4 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
         torch.cuda.empty_cache()
         del gt_motions, enc_inputs, dec_inputs, output_motions
 
-    return  np.mean(fk_losses), np.mean(losses)
+    return  np.mean(losses)

@@ -48,7 +48,7 @@ args = args_
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "220114_0_intra_without_dec_inputs/"   #"211230_cross_correcting_data/" 
+save_name = "220115_2_intra_WithInputEmbedding_quaternion/"   #220115_2_intra_WithInputEmbedding_AboutJointDim_XYZ
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 print("device: ", args.cuda_device)
@@ -85,13 +85,13 @@ for i in range(len(characters)):
 if args.is_train == 1:
     # for every epoch 
     for epoch in range(args.n_epoch):
-        fk_loss, loss = train_epoch(
+        loss = train_epoch(
             args, epoch, model, criterion, optimizer, 
             loader, dataset, 
             characters, save_name, Files)
             
         save(model, path + save_name, epoch)
-        wandb.log({"fk_loss": fk_loss})
+        # wandb.log({"fk_loss": fk_loss})
         wandb.log({"loss": loss})
 
 else:

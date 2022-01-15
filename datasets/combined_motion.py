@@ -56,7 +56,7 @@ class MixedData(Dataset):
         dataset_num = 0
         total_length = 10000000
         all_datas = []
-        self.position_encoding = args.position_encoding
+        # self.position_encoding = args.position_encoding
         self.offsets_group = []
         # self.split_index = []
 
@@ -178,7 +178,6 @@ class TestData(Dataset):
                 args.dataset = character
                 motion = MotionData(args, 0)
                 motion_data.append(motion)
-                # import pdb; pdb.set_trace()
                 
                 new_offset = file.offset
                 new_offset = torch.tensor(new_offset, dtype=torch.float)
@@ -229,7 +228,6 @@ class TestData(Dataset):
         self.dec_inputs = self.final_data[1][:] # 첫번째 프레임 제외
         
         """ update input/output dimension of network """
-        # import pdb; pdb.set_trace()
         args.input_size = self.final_data[0][0].size(1)
         args.output_size = self.final_data[1][0].size(1)
 
