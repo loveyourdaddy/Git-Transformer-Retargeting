@@ -27,15 +27,17 @@ def get_parser():
     parser.add_argument('--root_pos_disp', type=int, default = 1, help='represent root pos as displacement')
     parser.add_argument('--data_augment', type=int, default=0, help='data_augment: 1 or 0') 
     parser.add_argument('--swap_dim', type=int, default=1, help='data_augment: 1 or 0') 
-
+    
     # Network
     parser.add_argument('--layer_norm_epsilon', type=float, default=1e-12)
     parser.add_argument('--i_pad', type=int, default=0)
     parser.add_argument('--n_layer', type=int, default=6)
     parser.add_argument('--n_head', type=int, default=4)
     parser.add_argument('--d_head', type=int, default=64)
-    parser.add_argument('--d_hidn', type=int, default=256) # embedding dimenstion: 69 -> (64) -> 32 
-    parser.add_argument('--embedding_dim', type=int, default=256, help='embedding dimension') 
+    parser.add_argument('--d_hidn', type=int, default=91) # joint 을 얼마나 줄일지에 대한 hidden dimension
+    # xyz embedding dimenstion: 69 -> (64) -> 32 
+    # quaternion embedding dimenstion: 91 -> 91 -> 111
+    parser.add_argument('--embedding_dim', type=int, default=256, help='embedding dimension') # window을 얼마나 줄일지에 대한 embedding
     
     # loss 
     parser.add_argument('--fk_loss', type=int, default=0, help='fk loss')

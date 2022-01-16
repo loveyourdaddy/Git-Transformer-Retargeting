@@ -48,7 +48,7 @@ args = args_
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "220116_0_cross_WithPositionEmbedding_Quaternion/"   #220115_2_intra_WithInputEmbedding_AboutJointDim_XYZ
+save_name = "220116_2_cross_WithProjectionNet_PosAlsoNormalized/"   #220115_2_intra_WithInputEmbedding_AboutJointDim_XYZ
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 print("device: ", args.cuda_device)

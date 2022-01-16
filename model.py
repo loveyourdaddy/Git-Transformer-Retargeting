@@ -193,13 +193,12 @@ class Encoder(nn.Module):
         super().__init__()
         self.args = args
         self.offset = offset
-        self.input_dim = args.input_size 
-        self.embedding_dim = args.embedding_dim
-        self.d_hidn = args.d_hidn # args.input_size 
+        self.input_size = args.window_size
+        self.embedding_dim = args.embedding_dim 
 
         """ Embedding networks """
         # input embedding 
-        self.input_embedding = nn.Linear(self.input_dim, self.embedding_dim)
+        self.input_embedding = nn.Linear(self.input_size, self.embedding_dim)
 
         # Positional Embedding
         self.sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(self.args.window_size + 1, self.embedding_dim))
@@ -208,7 +207,7 @@ class Encoder(nn.Module):
         """ Layer """
         self.fc1 = nn.Linear(self.embedding_dim, self.embedding_dim)
         self.layers = nn.ModuleList([EncoderLayer(self.args) for _ in range(self.args.n_layer)])
-        self.projection = nn.Linear(self.embedding_dim, self.d_hidn)
+        self.projection = nn.Linear(self.embedding_dim, self.embedding_dim)
 
     # (bs, length of frames, joints): (4, 91, 64) # 4개의 bs 에 대해서 모두 동일한 character index을 가지고 있다. 
     def forward(self, input_character, inputs):
@@ -244,28 +243,48 @@ class Encoder(nn.Module):
         
         return outputs, attn_probs, context
 
+class ProjectionNet(nn.Module):
+    def __init__(self, args):
+        super().__init__()
+        self.args = args
+        self.input_dim = args.input_size 
+        self.d_hidn = args.d_hidn
+        self.output_dim = args.output_size
+
+        """ layer """
+        self.fc1 = nn.Linear(self.input_dim, self.d_hidn)
+        self.fc2 = nn.Linear(self.d_hidn, self.output_dim)
+
+    def forward(self, enc_output):
+        enc_output = torch.transpose(enc_output, 1, 2)
+
+        latent_img = self.fc1(enc_output)
+        dec_input = self.fc2(latent_img)
+
+        dec_input = torch.transpose(dec_input, 1, 2)
+
+        return dec_input
+
 class Decoder(nn.Module):
     def __init__(self, args, offset):
         super().__init__()
         self.args = args
         self.offset = offset
-        # self.input_dim = args.output_size
         self.embedding_dim = args.embedding_dim
-        self.d_hidn = args.d_hidn # args.output_size
-        self.output_dim = args.output_size
+        self.output_dim = args.window_size
 
         # sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(self.input_dim + 1, self.args.d_hidn))
         # self.pos_emb = nn.Embedding.from_pretrained(sinusoid_table, freeze=True)
 
         """ layers """
-        self.deprojection = nn.Linear(self.d_hidn, self.embedding_dim)
+        self.deprojection = nn.Linear(self.embedding_dim, self.embedding_dim) # d_hidn
         self.fc1 = nn.Linear(self.embedding_dim, self.embedding_dim) 
         self.layers = nn.ModuleList([DecoderLayer(self.args) for _ in range(self.args.n_layer)])
         # self.fc2 = nn.Linear(self.input_dim, self.input_dim)
 
         """ De-embedding / Embedding networks """
         # input embedding 
-        self.input_embedding = nn.Linear(self.output_dim, self.embedding_dim)
+        self.input_embedding = nn.Linear(self.embedding_dim, self.embedding_dim)
         # Positional Embedding
         self.sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(self.args.window_size + 1, self.embedding_dim))
         self.pos_emb = nn.Embedding.from_pretrained(self.sinusoid_table, freeze=True)
@@ -277,9 +296,9 @@ class Decoder(nn.Module):
     
         if self.args.add_offset:
             offset = self.offset[output_character]
-            offset = torch.reshape(offset, (-1,1)).unsqueeze(0).expand(dec_inputs.size(0), -1, -1).to(torch.device(dec_inputs.device))
+            offset = torch.reshape(offset, (-1,1)).unsqueeze(0).expand(enc_outputs.size(0), -1, -1).to(torch.device(dec_inputs.device))
             enc_inputs = torch.cat([enc_inputs, offset], dim=-1)
-            dec_inputs = torch.cat([dec_inputs, offset], dim=-1)
+            # dec_inputs = torch.cat([dec_inputs, offset], dim=-1)
 
         # 1. enc output
         enc_outputs = self.deprojection(enc_outputs)
@@ -319,25 +338,27 @@ class Transformer(nn.Module):
         super().__init__()
         self.args = args
         self.encoder = Encoder(args, offsets[0])
+        self.projection_net = ProjectionNet(args)
         self.decoder = Decoder(args, offsets[1])
     
     def forward(self, input_character, output_character, enc_inputs, dec_inputs):
         # input: (bs, window, DoF), output: (bs, window, DoF)
 
         enc_outputs, enc_self_attn_probs, context = self.encoder(input_character, enc_inputs)
-        
+
+        enc_outputs = self.projection_net(enc_outputs)
+
         # input: (bs, window, DoF), output: (bs, window, DoF)
         dec_outputs, dec_self_attn_probs, dec_enc_attn_probs = self.decoder(output_character, dec_inputs, enc_inputs, enc_outputs)
 
         return dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
         
-
 class MotionGenerator(nn.Module):
     def __init__(self, args, offsets): # character_names, dataset
         # Parameters 
         super().__init__()
         self.args = args
-        self.input_dim = args.output_size        
+        self.input_dim = args.window_size # check if it is neeeded
 
         """ Transformer """
         # layers

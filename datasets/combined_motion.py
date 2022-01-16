@@ -1,3 +1,4 @@
+from json.encoder import py_encode_basestring
 from torch.utils.data import Dataset
 import copy
 
@@ -94,7 +95,6 @@ class MixedData(Dataset):
                 new_offset = torch.tensor(new_offset, dtype=torch.float)
                 new_offset = new_offset.reshape((1,) + new_offset.shape)
                 offsets_group.append(new_offset)
-            
             all_datas.append(motion_data)
 
             offsets_group = torch.cat(offsets_group, dim=0)
@@ -130,19 +130,26 @@ class MixedData(Dataset):
         self.dec_inputs = self.final_data[1][:] 
         
         """ update input/output dimension of network """
-        # swap == 0: input / output DoF
-        # swap == 1: window_size 
-        args.input_size = self.enc_inputs.size(2)
-        args.output_size = self.dec_inputs.size(2)
+        #swap_dim=0: (bs, Window, DoF)
+        if args.swap_dim == 0:
+            args.input_size = self.enc_inputs.size(2)
+            args.output_size = self.dec_inputs.size(2)
+        #swap_dim=1: (bs, DoF, Window)
+        else: 
+            args.input_size = self.enc_inputs.size(1)
+            args.output_size = self.dec_inputs.size(1)
         
     def denorm(self, gid, pid, data):
         means = self.means[gid][pid, ...]
         var = self.vars[gid][pid, ...]
-        data_tmp = data 
+        # data_tmp = data 
         data = data * var + means
 
-        if self.args.root_pos_disp == 1: 
-            data[:,:,-3:] = data_tmp[:,:,-3:]
+        # if self.args.root_pos_disp == 1: 
+        #     if self.args.swap_dim == 0: #(bs, frame, DoF)
+        #         data[:,:,-3:] = data_tmp[:,:,-3:]
+        #     else:  #(bs, DoF, frame)
+        #         data[:,-3:,:] = data_tmp[:,-3:,:]
         return data
 
     def get_offsets(self):
@@ -238,11 +245,14 @@ class TestData(Dataset):
     def denorm(self, gid, pid, data):
         means = self.means[gid][pid, ...]
         var = self.vars[gid][pid, ...]
-        data_tmp = data 
+        # data_tmp = data 
         data = data * var + means
 
-        if self.args.root_pos_disp == 1: 
-            data[:,:,-3:] = data_tmp[:,:,-3:]
+        # if self.args.root_pos_disp == 1: 
+        #     if self.args.swap_dim == 0: #(bs, frame, DoF)
+        #         data[:,:,-3:] = data_tmp[:,:,-3:]
+        #     else:  #(bs, DoF, frame)
+        #         data[:,-3:,:] = data_tmp[:,-3:,:]
         return data
 
 

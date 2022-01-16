@@ -104,10 +104,12 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
                     att_map = enc_self_attn_prob.view(bs*4,-1,img_size,img_size)
                     torchvision.utils.save_image(att_map, f"./{SAVE_ATTENTION_DIR}/enc_{att_index}_{epoch:04d}.jpg",range=(0,1), normalize=True)
 
+                img_size = dec_self_attn_probs[0].size(2)
                 for att_index, dec_self_attn_prob in enumerate(dec_self_attn_probs):
                     att_map = dec_self_attn_prob.view(bs*4,-1,img_size,img_size)
                     torchvision.utils.save_image(att_map, f"./{SAVE_ATTENTION_DIR}/dec_{att_index}_{epoch:04d}.jpg",range=(0,1), normalize=True)
 
+                img_size = dec_enc_attn_probs[0].size(2)
                 for att_index, dec_enc_attn_prob in enumerate(dec_enc_attn_probs):
                     att_map = dec_enc_attn_prob.view(bs*4,-1,img_size,img_size)
                     torchvision.utils.save_image(att_map, f"./{SAVE_ATTENTION_DIR}/enc_dec_{att_index}_{epoch:04d}.jpg",range=(0,1), normalize=True)
