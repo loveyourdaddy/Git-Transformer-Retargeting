@@ -29,35 +29,35 @@ def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, sa
             # enc_inputs, dec_inputs = enc_motions, input_motion
 
             # """ Get Data numbers: (bs, DoF, window) """
-            num_bs, num_frame, num_DoF = get_data_numbers(gt_motions)
+            num_bs, Dim1, Dim2 = gt_motions.size(0), gt_motions.size(1), gt_motions.size(2)
+            if args.swap_dim == 0:
+                num_frame, num_DoF = Dim1, Dim2
+            else: 
+                num_DoF, num_frame = Dim1, Dim2
+
             motion_idx = get_curr_motion(i, args.batch_size) 
             character_idx = get_curr_character(motion_idx, args.num_motions)
             file = Files[1][character_idx]
 
             """ feed to network """
-            # input_character_idx, output_character_idx = character_idx, character_idx
             output_motions, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = model(character_idx, character_idx, enc_inputs, dec_inputs)
 
+            """ save attention map """
             bs = enc_self_attn_probs[0].size(0)
+            img_size = enc_self_attn_probs[0].size(2)
             for att_index, enc_self_attn_prob in enumerate(enc_self_attn_probs):
-                att_map = enc_self_attn_prob.view(bs*4,-1,128,128)
-                torchvision.utils.save_image(att_map, \
-                    f"./{SAVE_ATTENTION_DIR}/enc_{att_index}_{i:05d}.jpg",range=(torch.min(att_map).item(), torch.max(att_map).item()), normalize=True)
+                att_map = enc_self_attn_prob.view(bs*4,-1,img_size,img_size)
+                torchvision.utils.save_image(att_map, f"./{SAVE_ATTENTION_DIR}/enc_{att_index}.jpg",range=(0,1), normalize=True)
 
             for att_index, dec_self_attn_prob in enumerate(dec_self_attn_probs):
-                att_map = dec_self_attn_prob.view(bs*4,-1,128,128)
-                torchvision.utils.save_image(att_map, \
-                    f"./{SAVE_ATTENTION_DIR}/enc_{att_index}_{i:05d}.jpg",range=(torch.min(att_map).item(), torch.max(att_map).item()), normalize=True)
+                att_map = dec_self_attn_prob.view(bs*4,-1,img_size,img_size)
+                torchvision.utils.save_image(att_map, f"./{SAVE_ATTENTION_DIR}/dec_{att_index}.jpg",range=(0,1), normalize=True)
 
             for att_index, dec_enc_attn_prob in enumerate(dec_enc_attn_probs):
-                att_map = dec_enc_attn_prob.view(bs*4,-1,128,128)
-                torchvision.utils.save_image(att_map, \
-                    f"./{SAVE_ATTENTION_DIR}/enc_{att_index}_{i:05d}.jpg",range=(torch.min(att_map).item(), torch.max(att_map).item()), normalize=True)
+                att_map = dec_enc_attn_prob.view(bs*4,-1,img_size,img_size)
+                torchvision.utils.save_image(att_map, f"./{SAVE_ATTENTION_DIR}/enc_dec_{att_index}.jpg",range=(0,1), normalize=True)
 
-            """ Post-process data  """
-            # """ remove offset part of output motions """
-
-            # """ remake root position from displacement and denorm for bvh_writing """
+            """ denorm for bvh_writing """
             if args.normalization == 1:
                 denorm_gt_motions = denormalize(test_dataset, character_idx, gt_motions)
                 denorm_output_motions = denormalize(test_dataset, character_idx, output_motions)
@@ -65,10 +65,18 @@ def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, sa
                 denorm_gt_motions = gt_motions
                 denorm_output_motions = output_motions
 
-            # """ remake root position from displacement """
+            """ Swap output motion """
+            if args.swap_dim == 1:
+                gt_motions = torch.transpose(gt_motions, 1, 2)
+                output_motions = torch.transpose(output_motions, 1, 2)
+                
+                denorm_gt_motions = torch.transpose(denorm_gt_motions, 1, 2)
+                denorm_output_motions = torch.transpose(denorm_output_motions, 1, 2)
+
+            """ remake root position from displacement """
             if args.root_pos_disp == 1:
-                denorm_gt_motions = remake_root_position_from_displacement(denorm_gt_motions, num_bs, num_frame, num_DoF)
-                denorm_output_motions = remake_root_position_from_displacement(denorm_output_motions, num_bs, num_frame, num_DoF)
+                denorm_gt_motions = remake_root_position_from_displacement(args, denorm_gt_motions, num_bs, num_frame, num_DoF)
+                denorm_output_motions = remake_root_position_from_displacement(args, denorm_output_motions, num_bs, num_frame, num_DoF)
 
             """ 1. Get loss (orienation & FK & regularization) """
             loss_sum = 0

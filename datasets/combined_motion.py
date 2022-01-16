@@ -125,14 +125,16 @@ class MixedData(Dataset):
             self.final_data.append(MixedData0(args, motions))
         
         """ Get enc / dec input motions """
-        self.gt = self.final_data[1][:] # 마지막 프레임 제외
-        self.enc_inputs = self.final_data[0][:] # 마지막 프레임 제외  
-        self.dec_inputs = self.final_data[1][:] # 첫번째 프레임 제외
+        self.gt = self.final_data[1][:] 
+        self.enc_inputs = self.final_data[0][:] 
+        self.dec_inputs = self.final_data[1][:] 
         
         """ update input/output dimension of network """
+        # swap == 0: input / output DoF
+        # swap == 1: window_size 
         args.input_size = self.enc_inputs.size(2)
         args.output_size = self.dec_inputs.size(2)
-
+        
     def denorm(self, gid, pid, data):
         means = self.means[gid][pid, ...]
         var = self.vars[gid][pid, ...]
@@ -223,13 +225,15 @@ class TestData(Dataset):
             self.final_data.append(MixedData0(args, motions))
         
         """ Get enc / dec input motions """
-        self.gt = self.final_data[1][:] # 마지막 프레임 제외
-        self.enc_inputs = self.final_data[0][:] # 마지막 프레임 제외  
-        self.dec_inputs = self.final_data[1][:] # 첫번째 프레임 제외
+        self.gt = self.final_data[1][:] 
+        self.enc_inputs = self.final_data[0][:] 
+        self.dec_inputs = self.final_data[1][:] 
         
         """ update input/output dimension of network """
-        args.input_size = self.final_data[0][0].size(1)
-        args.output_size = self.final_data[1][0].size(1)
+        # swap == 0: input / output DoF
+        # swap == 1: window_size 
+        args.input_size = self.enc_inputs.size(2)
+        args.output_size = self.dec_inputs.size(2)
 
     def denorm(self, gid, pid, data):
         means = self.means[gid][pid, ...]

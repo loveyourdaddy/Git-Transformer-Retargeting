@@ -225,12 +225,12 @@ class Encoder(nn.Module):
             positions = torch.arange(inputs.size(1), device=inputs.device, dtype=torch.long).unsqueeze(0).expand(inputs.size(0), inputs.size(1)).contiguous() + 1
             
             # (16,128,256)
-            # position_encoding = self.pos_emb(positions)
+            position_encoding = self.pos_emb(positions)
 
             input_embedding = self.input_embedding(inputs)
 
-            # inputs = input_embedding + position_encoding
-            inputs = input_embedding
+            # inputs = input_embedding
+            inputs = input_embedding + position_encoding
         
         outputs = self.fc1(inputs)
         
@@ -323,6 +323,7 @@ class Transformer(nn.Module):
     
     def forward(self, input_character, output_character, enc_inputs, dec_inputs):
         # input: (bs, window, DoF), output: (bs, window, DoF)
+
         enc_outputs, enc_self_attn_probs, context = self.encoder(input_character, enc_inputs)
         
         # input: (bs, window, DoF), output: (bs, window, DoF)
