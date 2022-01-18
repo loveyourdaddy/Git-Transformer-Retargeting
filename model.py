@@ -89,8 +89,7 @@ class MultiHeadAttention(nn.Module):
         context, attn_prob = self.scaled_dot_attn(q_s, k_s, v_s)
 
         # (bs, n_head, window, d_head) -> (bs, window, n_head * d_head)
-        context = context.transpose(1, 2).contiguous().view(batch_size, -1, self.n_head * self.d_head)        
-
+        context = context.transpose(1, 2).contiguous().view(batch_size, -1, self.n_head * self.d_head)
         # (bs,window,nhead*dhead) -> (bs, window, DoF)
         output = self.linear(context)
 
@@ -304,16 +303,16 @@ class Decoder(nn.Module):
         enc_outputs = self.deprojection(enc_outputs)
         # enc_inputs = enc_outputs # check : enc_input에 deprojection한것을 넣어도 될지. 이렇게 해도 의미 될지 확인.
 
-        # if self.args.position_encoding:            
-        #     # (128) -> (1,128,1) -> (16,128)
-        #     positions = torch.arange(dec_inputs.size(1), device=dec_inputs.device, dtype=torch.long).unsqueeze(0).expand(dec_inputs.size(0), dec_inputs.size(1)).contiguous() + 1
+        if self.args.data_encoding:            
+            # (128) -> (1,128,1) -> (16,128)
+            positions = torch.arange(enc_outputs.size(1), device=enc_outputs.device, dtype=torch.long).unsqueeze(0).expand(enc_outputs.size(0), enc_outputs.size(1)).contiguous() + 1
             
-        #     # (16,128,256)
-        #     position_encoding = self.pos_emb(positions)
+            # (16,128,256)
+            position_encoding = self.pos_emb(positions)
+            
+            input_embedding = self.input_embedding(enc_outputs)
 
-        #     input_embedding = self.input_embedding(dec_inputs)
-
-        #     dec_inputs = input_embedding + position_encoding
+            enc_outputs = input_embedding + position_encoding
         
         # 2. dec input
         # dec_outputs = self.fc1(dec_inputs) # check: dec input의 value가 정답이 아닌지 확인. 

@@ -12,7 +12,7 @@ def get_parser():
     parser.add_argument('--render', type=int, default=0)
 
     # Dataset representation 
-    parser.add_argument('--rotation', type=str, default='quaternion', help='representatio0 of rotation:xyz, quaternion')
+    parser.add_argument('--rotation', type=str, default='xyz', help='representatio0 of rotation:xyz, quaternion')
     parser.add_argument('--window_size', type=int, default=128, help='length of time axis per window')
     parser.add_argument('--num_motions', type=int, default=1) # num motions for_character. dummy value 1 
     parser.add_argument('--batch_size', type=int, default=16, help='batch_size') # 16
@@ -31,7 +31,7 @@ def get_parser():
     # Network
     parser.add_argument('--layer_norm_epsilon', type=float, default=1e-12)
     parser.add_argument('--i_pad', type=int, default=0)
-    parser.add_argument('--n_layer', type=int, default=6)
+    parser.add_argument('--n_layer', type=int, default=3)
     parser.add_argument('--n_head', type=int, default=4)
     parser.add_argument('--d_head', type=int, default=64)
     parser.add_argument('--d_hidn', type=int, default=91) # joint 을 얼마나 줄일지에 대한 hidden dimension

@@ -45,6 +45,9 @@ def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, sa
             """ save attention map """
             bs = enc_self_attn_probs[0].size(0)
             img_size = enc_self_attn_probs[0].size(2)
+
+            import pdb; pdb.set_trace() # check attn value 
+ 
             for att_index, enc_self_attn_prob in enumerate(enc_self_attn_probs):
                 att_map = enc_self_attn_prob.view(bs*4,-1,img_size,img_size)
                 torchvision.utils.save_image(att_map, f"./{SAVE_ATTENTION_DIR}/enc_{att_index}.jpg",range=(0,1), normalize=True)
