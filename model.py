@@ -6,14 +6,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import os
-
 from wandb import set_trace 
-import option_parser
+# import option_parser
 from datasets import get_character_names, create_dataset
-from models import create_model
-from models.base_model import BaseModel
+# from models import create_model
+# from models.base_model import BaseModel
 from model import *
-import torchvision
+# import torchvision
+# from models.vanilla_gan import Discriminator
 
 SAVE_ATTENTION_DIR = "attention_vis/test"
 # i = 0 
@@ -352,6 +352,33 @@ class Transformer(nn.Module):
 
         return dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
         
+# class GAN_model(nn.Module):
+#     def __init__(self, args):
+#         super(GAN_model, self).__init__()
+#         # self.character_names = character_names
+#         # self.dataset = dataset
+#         self.discriminator = Discriminator(args)
+
+#     def forward(self, input):
+#         return self.discriminator(input)
+
+
+class Discriminator(nn.Module):
+    def __init__(self, args):
+        super(Discriminator, self).__init__()
+        self.args = args
+        self.window_size = self.args.window_size
+        # self.layers = nn.ModuleList()
+        self.layers = nn.ModuleList([nn.Linear(self.window_size, self.window_size) for _ in range(self.args.n_layer)])
+
+    def forward(self, input):
+        output = input 
+        for layer in self.layers:
+            output = layer(output)
+        output = output.reshape(output.shape[0], -1)
+
+        return torch.sigmoid(output)
+
 class MotionGenerator(nn.Module):
     def __init__(self, args, offsets): # character_names, dataset
         # Parameters 
@@ -364,6 +391,7 @@ class MotionGenerator(nn.Module):
         self.transformer = Transformer(args, offsets)
         self.projection = nn.Linear(self.input_dim, self.input_dim)
         self.activation = nn.Tanh()
+        # self.gan = GAN_model(args)
         
     """ Transofrmer """
     def forward(self, input_character, output_character, enc_inputs, dec_inputs):
@@ -371,10 +399,11 @@ class MotionGenerator(nn.Module):
         
         output = self.projection(dec_outputs)
         
+        # gan_output = self.gan(output)
         # output = self.projection(enc_inputs)
         # output = self.activation(output)
 
         # output = self.projection(output)
 
-        return output, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
+        return output, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs, gan_output
         

@@ -17,7 +17,7 @@ SAVE_ATTENTION_DIR = "attention_vis/test"
 os.makedirs(SAVE_ATTENTION_DIR, exist_ok=True)
 
 """ eval """
-def eval_epoch(args, model, criterion, test_dataset, data_loader, characters, save_name, Files):
+def eval_epoch(args, model, test_dataset, data_loader, characters, save_name, Files):
     model.eval()
     losses = [] # losses for test epoch # 매 스텝마다 초기화 되는 loss들   
     fk_losses = []

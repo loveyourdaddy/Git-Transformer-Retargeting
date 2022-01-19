@@ -5,6 +5,7 @@ from datasets import bvh_writer
 import option_parser
 from datasets import get_character_names, create_dataset
 from model import MotionGenerator
+from model import Discriminator
 from datasets.bvh_parser import BVH_file
 from datasets.bvh_writer import BVH_writer
 import wandb
@@ -48,7 +49,7 @@ args = args_
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "220117_0_intra_DecoderFullEmbedding_xyz/"   #220115_2_intra_WithInputEmbedding_AboutJointDim_XYZ
+save_name = "220118_0_GAN/"   #220115_2_intra_WithInputEmbedding_AboutJointDim_XYZ
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 print("device: ", args.cuda_device)
@@ -62,10 +63,11 @@ print("characters:{}".format(characters))
 
 """ Train and Test  """
 model = MotionGenerator(args, offsets)
+# discriminator = Discriminator(args)
 model.to(args.cuda_device)
 wandb.watch(model)
 
-criterion = torch.nn.MSELoss()
+# criterion = torch.nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr = args.learning_rate, weight_decay = args.weight_decay) 
 
 # Set BVH writers
@@ -86,7 +88,7 @@ if args.is_train == 1:
     # for every epoch 
     for epoch in range(args.n_epoch):
         loss = train_epoch(
-            args, epoch, model, criterion, optimizer, 
+            args, epoch, model, optimizer, 
             loader, dataset, 
             characters, save_name, Files)
             
@@ -99,6 +101,6 @@ else:
 
     load(model, path + save_name, epoch)
     eval_epoch(
-        args, model, criterion, 
+        args, model,  
         dataset, loader, 
         characters, save_name, Files)

@@ -12,7 +12,7 @@ def get_parser():
     parser.add_argument('--render', type=int, default=0)
 
     # Dataset representation 
-    parser.add_argument('--rotation', type=str, default='xyz', help='representatio0 of rotation:xyz, quaternion')
+    parser.add_argument('--rotation', type=str, default='quaternion', help='representatio0 of rotation:xyz, quaternion')
     parser.add_argument('--window_size', type=int, default=128, help='length of time axis per window')
     parser.add_argument('--num_motions', type=int, default=1) # num motions for_character. dummy value 1 
     parser.add_argument('--batch_size', type=int, default=16, help='batch_size') # 16
@@ -38,6 +38,7 @@ def get_parser():
     # xyz embedding dimenstion: 69 -> (64) -> 32 
     # quaternion embedding dimenstion: 91 -> 91 -> 111
     parser.add_argument('--embedding_dim', type=int, default=256, help='embedding dimension') # window을 얼마나 줄일지에 대한 embedding
+    parser.add_argument('--gan_mode', type=str, default='lsgan')
     
     # loss 
     parser.add_argument('--fk_loss', type=int, default=0, help='fk loss')

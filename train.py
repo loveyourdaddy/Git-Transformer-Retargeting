@@ -1,4 +1,4 @@
-import json
+# import json
 import torch
 import os
 import numpy as np
@@ -11,8 +11,7 @@ from datasets.bvh_writer import BVH_writer
 from models.Kinematics import ForwardKinematics
 from rendering import *
 import torchvision
-
-
+from models.utils import GAN_loss
 
 SAVE_ATTENTION_DIR = "attention_vis_intra"
 os.makedirs(SAVE_ATTENTION_DIR, exist_ok=True)
@@ -35,18 +34,7 @@ def remake_root_position_from_displacement(args, motions, num_bs, num_frame, num
             motions[bs][frame + 1][num_DoF - 3] += motions[bs][frame][num_DoF - 3]
             motions[bs][frame + 1][num_DoF - 2] += motions[bs][frame][num_DoF - 2]
             motions[bs][frame + 1][num_DoF - 1] += motions[bs][frame][num_DoF - 1]
-    # if args.swap_dim == 0: 
-    #     for bs in range(num_bs): # dim 0
-    #         for frame in range(num_frame - 1): # dim 2 # frame: 0~62. update 1 ~ 63
-    #             motions[bs][frame + 1][num_DoF - 3] += motions[bs][frame][num_DoF - 3]
-    #             motions[bs][frame + 1][num_DoF - 2] += motions[bs][frame][num_DoF - 2]
-    #             motions[bs][frame + 1][num_DoF - 1] += motions[bs][frame][num_DoF - 1]
-    # else:
-    #     for bs in range(num_bs): # dim 0
-    #         for frame in range(num_frame - 1): # dim 2 # frame: 0~62. update 1 ~ 63
-    #             motions[bs][num_DoF - 3][frame + 1] += motions[bs][num_DoF - 3][frame]
-    #             motions[bs][num_DoF - 2][frame + 1] += motions[bs][num_DoF - 2][frame]
-    #             motions[bs][num_DoF - 1][frame + 1] += motions[bs][num_DoF - 1][frame]
+            
     return motions
 
 def write_bvh(save_dir, gt_or_output_epoch, motion, characters, character_idx, motion_idx, args):
@@ -63,13 +51,15 @@ def try_mkdir(path):
         # print('make new dir')
         os.system('mkdir -p {}'.format(path))
 
-def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_dataset, characters, save_name, Files):
+def train_epoch(args, epoch, model, optimizer, train_loader, train_dataset, characters, save_name, Files):
     losses = [] # losses for 1 epoch (for all motion, all batch_size)
     fk_losses = []
     reg_losses = []
     model.train()
     args.epoch = epoch
     character_idx = 0
+    rec_criterion = torch.nn.MSELoss()
+    gan_criterion = GAN_loss(args.gan_mode) #.to(args.device)
 
     with tqdm(total=len(train_loader), desc=f"TrainEpoch {epoch}") as pbar:
         save_dir = args.save_dir + save_name
@@ -94,7 +84,7 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
             # height = file.get_height()
 
             """ feed to NETWORK """
-            output_motions, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = model(character_idx, character_idx, enc_inputs, dec_inputs)
+            output_motions, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs, gan_output = model(character_idx, character_idx, enc_inputs, dec_inputs)
 
             """ save attention map """
             if epoch % 10 ==0:
@@ -137,13 +127,15 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
 
             """ Get LOSS (orienation & FK & regularization) """
             loss_sum = 0
+            rec_loss = 0
+            gan_loss = 0
 
             """ 1. loss on each element """
             # data foramt should be (bs, num_frame, num_DoF)
             for m in range(num_bs):
                 for j in range(num_frame):
-                    loss = criterion(gt_motions[m][j], output_motions[m][j])
-                    loss_sum += loss
+                    loss = rec_criterion(gt_motions[m][j], output_motions[m][j])
+                    rec_loss += loss
                     losses.append(loss.item())
 
             """ 2. fk loss """
@@ -155,8 +147,8 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
                 num_Transform_DoF = gt_transform.size(1)
                 for m in range(num_bs):
                     for j in range(num_Transform_DoF): #check dimension 
-                        loss = criterion(gt_transform[m][j], output_transform[m][j])
-                        loss_sum += loss
+                        loss = rec_criterion(gt_transform[m][j], output_transform[m][j])
+                        rec_loss += loss
                         fk_losses.append(loss.item())
 
                 """ Rendering FK result """
@@ -169,25 +161,31 @@ def train_epoch(args, epoch, model, criterion, optimizer, train_loader, train_da
                     render_dots(gt_transform[0][0].reshape(-1,3)) # divide 69 -> 23,3
 
             """ 3. atten score loss """
-            n_layer = len(enc_self_attn_probs)            
-            size = enc_self_attn_probs[0].size()
-            n_batch, n_heads, window_size, window_size = size 
-
-            reg_weight = args.reg_weight
-            zero_tensor = torch.zeros(n_batch, n_heads, window_size, window_size, device=args.cuda_device)
             if args.reg_loss == 1:
+                n_layer = len(enc_self_attn_probs)            
+                size = enc_self_attn_probs[0].size()
+                n_batch, n_heads, window_size, window_size = size 
+
+                reg_weight = args.reg_weight
+                zero_tensor = torch.zeros(n_batch, n_heads, window_size, window_size, device=args.cuda_device)
                 for l in range(n_layer):
-                    loss = reg_weight * criterion(enc_self_attn_probs[l], zero_tensor)
-                    loss_sum += loss
+                    loss = reg_weight * rec_criterion(enc_self_attn_probs[l], zero_tensor)
+                    rec_loss += loss
                     reg_losses.append(loss.item())
 
-                    loss = reg_weight * criterion(dec_self_attn_probs[l], zero_tensor)
-                    loss_sum += loss
+                    loss = reg_weight * rec_criterion(dec_self_attn_probs[l], zero_tensor)
+                    rec_loss += loss
                     reg_losses.append(loss.item())
 
-                    loss = reg_weight * criterion(dec_enc_attn_probs[l], zero_tensor)
-                    loss_sum += loss
+                    loss = reg_weight * rec_criterion(dec_enc_attn_probs[l], zero_tensor)
+                    rec_loss += loss
                     reg_losses.append(loss.item())
+
+            """ GAN Loss"""
+            # fake / real 을 바꿔가면서 입력에 넣어주는 방법? 
+
+            """ Get total loss sum """
+            loss_sum = rec_loss + gan_loss
 
             """ Optimization and show info """
             loss_sum.backward()

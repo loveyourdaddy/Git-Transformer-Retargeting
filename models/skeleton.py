@@ -324,15 +324,6 @@ def build_joint_topology(edges, origin_names):
         nonlocal edges, parent, offset, names, edge2joint, joint_cnt # joint_from_edge, 
         edge = edges[edge_idx]
 
-        """ add virtual joint, which has multiple connection """
-        # if out_degree[edge[0]] > 1:
-        #     parent.append(pa)
-        #     offset.append(np.array([0, 0, 0]))
-        #     names.append(origin_names[edge[1]] + '_virtual')
-        #     edge2joint.append(-1)
-        #     pa = joint_cnt
-        #     joint_cnt += 1
-
         parent.append(pa)
         offset.append(edge[2])
         names.append(origin_names[edge[1]])
@@ -391,11 +382,7 @@ def find_neighbor(edges, d):
             if edge_mat[i][j] <= d:
                 neighbor.append(j)
         neighbor_list.append(neighbor)
-    # print("edges: {}".format(edges))
-    # print("edge_mat: {}".format(edge_mat))
-    # print("edge_num: {}".format(edge_num))
-    # print("neighbor before: {}\n".format(neighbor_list))
-
+        
     # add neighbor for global part
     global_part_neighbor = neighbor_list[0].copy()
     """
