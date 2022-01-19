@@ -34,6 +34,16 @@ def save(model, path, epoch):
     path = os.path.join(path, str(epoch))
     torch.save(model.state_dict(), path)
 
+# save two model
+def save(model_A, model_B, path, epoch):
+    try_mkdir(path)
+
+    path_A = os.path.join(path, "modelA"+str(epoch))
+    torch.save(model_A.state_dict(), path_A)
+
+    path_B = os.path.join(path, "modelB"+str(epoch))
+    torch.save(model_B.state_dict(), path_B)
+
 def load(model, path, epoch):
     path = os.path.join(path, str(epoch))
 
@@ -49,10 +59,9 @@ args = args_
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "220118_0_GAN/"   #220115_2_intra_WithInputEmbedding_AboutJointDim_XYZ
+save_name = "220119_0_GAN/"
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
-print("device: ", args.cuda_device)
 
 """ load Motion Dataset """
 characters = get_character_names(args)
@@ -62,13 +71,15 @@ offsets = dataset.get_offsets()
 print("characters:{}".format(characters))
 
 """ Train and Test  """
-model = MotionGenerator(args, offsets)
-# discriminator = Discriminator(args)
-model.to(args.cuda_device)
-wandb.watch(model)
+generatorModel = MotionGenerator(args, offsets)
+discriminatorModel = Discriminator(args)
+generatorModel.to(args.cuda_device)
+discriminatorModel.to(args.cuda_device)
+wandb.watch(generatorModel)
+wandb.watch(discriminatorModel)
 
-# criterion = torch.nn.MSELoss()
-optimizer = torch.optim.Adam(model.parameters(), lr = args.learning_rate, weight_decay = args.weight_decay) 
+optimizerG = torch.optim.Adam(generatorModel.parameters(), lr = args.learning_rate, weight_decay = args.weight_decay) 
+optimizerD = torch.optim.Adam(discriminatorModel.parameters(), lr = args.learning_rate, weight_decay = args.weight_decay) 
 
 # Set BVH writers
 BVHWriters = []
@@ -87,15 +98,17 @@ for i in range(len(characters)):
 if args.is_train == 1:
     # for every epoch 
     for epoch in range(args.n_epoch):
-        loss = train_epoch(
-            args, epoch, model, optimizer, 
+        loss, G_loss, D_loss = train_epoch(
+            args, epoch, generatorModel, discriminatorModel, optimizerG, optimizerD,
             loader, dataset, 
             characters, save_name, Files)
-            
-        save(model, path + save_name, epoch)
-        # wandb.log({"fk_loss": fk_loss})
-        wandb.log({"loss": loss})
 
+        wandb.log({"loss": loss})
+        wandb.log({"G_loss": G_loss})
+        wandb.log({"D_loss": D_loss})
+            
+        save(generatorModel, discriminatorModel, path + save_name, epoch)
+        
 else:
     epoch = 30 
 

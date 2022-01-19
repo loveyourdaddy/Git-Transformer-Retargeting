@@ -12,6 +12,7 @@ from models.Kinematics import ForwardKinematics
 from rendering import *
 import torchvision
 from models.utils import GAN_loss
+import wandb
 
 SAVE_ATTENTION_DIR = "attention_vis_intra"
 os.makedirs(SAVE_ATTENTION_DIR, exist_ok=True)
@@ -51,22 +52,29 @@ def try_mkdir(path):
         # print('make new dir')
         os.system('mkdir -p {}'.format(path))
 
-def train_epoch(args, epoch, model, optimizer, train_loader, train_dataset, characters, save_name, Files):
+def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loader, train_dataset, characters, save_name, Files):
     losses = [] # losses for 1 epoch (for all motion, all batch_size)
     fk_losses = []
     reg_losses = []
-    model.train()
+    rec_losses = []
+    G_losses = []
+    D_losses = [] 
+
+    modelG.train()
+    modelD.train()
+
     args.epoch = epoch
     character_idx = 0
     rec_criterion = torch.nn.MSELoss()
-    gan_criterion = GAN_loss(args.gan_mode) #.to(args.device)
+    gan_criterion = GAN_loss(args.gan_mode).to(args.cuda_device)
 
     with tqdm(total=len(train_loader), desc=f"TrainEpoch {epoch}") as pbar:
         save_dir = args.save_dir + save_name
         try_mkdir(save_dir)
 
         for i, value in enumerate(train_loader):
-            optimizer.zero_grad()
+            optimizerG.zero_grad()
+            optimizerD.zero_grad()
 
             """ Get Data and Set value to model and Get output """
             enc_inputs, dec_inputs, gt_motions = map(lambda v : v.to(args.cuda_device), value)
@@ -84,7 +92,7 @@ def train_epoch(args, epoch, model, optimizer, train_loader, train_dataset, char
             # height = file.get_height()
 
             """ feed to NETWORK """
-            output_motions, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs, gan_output = model(character_idx, character_idx, enc_inputs, dec_inputs)
+            output_motions, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = modelG(character_idx, character_idx, enc_inputs, dec_inputs)
 
             """ save attention map """
             if epoch % 10 ==0:
@@ -112,6 +120,68 @@ def train_epoch(args, epoch, model, optimizer, train_loader, train_dataset, char
                 denorm_gt_motions = gt_motions
                 denorm_output_motions = output_motions
 
+            """ Get LOSS (orienation & FK & regularization) """
+            loss_sum = 0
+
+            """ 1. loss on each element """
+            # data foramt should be (bs, num_frame, num_DoF)
+            if args.rec_loss == 1:
+                for m in range(num_bs):
+                    for j in range(num_frame):
+                        loss = rec_criterion(gt_motions[m][j], output_motions[m][j])
+                        loss_sum += loss
+                        losses.append(loss.item())
+                        rec_losses.append(loss.item())
+
+            """ 2. atten score loss """
+            if args.reg_loss == 1:
+                n_layer = len(enc_self_attn_probs)            
+                size = enc_self_attn_probs[0].size()
+                n_batch, n_heads, window_size, window_size = size 
+
+                reg_weight = args.reg_weight
+                zero_tensor = torch.zeros(n_batch, n_heads, window_size, window_size, device=args.cuda_device)
+                for l in range(n_layer):
+                    loss = reg_weight * rec_criterion(enc_self_attn_probs[l], zero_tensor)
+                    loss_sum += loss
+                    reg_losses.append(loss.item())
+
+                    loss = reg_weight * rec_criterion(dec_self_attn_probs[l], zero_tensor)
+                    loss_sum += loss
+                    reg_losses.append(loss.item())
+
+                    loss = reg_weight * rec_criterion(dec_enc_attn_probs[l], zero_tensor)
+                    loss_sum += loss
+                    reg_losses.append(loss.item())
+
+            """ 3. GAN Loss"""
+            # discriminator : (fake output: 0), (real_data: 1)
+            if args.gan_loss == 1: 
+                # update generator
+                for para in modelD.parameters():
+                    para.requires_grad = False
+                optimizerG.zero_grad()
+                fake_output = modelD(output_motions)
+
+                G_loss = gan_criterion(fake_output, True)
+                G_loss.backward()
+                optimizerG.step()
+                G_losses.append(G_loss.item()); losses.append(G_loss.item())
+
+                # update discriminator
+                for para in modelD.parameters():
+                    para.requires_grad = True
+                real_output = modelD(gt_motions)
+                fake_output = modelD(output_motions.detach())
+
+                D_loss = 1/2 * (gan_criterion(real_output, True) + gan_criterion(fake_output, False))
+                optimizerD.zero_grad()
+                D_loss.backward()
+                optimizerD.step()
+                D_losses.append(D_loss.item()); losses.append(D_loss.item())
+
+
+            """ 4. fk loss """
             """ Swap output motion """
             if args.swap_dim == 1:
                 gt_motions = torch.transpose(gt_motions, 1, 2)
@@ -125,20 +195,7 @@ def train_epoch(args, epoch, model, optimizer, train_loader, train_dataset, char
                 denorm_gt_motions = remake_root_position_from_displacement(args, denorm_gt_motions, num_bs, num_frame, num_DoF)
                 denorm_output_motions = remake_root_position_from_displacement(args, denorm_output_motions, num_bs, num_frame, num_DoF)
 
-            """ Get LOSS (orienation & FK & regularization) """
-            loss_sum = 0
-            rec_loss = 0
-            gan_loss = 0
-
-            """ 1. loss on each element """
-            # data foramt should be (bs, num_frame, num_DoF)
-            for m in range(num_bs):
-                for j in range(num_frame):
-                    loss = rec_criterion(gt_motions[m][j], output_motions[m][j])
-                    rec_loss += loss
-                    losses.append(loss.item())
-
-            """ 2. fk loss """
+            """ fk loss """
             if args.fk_loss == 1:
                 fk = ForwardKinematics(args, file.edges)
                 gt_transform = fk.forward_from_raw(denorm_gt_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
@@ -148,52 +205,12 @@ def train_epoch(args, epoch, model, optimizer, train_loader, train_dataset, char
                 for m in range(num_bs):
                     for j in range(num_Transform_DoF): #check dimension 
                         loss = rec_criterion(gt_transform[m][j], output_transform[m][j])
-                        rec_loss += loss
+                        loss_sum += loss
                         fk_losses.append(loss.item())
 
-                """ Rendering FK result """
-                # 16,69,128 -> 16,128,69
-                gt_transform = gt_transform.permute(0,2,1)
-                output_transform = output_transform.permute(0,2,1)
-
-                if args.render == True:
-                    # render 1 frame 
-                    render_dots(gt_transform[0][0].reshape(-1,3)) # divide 69 -> 23,3
-
-            """ 3. atten score loss """
-            if args.reg_loss == 1:
-                n_layer = len(enc_self_attn_probs)            
-                size = enc_self_attn_probs[0].size()
-                n_batch, n_heads, window_size, window_size = size 
-
-                reg_weight = args.reg_weight
-                zero_tensor = torch.zeros(n_batch, n_heads, window_size, window_size, device=args.cuda_device)
-                for l in range(n_layer):
-                    loss = reg_weight * rec_criterion(enc_self_attn_probs[l], zero_tensor)
-                    rec_loss += loss
-                    reg_losses.append(loss.item())
-
-                    loss = reg_weight * rec_criterion(dec_self_attn_probs[l], zero_tensor)
-                    rec_loss += loss
-                    reg_losses.append(loss.item())
-
-                    loss = reg_weight * rec_criterion(dec_enc_attn_probs[l], zero_tensor)
-                    rec_loss += loss
-                    reg_losses.append(loss.item())
-
-            """ GAN Loss"""
-            # fake / real 을 바꿔가면서 입력에 넣어주는 방법? 
-
-            """ Get total loss sum """
-            loss_sum = rec_loss + gan_loss
-
             """ Optimization and show info """
-            loss_sum.backward()
-            optimizer.step()
-
             pbar.update(1)
-            pbar.set_postfix_str(f"mean: {np.mean(losses):.3f}")
-            # pbar.set_postfix_str(f"Total mean: {np.mean(losses):.3f}, reg_loss: {np.mean(reg_losses):.3f}")
+            pbar.set_postfix_str(f"mean: {np.mean(losses):.3f}, G_loss: {np.mean(G_losses):.3f}, D_loss: {np.mean(D_losses):.3f}") # , gan_loss: {np.mean(gan_losses):.3f}
 
             """ BVH Writing """
             if epoch == 0:
@@ -205,4 +222,4 @@ def train_epoch(args, epoch, model, optimizer, train_loader, train_dataset, char
         torch.cuda.empty_cache()
         del gt_motions, enc_inputs, dec_inputs, output_motions
 
-    return  np.mean(losses)
+    return  np.mean(losses), np.mean(G_losses), np.mean(D_losses)
