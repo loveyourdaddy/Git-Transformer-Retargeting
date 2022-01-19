@@ -358,11 +358,13 @@ class Discriminator(nn.Module):
         self.args = args
         self.window_size = self.args.window_size
         self.layers = nn.ModuleList([nn.Linear(self.window_size, self.window_size) for _ in range(self.args.n_layer)])
+        self.activation = nn.Sigmoid()
 
     def forward(self, input):
         output = input 
         for layer in self.layers:
-            output = layer(output)
+            output = self.activation(layer(output))
+            
         output = output.reshape(output.shape[0], -1)
 
         return torch.sigmoid(output)

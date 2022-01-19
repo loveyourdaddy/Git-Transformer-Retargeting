@@ -127,7 +127,7 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
             # data foramt should be (bs, num_frame, num_DoF)
             if args.rec_loss == 1:
                 for m in range(num_bs):
-                    for j in range(num_frame):
+                    for j in range(num_DoF):
                         loss = rec_criterion(gt_motions[m][j], output_motions[m][j])
                         loss_sum += loss
                         losses.append(loss.item())
@@ -160,10 +160,10 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                 # update generator
                 for para in modelD.parameters():
                     para.requires_grad = False
-                optimizerG.zero_grad()
                 fake_output = modelD(output_motions)
 
                 G_loss = gan_criterion(fake_output, True)
+                optimizerG.zero_grad()
                 G_loss.backward()
                 optimizerG.step()
                 G_losses.append(G_loss.item()); losses.append(G_loss.item())
@@ -171,7 +171,7 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                 # update discriminator
                 for para in modelD.parameters():
                     para.requires_grad = True
-                real_output = modelD(gt_motions)
+                real_output = modelD(enc_inputs)
                 fake_output = modelD(output_motions.detach())
 
                 D_loss = 1/2 * (gan_criterion(real_output, True) + gan_criterion(fake_output, False))
@@ -179,6 +179,7 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                 D_loss.backward()
                 optimizerD.step()
                 D_losses.append(D_loss.item()); losses.append(D_loss.item())
+                # import pdb; pdb.set_trace()
 
 
             """ 4. fk loss """
@@ -219,6 +220,13 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
             if epoch % 10 == 0:
                 write_bvh(save_dir, "output_"+str(epoch), denorm_output_motions, characters, character_idx, motion_idx, args)
 
+        # for m in range(num_bs):
+        #     for j in range(num_frames):
+        #         loss = rec_criterion(gt_motions[m][j], output_motions[m][j])
+        #         loss_sum += loss
+        #         losses.append(loss.item())
+        #         rec_losses.append(loss.item())
+                
         torch.cuda.empty_cache()
         del gt_motions, enc_inputs, dec_inputs, output_motions
 

@@ -31,7 +31,7 @@ def get_parser():
     # Network
     parser.add_argument('--layer_norm_epsilon', type=float, default=1e-12)
     parser.add_argument('--i_pad', type=int, default=0)
-    parser.add_argument('--n_layer', type=int, default=3)
+    parser.add_argument('--n_layer', type=int, default=6)
     parser.add_argument('--n_head', type=int, default=4)
     parser.add_argument('--d_head', type=int, default=64)
     parser.add_argument('--d_hidn', type=int, default=91) # joint 을 얼마나 줄일지에 대한 hidden dimension
