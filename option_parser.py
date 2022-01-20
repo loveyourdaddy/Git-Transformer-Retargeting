@@ -24,9 +24,9 @@ def get_parser():
     parser.add_argument('--normalization', type=int, default = 1)
     parser.add_argument('--add_offset', type=int, default=0, help='concat offset in dataset')
     parser.add_argument('--data_encoding', type=int, default = 1, help='positional encoding')
-    parser.add_argument('--root_pos_disp', type=int, default = 1, help='represent root pos as displacement')
+    parser.add_argument('--root_pos_disp', type=int, default = 0, help='represent root pos as displacement')
     parser.add_argument('--data_augment', type=int, default=0, help='data_augment: 1 or 0') 
-    parser.add_argument('--swap_dim', type=int, default=0, help='data_augment: 1 or 0') 
+    parser.add_argument('--swap_dim', type=int, default=1, help='data_augment: 1 or 0') 
     
     # Network
     parser.add_argument('--layer_norm_epsilon', type=float, default=1e-12)

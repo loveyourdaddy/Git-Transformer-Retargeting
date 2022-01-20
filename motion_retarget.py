@@ -59,7 +59,7 @@ args = args_
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "220120_1_GAN_NoPositionEncoding_OnEncoderDecoder/"
+save_name = "220120_3_GAN_OnlyPositionEncoding_InEncoder/"
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 

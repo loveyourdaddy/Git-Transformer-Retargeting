@@ -207,10 +207,6 @@ class Encoder(nn.Module):
         self.pos_emb = nn.Embedding.from_pretrained(self.sinusoid_table, freeze=True)
 
         """ Layer """
-        # if self.args.positional_encoding ==1 : 
-        #     self.fc1 = nn.Linear(self.embedding_dim, self.embedding_dim)
-        # else: 
-        #     self.fc1 = nn.Linear(self.input_size, self.embedding_dim)
         self.fc1 = nn.Linear(self.embedding_dim, self.embedding_dim)
         self.layers = nn.ModuleList([EncoderLayer(self.args) for _ in range(self.args.n_layer)])
         self.projection = nn.Linear(self.embedding_dim, self.embedding_dim)
@@ -234,9 +230,7 @@ class Encoder(nn.Module):
 
             input_embedding = self.input_embedding(inputs)
 
-            # inputs = input_embedding
-            # inputs = input_embedding + position_encoding
-            inputs = input_embedding
+            inputs = input_embedding + position_encoding
         
         outputs = self.fc1(inputs)
         
@@ -302,34 +296,17 @@ class Decoder(nn.Module):
         if self.args.add_offset:
             offset = self.offset[output_character]
             offset = torch.reshape(offset, (-1,1)).unsqueeze(0).expand(enc_outputs.size(0), -1, -1).to(torch.device(dec_inputs.device))
-            enc_inputs = torch.cat([enc_inputs, offset], dim=-1)
-            # dec_inputs = torch.cat([dec_inputs, offset], dim=-1)
+            # enc_outputs = torch.cat([enc_inputs, offset], dim=-1)
 
         # 1. enc output
         enc_outputs = self.deprojection(enc_outputs)
-        # enc_inputs = enc_outputs # check : enc_input에 deprojection한것을 넣어도 될지. 이렇게 해도 의미 될지 확인.
 
-        if self.args.data_encoding:            
-            # (128) -> (1,128,1) -> (16,128)
-            positions = torch.arange(enc_outputs.size(1), device=enc_outputs.device, dtype=torch.long).unsqueeze(0).expand(enc_outputs.size(0), enc_outputs.size(1)).contiguous() + 1
-            
-            # (16,128,256)
-            position_encoding = self.pos_emb(positions)
-            
-            input_embedding = self.input_embedding(enc_outputs)
-
-            # enc_outputs = input_embedding + position_encoding
-            enc_outputs = input_embedding 
-        
         # 2. dec input
-        # dec_outputs = self.fc1(dec_inputs) # check: dec input의 value가 정답이 아닌지 확인. 
         dec_outputs = enc_outputs
         
         self_attn_probs, dec_enc_attn_probs = [], []
         for layer in self.layers:
             dec_outputs, self_attn_prob, dec_enc_attn_prob = layer(dec_outputs, enc_outputs)
-
-            # 모든 layer의 attn 을 쌓기 
             self_attn_probs.append(self_attn_prob)
             dec_enc_attn_probs.append(dec_enc_attn_prob)
 
@@ -374,7 +351,6 @@ class MotionGenerator(nn.Module):
         # layers
         self.transformer = Transformer(args, offsets)
         self.projection = nn.Linear(self.output_size, self.output_size)
-        # self.activation = nn.Tanh()
         
     """ Transofrmer """
     def forward(self, input_character, output_character, enc_inputs, dec_inputs):
