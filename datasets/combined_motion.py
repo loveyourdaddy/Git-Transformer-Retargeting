@@ -129,8 +129,8 @@ class MixedData(Dataset):
         self.enc_inputs = self.final_data[0][:] 
         self.dec_inputs = self.final_data[1][:] 
         
-        """ update input/output dimension of network """
-        #swap_dim=0: (bs, Window, DoF)
+        """ update input/output dimension of network: Set DoF  """
+        #swap_dim=0: (bs, Window, DoF) 
         if args.swap_dim == 0:
             args.input_size = self.enc_inputs.size(2)
             args.output_size = self.dec_inputs.size(2)
@@ -138,7 +138,7 @@ class MixedData(Dataset):
         else: 
             args.input_size = self.enc_inputs.size(1)
             args.output_size = self.dec_inputs.size(1)
-        
+
     def denorm(self, gid, pid, data):
         means = self.means[gid][pid, ...]
         var = self.vars[gid][pid, ...]

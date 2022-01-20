@@ -192,7 +192,10 @@ class Encoder(nn.Module):
         super().__init__()
         self.args = args
         self.offset = offset
-        self.input_size = args.window_size
+        if args.swap_dim == 0:
+            self.input_size = args.input_size
+        else:
+            self.input_size = args.window_size
         self.embedding_dim = args.embedding_dim 
 
         """ Embedding networks """
@@ -204,6 +207,10 @@ class Encoder(nn.Module):
         self.pos_emb = nn.Embedding.from_pretrained(self.sinusoid_table, freeze=True)
 
         """ Layer """
+        # if self.args.positional_encoding ==1 : 
+        #     self.fc1 = nn.Linear(self.embedding_dim, self.embedding_dim)
+        # else: 
+        #     self.fc1 = nn.Linear(self.input_size, self.embedding_dim)
         self.fc1 = nn.Linear(self.embedding_dim, self.embedding_dim)
         self.layers = nn.ModuleList([EncoderLayer(self.args) for _ in range(self.args.n_layer)])
         self.projection = nn.Linear(self.embedding_dim, self.embedding_dim)
@@ -228,7 +235,8 @@ class Encoder(nn.Module):
             input_embedding = self.input_embedding(inputs)
 
             # inputs = input_embedding
-            inputs = input_embedding + position_encoding
+            # inputs = input_embedding + position_encoding
+            inputs = input_embedding
         
         outputs = self.fc1(inputs)
         
@@ -270,16 +278,14 @@ class Decoder(nn.Module):
         self.args = args
         self.offset = offset
         self.embedding_dim = args.embedding_dim
-        self.output_dim = args.window_size
-
-        # sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(self.input_dim + 1, self.args.d_hidn))
-        # self.pos_emb = nn.Embedding.from_pretrained(sinusoid_table, freeze=True)
+        if args.swap_dim == 0:
+            self.output_size = args.output_size
+        else:
+            self.output_size = args.window_size
 
         """ layers """
         self.deprojection = nn.Linear(self.embedding_dim, self.embedding_dim) # d_hidn
-        self.fc1 = nn.Linear(self.embedding_dim, self.embedding_dim) 
         self.layers = nn.ModuleList([DecoderLayer(self.args) for _ in range(self.args.n_layer)])
-        # self.fc2 = nn.Linear(self.input_dim, self.input_dim)
 
         """ De-embedding / Embedding networks """
         # input embedding 
@@ -288,7 +294,7 @@ class Decoder(nn.Module):
         self.sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(self.args.window_size + 1, self.embedding_dim))
         self.pos_emb = nn.Embedding.from_pretrained(self.sinusoid_table, freeze=True)
 
-        self.de_embedding = nn.Linear(self.embedding_dim, self.output_dim)
+        self.de_embedding = nn.Linear(self.embedding_dim, self.output_size)
 
     # (bs, DoF, d_hidn)
     def forward(self, output_character, dec_inputs, enc_inputs, enc_outputs):
@@ -312,7 +318,8 @@ class Decoder(nn.Module):
             
             input_embedding = self.input_embedding(enc_outputs)
 
-            enc_outputs = input_embedding + position_encoding
+            # enc_outputs = input_embedding + position_encoding
+            enc_outputs = input_embedding 
         
         # 2. dec input
         # dec_outputs = self.fc1(dec_inputs) # check: dec input의 value가 정답이 아닌지 확인. 
@@ -345,13 +352,39 @@ class Transformer(nn.Module):
 
         enc_outputs, enc_self_attn_probs, context = self.encoder(input_character, enc_inputs)
 
-        enc_outputs = self.projection_net(enc_outputs)
+        if self.args.swap_dim == 1:
+            enc_outputs = self.projection_net(enc_outputs)
 
         # input: (bs, window, DoF), output: (bs, window, DoF)
         dec_outputs, dec_self_attn_probs, dec_enc_attn_probs = self.decoder(output_character, dec_inputs, enc_inputs, enc_outputs)
 
         return dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
         
+class MotionGenerator(nn.Module):
+    def __init__(self, args, offsets):
+        super().__init__()
+        self.args = args
+        self.output_size = args.window_size
+        if args.swap_dim == 0:
+            self.output_size = args.output_size
+        else:
+            self.output_size = args.window_size
+
+        """ Transformer """
+        # layers
+        self.transformer = Transformer(args, offsets)
+        self.projection = nn.Linear(self.output_size, self.output_size)
+        # self.activation = nn.Tanh()
+        
+    """ Transofrmer """
+    def forward(self, input_character, output_character, enc_inputs, dec_inputs):
+        dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = self.transformer(input_character, output_character, enc_inputs, dec_inputs)
+        
+        output = self.projection(dec_outputs)
+        
+        return output, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs 
+
+""" Discriminator """
 class Discriminator(nn.Module):
     def __init__(self, args, offsets):
         super(Discriminator, self).__init__()
@@ -373,23 +406,3 @@ class Discriminator(nn.Module):
         output = output.reshape(output.shape[0], -1)
 
         return torch.sigmoid(output)
-
-class MotionGenerator(nn.Module):
-    def __init__(self, args, offsets):
-        super().__init__()
-        self.args = args
-        self.input_dim = args.window_size
-
-        """ Transformer """
-        # layers
-        self.transformer = Transformer(args, offsets)
-        self.projection = nn.Linear(self.input_dim, self.input_dim)
-        # self.activation = nn.Tanh()
-        
-    """ Transofrmer """
-    def forward(self, input_character, output_character, enc_inputs, dec_inputs):
-        dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = self.transformer(input_character, output_character, enc_inputs, dec_inputs)
-        
-        output = self.projection(dec_outputs)
-        
-        return output, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs 

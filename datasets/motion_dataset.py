@@ -81,7 +81,7 @@ class MotionData(Dataset):
 
             # data_tmp = self.data
             self.data = (self.data - self.mean) / self.var
-
+            
             # pos은 normalization에서 제거 
             # if args.root_pos_disp == 1: 
             #     if args.swap_dim == 0:
