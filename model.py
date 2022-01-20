@@ -353,35 +353,38 @@ class Transformer(nn.Module):
         return dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
         
 class Discriminator(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args, offsets):
         super(Discriminator, self).__init__()
         self.args = args
-        self.window_size = self.args.window_size
-        self.layers = nn.ModuleList([nn.Linear(self.window_size, self.window_size) for _ in range(self.args.n_layer)])
-        self.activation = nn.Sigmoid()
+        self.input_dim = args.window_size
+        # self.window_size = self.args.window_size
+        # self.layers = nn.ModuleList([nn.Linear(self.window_size, self.window_size) for _ in range(self.args.n_layer)])
+        # self.activation = nn.LeakyReLU(negative_slope=0.2)
 
-    def forward(self, input):
-        output = input 
-        for layer in self.layers:
-            output = self.activation(layer(output))
+        """ layers """
+        self.transformer = Transformer(args, offsets)
+        self.projection = nn.Linear(self.input_dim, self.input_dim)
+
+    def forward(self, input_character, output_character, enc_inputs, dec_inputs):
+        output, _, _, _ = self.transformer(input_character, output_character, enc_inputs, dec_inputs)
             
+        output = self.projection(output)
+
         output = output.reshape(output.shape[0], -1)
 
         return torch.sigmoid(output)
 
 class MotionGenerator(nn.Module):
-    def __init__(self, args, offsets): # character_names, dataset
-        # Parameters 
+    def __init__(self, args, offsets):
         super().__init__()
         self.args = args
-        self.input_dim = args.window_size # check if it is neeeded
+        self.input_dim = args.window_size
 
         """ Transformer """
         # layers
         self.transformer = Transformer(args, offsets)
         self.projection = nn.Linear(self.input_dim, self.input_dim)
-        self.activation = nn.Tanh()
-        self.discriminator = Discriminator(args)
+        # self.activation = nn.Tanh()
         
     """ Transofrmer """
     def forward(self, input_character, output_character, enc_inputs, dec_inputs):

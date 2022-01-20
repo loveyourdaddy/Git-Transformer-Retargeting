@@ -59,7 +59,7 @@ args = args_
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "220119_0_GAN/"
+save_name = "220120_0_GAN/"
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 
@@ -72,7 +72,7 @@ print("characters:{}".format(characters))
 
 """ Train and Test  """
 generatorModel = MotionGenerator(args, offsets)
-discriminatorModel = Discriminator(args)
+discriminatorModel = Discriminator(args, offsets)
 generatorModel.to(args.cuda_device)
 discriminatorModel.to(args.cuda_device)
 wandb.watch(generatorModel)

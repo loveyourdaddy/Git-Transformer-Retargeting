@@ -73,8 +73,8 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
         try_mkdir(save_dir)
 
         for i, value in enumerate(train_loader):
-            optimizerG.zero_grad()
-            optimizerD.zero_grad()
+            # optimizerG.zero_grad()
+            # optimizerD.zero_grad()
 
             """ Get Data and Set value to model and Get output """
             enc_inputs, dec_inputs, gt_motions = map(lambda v : v.to(args.cuda_device), value)
@@ -95,7 +95,7 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
             output_motions, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = modelG(character_idx, character_idx, enc_inputs, dec_inputs)
 
             """ save attention map """
-            if epoch % 10 ==0:
+            if epoch % 10 == 0:
                 bs = enc_self_attn_probs[0].size(0)
                 img_size = enc_self_attn_probs[0].size(2)
                 for att_layer_index, enc_self_attn_prob in enumerate(enc_self_attn_probs):
@@ -124,7 +124,6 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
             loss_sum = 0
 
             """ 1. loss on each element """
-            # data foramt should be (bs, num_frame, num_DoF)
             if args.rec_loss == 1:
                 for m in range(num_bs):
                     for j in range(num_DoF):
@@ -132,6 +131,8 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                         loss_sum += loss
                         losses.append(loss.item())
                         rec_losses.append(loss.item())
+                loss_sum.backward()
+                optimizerG.step()
 
             """ 2. atten score loss """
             if args.reg_loss == 1:
@@ -160,7 +161,7 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                 # update generator
                 for para in modelD.parameters():
                     para.requires_grad = False
-                fake_output = modelD(output_motions)
+                fake_output = modelD(character_idx, character_idx, output_motions, output_motions)
 
                 G_loss = gan_criterion(fake_output, True)
                 optimizerG.zero_grad()
@@ -171,16 +172,15 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                 # update discriminator
                 for para in modelD.parameters():
                     para.requires_grad = True
-                real_output = modelD(enc_inputs)
-                fake_output = modelD(output_motions.detach())
+                real_output = modelD(character_idx, character_idx, enc_inputs, enc_inputs)
+                fake_output = modelD(character_idx, character_idx, output_motions.detach(), output_motions.detach())
 
+                # pose 단위로 discriminate을 할 수는 없나? 
                 D_loss = 1/2 * (gan_criterion(real_output, True) + gan_criterion(fake_output, False))
                 optimizerD.zero_grad()
                 D_loss.backward()
                 optimizerD.step()
                 D_losses.append(D_loss.item()); losses.append(D_loss.item())
-                # import pdb; pdb.set_trace()
-
 
             """ 4. fk loss """
             """ Swap output motion """
@@ -220,13 +220,14 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
             if epoch % 10 == 0:
                 write_bvh(save_dir, "output_"+str(epoch), denorm_output_motions, characters, character_idx, motion_idx, args)
 
-        # for m in range(num_bs):
-        #     for j in range(num_frames):
-        #         loss = rec_criterion(gt_motions[m][j], output_motions[m][j])
-        #         loss_sum += loss
-        #         losses.append(loss.item())
-        #         rec_losses.append(loss.item())
-                
+            # check output error
+            # for m in range(num_bs):
+            #     for j in range(num_frames):
+            #         loss = rec_criterion(gt_motions[m][j], output_motions[m][j])
+            #         # loss_sum += loss
+            #         losses.append(loss.item())
+            #         rec_losses.append(loss.item())
+                    
         torch.cuda.empty_cache()
         del gt_motions, enc_inputs, dec_inputs, output_motions
 
