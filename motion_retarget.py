@@ -69,7 +69,7 @@ args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
 save_name = "220123_0_GANloss_withRecloss/"
-# wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
+wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 
 """ load Motion Dataset """
@@ -85,13 +85,11 @@ generatorModel = MotionGenerator(args, offsets)
 discriminatorModel = Discriminator(args, offsets)
 generatorModel.to(args.cuda_device)
 discriminatorModel.to(args.cuda_device)
-# wandb.watch(generatorModel)
-# wandb.watch(discriminatorModel)
+wandb.watch(generatorModel)
+wandb.watch(discriminatorModel)
 
-optimizerG = torch.optim.Adam(generatorModel.parameters(
-), lr=args.learning_rate, weight_decay=args.weight_decay)
-optimizerD = torch.optim.Adam(discriminatorModel.parameters(
-), lr=args.learning_rate, weight_decay=args.weight_decay)
+optimizerG = torch.optim.Adam(generatorModel.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+optimizerD = torch.optim.Adam(discriminatorModel.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 
 # Set BVH writers
 BVHWriters = []
@@ -115,9 +113,9 @@ if args.is_train == 1:
             loader, dataset,
             characters, save_name, Files)
 
-        # wandb.log({"loss": loss})
-        # wandb.log({"G_loss": G_loss})
-        # wandb.log({"D_loss": D_loss})
+        wandb.log({"loss": loss})
+        wandb.log({"G_loss": G_loss})
+        wandb.log({"D_loss": D_loss})
 
         save(generatorModel, discriminatorModel, path + save_name, epoch)
 

@@ -1,8 +1,7 @@
-# import json
 import torch
 import os
 import numpy as np
-# from wandb import set_trace
+from wandb import set_trace
 from datasets import get_character_names
 import option_parser
 from tqdm import tqdm
@@ -12,7 +11,7 @@ from models.Kinematics import ForwardKinematics
 from rendering import *
 import torchvision
 from models.utils import GAN_loss
-# import wandb
+import wandb
 
 SAVE_ATTENTION_DIR = "attention_vis_intra"
 os.makedirs(SAVE_ATTENTION_DIR, exist_ok=True)
@@ -110,58 +109,60 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
             output_motions, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = modelG(
                 character_idx, character_idx, enc_inputs, dec_inputs)
 
-            # """ save attention map """
-            # if epoch % 10 == 0:
-            #     bs = enc_self_attn_probs[0].size(0)
-            #     img_size = enc_self_attn_probs[0].size(2)
-            #     for att_layer_index, enc_self_attn_prob in enumerate(enc_self_attn_probs):
-            #         att_map = enc_self_attn_prob.view(bs*4,-1,img_size,img_size)
-            #         torchvision.utils.save_image(att_map, f"./{SAVE_ATTENTION_DIR}/enc_{att_layer_index}_{epoch:04d}.jpg",range=(0,1), normalize=True)
+            """ save attention map """
+            if epoch % 10 == 0:
+                bs = enc_self_attn_probs[0].size(0)
+                img_size = enc_self_attn_probs[0].size(2)
+                for att_layer_index, enc_self_attn_prob in enumerate(enc_self_attn_probs):
+                    att_map = enc_self_attn_prob.view(bs*4,-1,img_size,img_size)
+                    torchvision.utils.save_image(att_map, f"./{SAVE_ATTENTION_DIR}/enc_{att_layer_index}_{epoch:04d}.jpg",range=(0,1), normalize=True)
 
-            #     img_size = dec_self_attn_probs[0].size(2)
-            #     for att_layer_index, dec_self_attn_prob in enumerate(dec_self_attn_probs):
-            #         att_map = dec_self_attn_prob.view(bs*4,-1,img_size,img_size)
-            #         torchvision.utils.save_image(att_map, f"./{SAVE_ATTENTION_DIR}/dec_{att_layer_index}_{epoch:04d}.jpg",range=(0,1), normalize=True)
+                img_size = dec_self_attn_probs[0].size(2)
+                for att_layer_index, dec_self_attn_prob in enumerate(dec_self_attn_probs):
+                    att_map = dec_self_attn_prob.view(bs*4,-1,img_size,img_size)
+                    torchvision.utils.save_image(att_map, f"./{SAVE_ATTENTION_DIR}/dec_{att_layer_index}_{epoch:04d}.jpg",range=(0,1), normalize=True)
 
-            #     img_size = dec_enc_attn_probs[0].size(2)
-            #     for att_layer_index, dec_enc_attn_prob in enumerate(dec_enc_attn_probs):
-            #         att_map = dec_enc_attn_prob.view(bs*4,-1,img_size,img_size)
-            #         torchvision.utils.save_image(att_map, f"./{SAVE_ATTENTION_DIR}/enc_dec_{att_layer_index}_{epoch:04d}.jpg",range=(0,1), normalize=True)
+                img_size = dec_enc_attn_probs[0].size(2)
+                for att_layer_index, dec_enc_attn_prob in enumerate(dec_enc_attn_probs):
+                    att_map = dec_enc_attn_prob.view(bs*4,-1,img_size,img_size)
+                    torchvision.utils.save_image(att_map, f"./{SAVE_ATTENTION_DIR}/enc_dec_{att_layer_index}_{epoch:04d}.jpg",range=(0,1), normalize=True)
 
             """ Get LOSS (orienation & FK & regularization) """
-            # """ 2. atten score loss """
-            # if args.reg_loss == 1:
-            #     n_layer = len(enc_self_attn_probs)
-            #     size = enc_self_attn_probs[0].size()
-            #     n_batch, n_heads, window_size, window_size = size
+            """ 2. atten score loss """
+            if args.reg_loss == 1:
+                n_layer = len(enc_self_attn_probs)
+                size = enc_self_attn_probs[0].size()
+                n_batch, n_heads, window_size, window_size = size
 
-            #     reg_weight = args.reg_weight
-            #     zero_tensor = torch.zeros(n_batch, n_heads, window_size, window_size, device=args.cuda_device)
-            #     for l in range(n_layer):
-            #         loss = reg_weight * rec_criterion(enc_self_attn_probs[l], zero_tensor)
-            #         loss_sum += loss
-            #         reg_losses.append(loss.item())
+                reg_weight = args.reg_weight
+                zero_tensor = torch.zeros(n_batch, n_heads, window_size, window_size, device=args.cuda_device)
+                for l in range(n_layer):
+                    loss = reg_weight * rec_criterion(enc_self_attn_probs[l], zero_tensor)
+                    loss_sum += loss
+                    reg_losses.append(loss.item())
 
-            #         loss = reg_weight * rec_criterion(dec_self_attn_probs[l], zero_tensor)
-            #         loss_sum += loss
-            #         reg_losses.append(loss.item())
+                    loss = reg_weight * rec_criterion(dec_self_attn_probs[l], zero_tensor)
+                    loss_sum += loss
+                    reg_losses.append(loss.item())
 
-            #         loss = reg_weight * rec_criterion(dec_enc_attn_probs[l], zero_tensor)
-            #         loss_sum += loss
-            #         reg_losses.append(loss.item())
+                    loss = reg_weight * rec_criterion(dec_enc_attn_probs[l], zero_tensor)
+                    loss_sum += loss
+                    reg_losses.append(loss.item())
 
             """ loss1. loss on each element """
-            # loss_sum = 0
+            loss_sum = 0
             if args.rec_loss == 1:
                 for m in range(num_bs):
                     for j in range(num_DoF):
                         loss = rec_criterion(gt_motions, output_motions)
-                        # loss_sum += loss
-                        # losses.append(loss.item())
+                        loss_sum += loss
+                        # append
+                        losses.append(loss.item())
                         rec_losses.append(loss.item())
-                        optimizerG.zero_grad()
-                        loss.backward(retain_graph=True)
-                        optimizerG.step()
+                        # opt
+                        # optimizerG.zero_grad()
+                        # loss.backward(retain_graph=True)
+                        # optimizerG.step()
 
             """ loss2. GAN Loss"""
             # discriminator : (fake output: 0), (real_data: 1)
@@ -175,11 +176,14 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                 for m in range(num_bs):
                     for j in range(num_DoF): 
                         G_loss = gan_criterion(fake_output, True)
+                        loss_sum += G_loss
+                        # append
                         G_losses.append(G_loss.item())
                         losses.append(G_loss.item())
-                        optimizerG.zero_grad()
-                        G_loss.backward(retain_graph=True)
-                        optimizerG.step()
+                        # opti
+                        # optimizerG.zero_grad()
+                        # G_loss.backward(retain_graph=True)
+                        # optimizerG.step()
 
                 # update discriminator
                 for para in modelD.parameters():
@@ -194,11 +198,19 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                     for j in range(num_DoF): 
                         D_loss = 1/2 * (gan_criterion(real_output, True) +
                                         gan_criterion(fake_output, False))
+                        loss_sum += D_loss
+                        # append
                         D_losses.append(D_loss.item())
                         losses.append(D_loss.item())
-                        optimizerD.zero_grad()
-                        D_loss.backward()
-                        optimizerD.step()
+                        # opt
+            
+            # optimizerG.zero_grad()
+            loss_sum.backward()
+            optimizerG.step()
+
+            # optimizerD.zero_grad()
+            # loss.backward()
+            optimizerD.step()
 
             """ 1) denorm for bvh_writing """
             if args.normalization == 1:
@@ -241,13 +253,13 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
 
             """ Optimization and show info """
             # check output error
-            for m in range(num_bs):
-                for j in range(num_frame):
-                    loss = rec_criterion(
-                        gt_motions[m][j], output_motions[m][j])
-                    # loss_sum += loss
-                    # losses.append(loss.item())
-                    rec_losses.append(loss.item())
+            # for m in range(num_bs):
+            #     for j in range(num_frame):
+            #         loss = rec_criterion(
+            #             gt_motions[m][j], output_motions[m][j])
+            #         # loss_sum += loss
+            #         # losses.append(loss.item())
+            #         rec_losses.append(loss.item())
 
             pbar.update(1)
             pbar.set_postfix_str(
