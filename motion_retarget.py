@@ -68,7 +68,7 @@ args = args_
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "220123_0_GANloss_withRecloss/"
+save_name = "220123_1_Recloss_GANloss_fkloss/"
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 
@@ -85,8 +85,8 @@ generatorModel = MotionGenerator(args, offsets)
 discriminatorModel = Discriminator(args, offsets)
 generatorModel.to(args.cuda_device)
 discriminatorModel.to(args.cuda_device)
-wandb.watch(generatorModel)
-wandb.watch(discriminatorModel)
+wandb.watch(generatorModel,     log="all", log_graph=True)
+wandb.watch(discriminatorModel, log="all", log_graph=True)
 
 optimizerG = torch.optim.Adam(generatorModel.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 optimizerD = torch.optim.Adam(discriminatorModel.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
@@ -108,14 +108,18 @@ for i in range(len(characters)):
 if args.is_train == 1:
     # for every epoch
     for epoch in range(args.n_epoch):
-        loss, G_loss, D_loss = train_epoch(
+        loss, fk_loss, G_loss, D_loss, D_loss_real, D_loss_fake = train_epoch(
             args, epoch, generatorModel, discriminatorModel, optimizerG, optimizerD,
             loader, dataset,
             characters, save_name, Files)
 
         wandb.log({"loss": loss})
+        wandb.log({"fk_loss": fk_loss})
         wandb.log({"G_loss": G_loss})
         wandb.log({"D_loss": D_loss})
+        wandb.log({"D_loss_real": D_loss_real})
+        wandb.log({"D_loss_fake": D_loss_fake})
+        # return np.mean(rec_losses), np.mean(fk_losses), np.mean(G_losses), np.mean(D_losses), np.mean(D_losses_real), np.mean(D_losses_fake)
 
         save(generatorModel, discriminatorModel, path + save_name, epoch)
 

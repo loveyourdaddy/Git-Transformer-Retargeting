@@ -71,6 +71,8 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
     rec_losses = []
     G_losses = []
     D_losses = []
+    D_losses_fake = []
+    D_losses_real = []
 
     modelG.train()
     modelD.train()
@@ -102,7 +104,7 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
 
             motion_idx = get_curr_motion(i, args.batch_size)
             character_idx = get_curr_character(motion_idx, args.num_motions)
-            # file = Files[1][character_idx]
+            file = Files[1][character_idx]
             # height = file.get_height()
 
             """ feed to NETWORK """
@@ -114,18 +116,24 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                 bs = enc_self_attn_probs[0].size(0)
                 img_size = enc_self_attn_probs[0].size(2)
                 for att_layer_index, enc_self_attn_prob in enumerate(enc_self_attn_probs):
-                    att_map = enc_self_attn_prob.view(bs*4,-1,img_size,img_size)
-                    torchvision.utils.save_image(att_map, f"./{SAVE_ATTENTION_DIR}/enc_{att_layer_index}_{epoch:04d}.jpg",range=(0,1), normalize=True)
+                    att_map = enc_self_attn_prob.view(
+                        bs*4, -1, img_size, img_size)
+                    torchvision.utils.save_image(
+                        att_map, f"./{SAVE_ATTENTION_DIR}/enc_{att_layer_index}_{epoch:04d}.jpg", range=(0, 1), normalize=True)
 
                 img_size = dec_self_attn_probs[0].size(2)
                 for att_layer_index, dec_self_attn_prob in enumerate(dec_self_attn_probs):
-                    att_map = dec_self_attn_prob.view(bs*4,-1,img_size,img_size)
-                    torchvision.utils.save_image(att_map, f"./{SAVE_ATTENTION_DIR}/dec_{att_layer_index}_{epoch:04d}.jpg",range=(0,1), normalize=True)
+                    att_map = dec_self_attn_prob.view(
+                        bs*4, -1, img_size, img_size)
+                    torchvision.utils.save_image(
+                        att_map, f"./{SAVE_ATTENTION_DIR}/dec_{att_layer_index}_{epoch:04d}.jpg", range=(0, 1), normalize=True)
 
                 img_size = dec_enc_attn_probs[0].size(2)
                 for att_layer_index, dec_enc_attn_prob in enumerate(dec_enc_attn_probs):
-                    att_map = dec_enc_attn_prob.view(bs*4,-1,img_size,img_size)
-                    torchvision.utils.save_image(att_map, f"./{SAVE_ATTENTION_DIR}/enc_dec_{att_layer_index}_{epoch:04d}.jpg",range=(0,1), normalize=True)
+                    att_map = dec_enc_attn_prob.view(
+                        bs*4, -1, img_size, img_size)
+                    torchvision.utils.save_image(
+                        att_map, f"./{SAVE_ATTENTION_DIR}/enc_dec_{att_layer_index}_{epoch:04d}.jpg", range=(0, 1), normalize=True)
 
             """ Get LOSS (orienation & FK & regularization) """
             """ 2. atten score loss """
@@ -135,17 +143,21 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                 n_batch, n_heads, window_size, window_size = size
 
                 reg_weight = args.reg_weight
-                zero_tensor = torch.zeros(n_batch, n_heads, window_size, window_size, device=args.cuda_device)
+                zero_tensor = torch.zeros(
+                    n_batch, n_heads, window_size, window_size, device=args.cuda_device)
                 for l in range(n_layer):
-                    loss = reg_weight * rec_criterion(enc_self_attn_probs[l], zero_tensor)
+                    loss = reg_weight * \
+                        rec_criterion(enc_self_attn_probs[l], zero_tensor)
                     loss_sum += loss
                     reg_losses.append(loss.item())
 
-                    loss = reg_weight * rec_criterion(dec_self_attn_probs[l], zero_tensor)
+                    loss = reg_weight * \
+                        rec_criterion(dec_self_attn_probs[l], zero_tensor)
                     loss_sum += loss
                     reg_losses.append(loss.item())
 
-                    loss = reg_weight * rec_criterion(dec_enc_attn_probs[l], zero_tensor)
+                    loss = reg_weight * \
+                        rec_criterion(dec_enc_attn_probs[l], zero_tensor)
                     loss_sum += loss
                     reg_losses.append(loss.item())
 
@@ -159,33 +171,24 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                         # append
                         losses.append(loss.item())
                         rec_losses.append(loss.item())
-                        # opt
-                        # optimizerG.zero_grad()
-                        # loss.backward(retain_graph=True)
-                        # optimizerG.step()
 
             """ loss2. GAN Loss"""
             # discriminator : (fake output: 0), (real_data: 1)
             if args.gan_loss == 1:
-                # update generator
+                # get loss of generator
                 for para in modelD.parameters():
                     para.requires_grad = False
                 fake_output = modelD(
                     character_idx, character_idx, output_motions, output_motions)
 
                 for m in range(num_bs):
-                    for j in range(num_DoF): 
+                    for j in range(num_DoF):
                         G_loss = gan_criterion(fake_output, True)
                         loss_sum += G_loss
                         # append
                         G_losses.append(G_loss.item())
-                        losses.append(G_loss.item())
-                        # opti
-                        # optimizerG.zero_grad()
-                        # G_loss.backward(retain_graph=True)
-                        # optimizerG.step()
 
-                # update discriminator
+                # get loss of discriminator
                 for para in modelD.parameters():
                     para.requires_grad = True
                 real_output = modelD(
@@ -195,22 +198,15 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
 
                 # pose 단위로 discriminate을 할 수는 없나?
                 for m in range(num_bs):
-                    for j in range(num_DoF): 
-                        D_loss = 1/2 * (gan_criterion(real_output, True) +
-                                        gan_criterion(fake_output, False))
+                    for j in range(num_DoF):
+                        real_loss = gan_criterion(real_output, True)
+                        fake_loss = gan_criterion(fake_output, False)
+                        D_loss = 1/2 * (real_loss + fake_loss)
                         loss_sum += D_loss
                         # append
                         D_losses.append(D_loss.item())
-                        losses.append(D_loss.item())
-                        # opt
-            
-            # optimizerG.zero_grad()
-            loss_sum.backward()
-            optimizerG.step()
-
-            # optimizerD.zero_grad()
-            # loss.backward()
-            optimizerD.step()
+                        D_losses_real.append(real_loss.item())
+                        D_losses_fake.append(fake_loss.item())
 
             """ 1) denorm for bvh_writing """
             if args.normalization == 1:
@@ -238,19 +234,22 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                 denorm_output_motions = remake_root_position_from_displacement(
                     args, denorm_output_motions, num_bs, num_frame, num_DoF)
 
-            # """ 4. fk loss """
-            # if args.fk_loss == 1:
-            #     fk = ForwardKinematics(args, file.edges)
-            #     gt_transform = fk.forward_from_raw(denorm_gt_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
-            #     output_transform = fk.forward_from_raw(denorm_output_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
+            """ loss 1-2. fk loss """
+            if args.fk_loss == 1:
+                fk = ForwardKinematics(args, file.edges)
+                gt_transform = fk.forward_from_raw(denorm_gt_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
+                output_transform = fk.forward_from_raw(denorm_output_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
 
-            #     num_Transform_DoF = gt_transform.size(1)
-            #     for m in range(num_bs):
-            #         for j in range(num_Transform_DoF): #check dimension
-            #             loss = rec_criterion(gt_transform[m][j], output_transform[m][j])
-            #             loss_sum += loss
-            #             fk_losses.append(loss.item())
+                num_Transform_DoF = gt_transform.size(1)
+                for m in range(num_bs):
+                    for j in range(num_Transform_DoF): #check dimension
+                        loss = rec_criterion(gt_transform[m][j], output_transform[m][j])
+                        loss_sum += loss
+                        fk_losses.append(loss.item())
 
+            loss_sum.backward()
+            optimizerG.step()
+            optimizerD.step()
             """ Optimization and show info """
             # check output error
             # for m in range(num_bs):
@@ -263,7 +262,7 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
 
             pbar.update(1)
             pbar.set_postfix_str(
-                f"mean: {np.mean(rec_losses):.3f}, G_loss: {np.mean(G_losses):.3f}, D_loss: {np.mean(D_losses):.3f}")
+                f"mean: {np.mean(rec_losses):.3f}, mean: {np.mean(fk_losses):.3f}, G_loss: {np.mean(G_losses):.3f}, D_loss: {np.mean(D_losses):.3f}, D_loss_real: {np.mean(D_losses_real):.3f}, D_loss:_fake {np.mean(D_losses_fake):.3f}")
 
             """ BVH Writing """
             if epoch == 0:
@@ -277,4 +276,4 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
         torch.cuda.empty_cache()
         del gt_motions, enc_inputs, dec_inputs, output_motions
 
-    return np.mean(rec_losses), np.mean(G_losses), np.mean(D_losses)
+    return np.mean(rec_losses), np.mean(fk_losses), np.mean(G_losses), np.mean(D_losses), np.mean(D_losses_real), np.mean(D_losses_fake)

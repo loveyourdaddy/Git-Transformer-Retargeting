@@ -45,7 +45,7 @@ def get_parser():
 
     # loss flag & weight
     parser.add_argument('--rec_loss', type=int, default=1, help='rec loss')
-    parser.add_argument('--fk_loss', type=int, default=0, help='fk loss')
+    parser.add_argument('--fk_loss', type=int, default=1, help='fk loss')
     parser.add_argument('--reg_loss', type=int, default=0, help='regularization loss on score(prob) matrix')
     parser.add_argument('--gan_loss', type=int, default=1, help='gan loss')
 
