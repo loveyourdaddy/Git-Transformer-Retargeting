@@ -2,7 +2,7 @@
 import torch
 import os
 import numpy as np
-from wandb import set_trace
+# from wandb import set_trace
 from datasets import get_character_names
 import option_parser
 from tqdm import tqdm
@@ -12,7 +12,7 @@ from models.Kinematics import ForwardKinematics
 from rendering import *
 import torchvision
 from models.utils import GAN_loss
-import wandb
+# import wandb
 
 SAVE_ATTENTION_DIR = "attention_vis_intra"
 os.makedirs(SAVE_ATTENTION_DIR, exist_ok=True)
@@ -150,6 +150,19 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
             #         loss_sum += loss
             #         reg_losses.append(loss.item())
 
+            """ loss1. loss on each element """
+            # loss_sum = 0
+            if args.rec_loss == 1:
+                for m in range(num_bs):
+                    for j in range(num_DoF):
+                        loss = rec_criterion(gt_motions, output_motions)
+                        # loss_sum += loss
+                        # losses.append(loss.item())
+                        rec_losses.append(loss.item())
+                        optimizerG.zero_grad()
+                        loss.backward(retain_graph=True)
+                        optimizerG.step()
+
             """ loss2. GAN Loss"""
             # discriminator : (fake output: 0), (real_data: 1)
             if args.gan_loss == 1:
@@ -159,12 +172,14 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                 fake_output = modelD(
                     character_idx, character_idx, output_motions, output_motions)
 
-                G_loss = gan_criterion(fake_output, True)
-                G_losses.append(G_loss.item())
-                losses.append(G_loss.item())
-                optimizerG.zero_grad()
-                G_loss.backward(retain_graph=True)
-                # optimizerG.step()
+                for m in range(num_bs):
+                    for j in range(num_DoF): 
+                        G_loss = gan_criterion(fake_output, True)
+                        G_losses.append(G_loss.item())
+                        losses.append(G_loss.item())
+                        optimizerG.zero_grad()
+                        G_loss.backward(retain_graph=True)
+                        optimizerG.step()
 
                 # update discriminator
                 for para in modelD.parameters():
@@ -175,26 +190,15 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                     character_idx, character_idx, output_motions.detach(), output_motions.detach())
 
                 # pose 단위로 discriminate을 할 수는 없나?
-                D_loss = 1/2 * (gan_criterion(real_output, True) +
-                                gan_criterion(fake_output, False))
-                D_losses.append(D_loss.item())
-                losses.append(D_loss.item())
-                optimizerD.zero_grad()
-                D_loss.backward()
-                optimizerD.step()
-
-            """ loss1. loss on each element """
-            # loss_sum = 0
-            if args.rec_loss == 1:
-                # for m in range(num_bs):
-                #     for j in range(num_DoF):
-                loss = rec_criterion(gt_motions, output_motions)
-                # loss_sum += loss
-                # losses.append(loss.item())
-                rec_losses.append(loss.item())
-                optimizerG.zero_grad()
-                loss.backward()
-                optimizerG.step()
+                for m in range(num_bs):
+                    for j in range(num_DoF): 
+                        D_loss = 1/2 * (gan_criterion(real_output, True) +
+                                        gan_criterion(fake_output, False))
+                        D_losses.append(D_loss.item())
+                        losses.append(D_loss.item())
+                        optimizerD.zero_grad()
+                        D_loss.backward()
+                        optimizerD.step()
 
             """ 1) denorm for bvh_writing """
             if args.normalization == 1:
@@ -237,13 +241,13 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
 
             """ Optimization and show info """
             # check output error
-            # for m in range(num_bs):
-            #     for j in range(num_frame):
-            #         loss = rec_criterion(
-            #             gt_motions[m][j], output_motions[m][j])
-            #         # loss_sum += loss
-            #         # losses.append(loss.item())
-            #         rec_losses.append(loss.item())
+            for m in range(num_bs):
+                for j in range(num_frame):
+                    loss = rec_criterion(
+                        gt_motions[m][j], output_motions[m][j])
+                    # loss_sum += loss
+                    # losses.append(loss.item())
+                    rec_losses.append(loss.item())
 
             pbar.update(1)
             pbar.set_postfix_str(

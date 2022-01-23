@@ -5,39 +5,30 @@ def get_parser():
     parser = argparse.ArgumentParser()
 
     # env
-    parser.add_argument('--save_dir', type=str,
-                        default='./output/', help='directory for all savings')
-    parser.add_argument('--cuda_device', type=str,
-                        default='cuda:0', help='cuda device number, eg:[cuda:0]')
+    parser.add_argument('--save_dir', type=str, default='./output/', help='directory for all savings')
+    parser.add_argument('--cuda_device', type=str, default='cuda:0', help='cuda device number, eg:[cuda:0]')
     parser.add_argument('--is_train', type=int, default=1)
     parser.add_argument('--is_valid', type=int, default=0)
     parser.add_argument('--render', type=int, default=0)
 
     # Dataset representation
-    parser.add_argument('--rotation', type=str, default='quaternion',
-                        help='representatio0 of rotation:xyz, quaternion')
-    parser.add_argument('--window_size', type=int, default=128,
-                        help='length of time axis per window')
+    parser.add_argument('--rotation', type=str, default='quaternion', help='representatio0 of rotation:xyz, quaternion')
+    parser.add_argument('--window_size', type=int, default=128, help='length of time axis per window')
     # num motions for_character. dummy value 1
     parser.add_argument('--num_motions', type=int, default=1)
-    parser.add_argument('--batch_size', type=int,
-                        default=16, help='batch_size')  # 16
+    parser.add_argument('--batch_size', type=int,default=16, help='batch_size')  # 16
     parser.add_argument('--input_size', type=int, default=0, help='')
     parser.add_argument('--output_size', type=int, default=0, help='')
     parser.add_argument('--n_enc_seq', type=int, default=0, help='')
 
     # Dataset representation (flag)
     parser.add_argument('--normalization', type=int, default=1)
-    parser.add_argument('--add_offset', type=int, default=0,
-                        help='concat offset in dataset')
-    parser.add_argument('--data_encoding', type=int,
-                        default=1, help='positional encoding')
+    parser.add_argument('--add_offset', type=int, default=0, help='concat offset in dataset')
+    parser.add_argument('--data_encoding', type=int, default=1, help='positional encoding')
     parser.add_argument('--root_pos_disp', type=int, default=0,
                         help='represent root pos as displacement')
-    parser.add_argument('--data_augment', type=int,
-                        default=0, help='data_augment: 1 or 0')
-    parser.add_argument('--swap_dim', type=int, default=1,
-                        help='data_augment: 1 or 0')
+    parser.add_argument('--data_augment', type=int, default=0, help='data_augment: 1 or 0')
+    parser.add_argument('--swap_dim', type=int, default=1,help='data_augment: 1 or 0')
 
     # Network
     parser.add_argument('--layer_norm_epsilon', type=float, default=1e-12)
@@ -49,32 +40,24 @@ def get_parser():
     parser.add_argument('--d_hidn', type=int, default=91)
     # xyz embedding dimenstion: 69 -> (64) -> 32
     # quaternion embedding dimenstion: 91 -> 91 -> 111
-    parser.add_argument('--embedding_dim', type=int, default=256,
-                        help='embedding dimension')  # window을 얼마나 줄일지에 대한 embedding
+    parser.add_argument('--embedding_dim', type=int, default=256,help='embedding dimension')  # window을 얼마나 줄일지에 대한 embedding
     parser.add_argument('--gan_mode', type=str, default='lsgan')
 
     # loss flag & weight
     parser.add_argument('--rec_loss', type=int, default=1, help='rec loss')
     parser.add_argument('--fk_loss', type=int, default=0, help='fk loss')
-    parser.add_argument('--reg_loss', type=int, default=0,
-                        help='regularization loss on score(prob) matrix')
+    parser.add_argument('--reg_loss', type=int, default=0, help='regularization loss on score(prob) matrix')
     parser.add_argument('--gan_loss', type=int, default=1, help='gan loss')
 
-    parser.add_argument('--reg_weight', type=int,
-                        default=1000, help='reg_weight')
-    parser.add_argument('--root_weight', type=int, default=10,
-                        help='weighted loss for root displacement')
-    parser.add_argument('--weight_root_loss', type=int,
-                        default=0, help='flag for weight_root_loss')
+    parser.add_argument('--reg_weight', type=int, default=1000, help='reg_weight')
+    parser.add_argument('--root_weight', type=int, default=10, help='weighted loss for root displacement')
+    parser.add_argument('--weight_root_loss', type=int, default=0, help='flag for weight_root_loss')
 
     # learning parameter
-    parser.add_argument('--learning_rate', type=float,
-                        default=5e-4, help='learning rate')  # 2e-4 # 5e-5
+    parser.add_argument('--learning_rate', type=float, default=1e-5, help='lr')  # 2e-4 # 5e-5
     parser.add_argument('--weight_decay', type=float, default=1)
-    parser.add_argument('--alpha', type=float, default=0,
-                        help='penalty of sparsity')
-    parser.add_argument('--activation', type=str, default='LeakyReLU',
-                        help='activation: ReLU, LeakyReLU, tanh')
+    parser.add_argument('--alpha', type=float, default=0, help='penalty of sparsity')
+    parser.add_argument('--activation', type=str, default='LeakyReLU', help='activation: ReLU, LeakyReLU, tanh')
     parser.add_argument('--n_epoch', type=int, default=1001)  # duplicated
     parser.add_argument('--epoch_begin', type=int, default=0)
     # parser.add_argument('--upsampling', type=str, default='linear', help="'stride2' or 'nearest', 'linear'")
