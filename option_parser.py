@@ -44,10 +44,12 @@ def get_parser():
     parser.add_argument('--gan_mode', type=str, default='lsgan')
 
     # loss flag & weight
-    parser.add_argument('--rec_loss', type=int, default=1, help='rec loss')
-    parser.add_argument('--fk_loss', type=int, default=1, help='fk loss')
-    parser.add_argument('--reg_loss', type=int, default=0, help='regularization loss on score(prob) matrix')
-    parser.add_argument('--gan_loss', type=int, default=1, help='gan loss')
+    parser.add_argument('--rec_loss', type=int, default=1, help='1. rec loss')
+    parser.add_argument('--fk_loss', type=int, default=1, help='1-2. fk loss')    
+    parser.add_argument('--gan_loss', type=int, default=0, help='2. gan loss')
+    # 3. latency consistenecy
+    # 4. ee loss 
+    parser.add_argument('--reg_loss', type=int, default=1, help='5. regularization loss on score(prob) matrix')
 
     parser.add_argument('--reg_weight', type=int, default=1000, help='reg_weight')
     parser.add_argument('--root_weight', type=int, default=10, help='weighted loss for root displacement')

@@ -63,12 +63,12 @@ def load(model, path, epoch):
 
 
 """ Set Env Parameters """
-args_ = option_parser.get_args()
-args = args_
+args = option_parser.get_args()
+# args = args_
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "220123_1_Recloss_GANloss_fkloss/"
+save_name = "220124_1_Recloss_fkloss_Regloss/" # _GANloss
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 

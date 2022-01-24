@@ -136,7 +136,93 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                         att_map, f"./{SAVE_ATTENTION_DIR}/enc_dec_{att_layer_index}_{epoch:04d}.jpg", range=(0, 1), normalize=True)
 
             """ Get LOSS (orienation & FK & regularization) """
-            """ 2. atten score loss """
+            """ loss1. loss on each element """
+            loss_sum = 0
+            if args.rec_loss == 1:
+                for m in range(num_bs):
+                    for j in range(num_DoF):
+                        loss = rec_criterion(gt_motions, output_motions)
+                        loss_sum += loss
+                        # append
+                        losses.append(loss.item())
+                        rec_losses.append(loss.item())
+
+            """ loss 1-2. fk loss """
+            """ 1) denorm for bvh_writing """
+            if args.normalization == 1:
+                denorm_gt_motions = denormalize(
+                    train_dataset, character_idx, gt_motions)
+                denorm_output_motions = denormalize(
+                    train_dataset, character_idx, output_motions)
+            else:
+                denorm_gt_motions = gt_motions
+                denorm_output_motions = output_motions
+
+            """ 2) Swap output motion """
+            if args.swap_dim == 1:
+                gt_motions = torch.transpose(gt_motions, 1, 2)
+                output_motions = torch.transpose(output_motions, 1, 2)
+
+                denorm_gt_motions = torch.transpose(denorm_gt_motions, 1, 2)
+                denorm_output_motions = torch.transpose(denorm_output_motions, 1, 2)
+
+            """ 3) remake root position from displacement """
+            if args.root_pos_disp == 1:
+                denorm_gt_motions = remake_root_position_from_displacement(
+                    args, denorm_gt_motions, num_bs, num_frame, num_DoF)
+                denorm_output_motions = remake_root_position_from_displacement(
+                    args, denorm_output_motions, num_bs, num_frame, num_DoF)
+
+            """ fk loss """
+            if args.fk_loss == 1:
+                fk = ForwardKinematics(args, file.edges)
+                gt_transform = fk.forward_from_raw(denorm_gt_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
+                output_transform = fk.forward_from_raw(denorm_output_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
+
+                num_Transform_DoF = gt_transform.size(1)
+                for m in range(num_bs):
+                    for j in range(num_Transform_DoF): #check dimension
+                        loss = rec_criterion(gt_transform[m][j], output_transform[m][j])
+                        loss_sum += loss
+                        fk_losses.append(loss.item())
+
+            """ loss2. GAN Loss"""
+            # # discriminator : (fake output: 0), (real_data: 1)
+            # if args.gan_loss == 1:
+            #     # get loss of generator
+            #     for para in modelD.parameters():
+            #         para.requires_grad = False
+            #     fake_output = modelD(
+            #         character_idx, character_idx, output_motions, output_motions)
+
+            #     for m in range(num_bs):
+            #         for j in range(num_DoF):
+            #             G_loss = gan_criterion(fake_output, True)
+            #             loss_sum += G_loss
+            #             # append
+            #             G_losses.append(G_loss.item())
+
+            #     # get loss of discriminator
+            #     for para in modelD.parameters():
+            #         para.requires_grad = True
+            #     real_output = modelD(
+            #         character_idx, character_idx, enc_inputs, enc_inputs)
+            #     fake_output = modelD(
+            #         character_idx, character_idx, output_motions.detach(), output_motions.detach())
+
+            #     # pose 단위로 discriminate을 할 수는 없나?
+            #     for m in range(num_bs):
+            #         for j in range(num_DoF):
+            #             real_loss = gan_criterion(real_output, True)
+            #             fake_loss = gan_criterion(fake_output, False)  
+            #             D_loss = 1/2 * (real_loss + fake_loss)
+            #             loss_sum += D_loss
+            #             # append
+            #             D_losses.append(D_loss.item())
+            #             D_losses_real.append(real_loss.item())
+            #             D_losses_fake.append(fake_loss.item())
+
+            """ 5. atten score loss """
             if args.reg_loss == 1:
                 n_layer = len(enc_self_attn_probs)
                 size = enc_self_attn_probs[0].size()
@@ -161,96 +247,10 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                     loss_sum += loss
                     reg_losses.append(loss.item())
 
-            """ loss1. loss on each element """
-            loss_sum = 0
-            if args.rec_loss == 1:
-                for m in range(num_bs):
-                    for j in range(num_DoF):
-                        loss = rec_criterion(gt_motions, output_motions)
-                        loss_sum += loss
-                        # append
-                        losses.append(loss.item())
-                        rec_losses.append(loss.item())
-
-            """ loss2. GAN Loss"""
-            # discriminator : (fake output: 0), (real_data: 1)
-            if args.gan_loss == 1:
-                # get loss of generator
-                for para in modelD.parameters():
-                    para.requires_grad = False
-                fake_output = modelD(
-                    character_idx, character_idx, output_motions, output_motions)
-
-                for m in range(num_bs):
-                    for j in range(num_DoF):
-                        G_loss = gan_criterion(fake_output, True)
-                        loss_sum += G_loss
-                        # append
-                        G_losses.append(G_loss.item())
-
-                # get loss of discriminator
-                for para in modelD.parameters():
-                    para.requires_grad = True
-                real_output = modelD(
-                    character_idx, character_idx, enc_inputs, enc_inputs)
-                fake_output = modelD(
-                    character_idx, character_idx, output_motions.detach(), output_motions.detach())
-
-                # pose 단위로 discriminate을 할 수는 없나?
-                for m in range(num_bs):
-                    for j in range(num_DoF):
-                        real_loss = gan_criterion(real_output, True)
-                        fake_loss = gan_criterion(fake_output, False)
-                        D_loss = 1/2 * (real_loss + fake_loss)
-                        loss_sum += D_loss
-                        # append
-                        D_losses.append(D_loss.item())
-                        D_losses_real.append(real_loss.item())
-                        D_losses_fake.append(fake_loss.item())
-
-            """ 1) denorm for bvh_writing """
-            if args.normalization == 1:
-                denorm_gt_motions = denormalize(
-                    train_dataset, character_idx, gt_motions)
-                denorm_output_motions = denormalize(
-                    train_dataset, character_idx, output_motions)
-            else:
-                denorm_gt_motions = gt_motions
-                denorm_output_motions = output_motions
-
-            """ 2) Swap output motion """
-            if args.swap_dim == 1:
-                gt_motions = torch.transpose(gt_motions, 1, 2)
-                output_motions = torch.transpose(output_motions, 1, 2)
-
-                denorm_gt_motions = torch.transpose(denorm_gt_motions, 1, 2)
-                denorm_output_motions = torch.transpose(
-                    denorm_output_motions, 1, 2)
-
-            """ 3) remake root position from displacement """
-            if args.root_pos_disp == 1:
-                denorm_gt_motions = remake_root_position_from_displacement(
-                    args, denorm_gt_motions, num_bs, num_frame, num_DoF)
-                denorm_output_motions = remake_root_position_from_displacement(
-                    args, denorm_output_motions, num_bs, num_frame, num_DoF)
-
-            """ loss 1-2. fk loss """
-            if args.fk_loss == 1:
-                fk = ForwardKinematics(args, file.edges)
-                gt_transform = fk.forward_from_raw(denorm_gt_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
-                output_transform = fk.forward_from_raw(denorm_output_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
-
-                num_Transform_DoF = gt_transform.size(1)
-                for m in range(num_bs):
-                    for j in range(num_Transform_DoF): #check dimension
-                        loss = rec_criterion(gt_transform[m][j], output_transform[m][j])
-                        loss_sum += loss
-                        fk_losses.append(loss.item())
-
+            """ Optimization and show info """
             loss_sum.backward()
             optimizerG.step()
             optimizerD.step()
-            """ Optimization and show info """
             # check output error
             # for m in range(num_bs):
             #     for j in range(num_frame):
@@ -262,7 +262,7 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
 
             pbar.update(1)
             pbar.set_postfix_str(
-                f"mean: {np.mean(rec_losses):.3f}, mean: {np.mean(fk_losses):.3f}, G_loss: {np.mean(G_losses):.3f}, D_loss: {np.mean(D_losses):.3f}, D_loss_real: {np.mean(D_losses_real):.3f}, D_loss:_fake {np.mean(D_losses_fake):.3f}")
+                f"mean: {np.mean(rec_losses):.3f}, fk_loss: {np.mean(fk_losses):.3f}, G_loss: {np.mean(G_losses):.3f}, D_loss: {np.mean(D_losses):.3f}, D_loss_real: {np.mean(D_losses_real):.3f}, D_loss:_fake {np.mean(D_losses_fake):.3f}")
 
             """ BVH Writing """
             if epoch == 0:
