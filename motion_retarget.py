@@ -68,7 +68,7 @@ args = option_parser.get_args()
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "220125_3_Recloss_FKloss/" # 
+save_name = "220125_4_Recloss_GANloss/" # 
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 
@@ -108,7 +108,7 @@ for i in range(len(characters)):
 if args.is_train == 1:
     # for every epoch
     for epoch in range(args.n_epoch):
-        loss, fk_loss, G_loss, D_loss, D_loss_real, D_loss_fake = train_epoch(
+        loss, fk_loss, G_loss, D_loss_real, D_loss_fake = train_epoch(
             args, epoch, generatorModel, discriminatorModel, optimizerG, optimizerD,
             loader, dataset,
             characters, save_name, Files)
@@ -116,7 +116,7 @@ if args.is_train == 1:
         wandb.log({"loss": loss},               step=epoch)
         wandb.log({"fk_loss": fk_loss},         step=epoch)
         wandb.log({"G_loss": G_loss},           step=epoch)
-        wandb.log({"D_loss": D_loss},           step=epoch)
+        # wandb.log({"D_loss": D_loss},           step=epoch)
         wandb.log({"D_loss_real": D_loss_real}, step=epoch)
         wandb.log({"D_loss_fake": D_loss_fake}, step=epoch)
         # return np.mean(rec_losses), np.mean(fk_losses), np.mean(G_losses), np.mean(D_losses), np.mean(D_losses_real), np.mean(D_losses_fake)
