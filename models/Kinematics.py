@@ -60,8 +60,8 @@ class ForwardKinematics:
 
         # 이게 정말 필요할까요? 
         # norm 이 0 인 경우는 어떻게 해야할까요?
-        if quater:
-            rotation = rotation / norm
+        # if quater:
+        rotation = rotation / norm
 
         if quater:
             transform = self.transform_from_quaternion(rotation)
@@ -71,6 +71,7 @@ class ForwardKinematics:
         offset = offset.reshape((-1, 1, offset.shape[-2], offset.shape[-1], 1))
 
         result[..., 0, :] = position
+
         for i, pi in enumerate(self.topology):
             if pi == -1:
                 assert i == 0

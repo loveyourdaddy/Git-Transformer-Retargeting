@@ -364,8 +364,6 @@ class Decoder(nn.Module):
 
 
 """ Transoformer Model """
-
-
 class Transformer(nn.Module):
     def __init__(self, args, offsets):
         super().__init__()
@@ -417,8 +415,6 @@ class MotionGenerator(nn.Module):
 
 
 """ Discriminator """
-
-
 class Discriminator(nn.Module):
     def __init__(self, args, offsets):
         super(Discriminator, self).__init__()

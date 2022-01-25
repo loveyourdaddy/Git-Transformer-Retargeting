@@ -16,19 +16,19 @@ def get_parser():
     parser.add_argument('--window_size', type=int, default=128, help='length of time axis per window')
     # num motions for_character. dummy value 1
     parser.add_argument('--num_motions', type=int, default=1)
-    parser.add_argument('--batch_size', type=int,default=16, help='batch_size')  # 16
+    parser.add_argument('--batch_size', type=int,default=64, help='batch_size')  # 16
     parser.add_argument('--input_size', type=int, default=0, help='')
     parser.add_argument('--output_size', type=int, default=0, help='')
     parser.add_argument('--n_enc_seq', type=int, default=0, help='')
 
     # Dataset representation (flag)
     parser.add_argument('--normalization', type=int, default=1)
+    parser.add_argument('--root_pos_disp', type=int, default=0, help='represent root pos as displacement')
+    parser.add_argument('--swap_dim', type=int, default=1,help='data_augment: 1 or 0')
+
     parser.add_argument('--add_offset', type=int, default=0, help='concat offset in dataset')
     parser.add_argument('--data_encoding', type=int, default=1, help='positional encoding')
-    parser.add_argument('--root_pos_disp', type=int, default=0,
-                        help='represent root pos as displacement')
     parser.add_argument('--data_augment', type=int, default=0, help='data_augment: 1 or 0')
-    parser.add_argument('--swap_dim', type=int, default=1,help='data_augment: 1 or 0')
 
     # Network
     parser.add_argument('--layer_norm_epsilon', type=float, default=1e-12)
@@ -43,14 +43,15 @@ def get_parser():
     parser.add_argument('--embedding_dim', type=int, default=256,help='embedding dimension')  # window을 얼마나 줄일지에 대한 embedding
     parser.add_argument('--gan_mode', type=str, default='lsgan')
 
-    # loss flag & weight
+    # loss flag
     parser.add_argument('--rec_loss', type=int, default=1, help='1. rec loss')
-    parser.add_argument('--fk_loss', type=int, default=1, help='1-2. fk loss')    
+    parser.add_argument('--fk_loss', type=int,  default=1, help='1-2. fk loss')    
     parser.add_argument('--gan_loss', type=int, default=0, help='2. gan loss')
+    parser.add_argument('--reg_loss', type=int, default=0, help='5. regularization loss on score(prob) matrix')
     # 3. latency consistenecy
     # 4. ee loss 
-    parser.add_argument('--reg_loss', type=int, default=1, help='5. regularization loss on score(prob) matrix')
 
+    # loss weight
     parser.add_argument('--reg_weight', type=int, default=1000, help='reg_weight')
     parser.add_argument('--root_weight', type=int, default=10, help='weighted loss for root displacement')
     parser.add_argument('--weight_root_loss', type=int, default=0, help='flag for weight_root_loss')

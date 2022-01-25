@@ -68,7 +68,7 @@ args = option_parser.get_args()
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "220124_1_Recloss_fkloss_Regloss/" # _GANloss
+save_name = "220125_3_Recloss_FKloss/" # 
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 
@@ -85,8 +85,8 @@ generatorModel = MotionGenerator(args, offsets)
 discriminatorModel = Discriminator(args, offsets)
 generatorModel.to(args.cuda_device)
 discriminatorModel.to(args.cuda_device)
-wandb.watch(generatorModel,     log="all", log_graph=True)
-wandb.watch(discriminatorModel, log="all", log_graph=True)
+wandb.watch(generatorModel,     log="all") # , log_graph=True
+wandb.watch(discriminatorModel, log="all") # , log_graph=True
 
 optimizerG = torch.optim.Adam(generatorModel.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 optimizerD = torch.optim.Adam(discriminatorModel.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
@@ -113,12 +113,12 @@ if args.is_train == 1:
             loader, dataset,
             characters, save_name, Files)
 
-        wandb.log({"loss": loss})
-        wandb.log({"fk_loss": fk_loss})
-        wandb.log({"G_loss": G_loss})
-        wandb.log({"D_loss": D_loss})
-        wandb.log({"D_loss_real": D_loss_real})
-        wandb.log({"D_loss_fake": D_loss_fake})
+        wandb.log({"loss": loss},               step=epoch)
+        wandb.log({"fk_loss": fk_loss},         step=epoch)
+        wandb.log({"G_loss": G_loss},           step=epoch)
+        wandb.log({"D_loss": D_loss},           step=epoch)
+        wandb.log({"D_loss_real": D_loss_real}, step=epoch)
+        wandb.log({"D_loss_fake": D_loss_fake}, step=epoch)
         # return np.mean(rec_losses), np.mean(fk_losses), np.mean(G_losses), np.mean(D_losses), np.mean(D_losses_real), np.mean(D_losses_fake)
 
         save(generatorModel, discriminatorModel, path + save_name, epoch)
