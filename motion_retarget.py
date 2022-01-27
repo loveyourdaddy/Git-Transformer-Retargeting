@@ -16,7 +16,6 @@ from test import *
 
 
 def motion_collate_fn(inputs):
-
     # Data foramt: (4,96,1,69,32) (캐릭터수, , 1, 조인트, 윈도우)
     enc_input_motions, dec_input_motions, gt_motions = list(zip(*inputs))
 
@@ -34,24 +33,15 @@ def motion_collate_fn(inputs):
     ]
     return batch
 
-
 def save(model, path, epoch):
     try_mkdir(path)
     path = os.path.join(path, str(epoch))
     torch.save(model.state_dict(), path)
 
-# save two model
-
-
-def save(model_A, model_B, path, epoch):
+def save(model, path, name, epoch):
     try_mkdir(path)
-
-    path_A = os.path.join(path, "modelA"+str(epoch))
-    torch.save(model_A.state_dict(), path_A)
-
-    path_B = os.path.join(path, "modelB"+str(epoch))
-    torch.save(model_B.state_dict(), path_B)
-
+    path = os.path.join(path, name + str(epoch))
+    torch.save(model.state_dict(), path)
 
 def load(model, path, epoch):
     path = os.path.join(path, str(epoch))
@@ -61,14 +51,22 @@ def load(model, path, epoch):
     model.load_state_dict(torch.load(path))
     print('load succeed')
 
+def load(model, path, name, epoch):
+    path = os.path.join(path, name + str(epoch))
+
+    if not os.path.exists(path):
+        raise Exception('Unknown loading path')
+    model.load_state_dict(torch.load(path))
+    print('load succeed')
 
 """ Set Env Parameters """
 args = option_parser.get_args()
 # args = args_
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# args.model_save_dir = "models"
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "220125_4_Recloss_GANloss/" # 
+save_name = "220126_1_Recloss_GANloss/" # 
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 
@@ -88,10 +86,8 @@ discriminatorModel.to(args.cuda_device)
 wandb.watch(generatorModel,     log="all") # , log_graph=True
 wandb.watch(discriminatorModel, log="all") # , log_graph=True
 
-optimizerG = torch.optim.Adam(generatorModel.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-optimizerD = torch.optim.Adam(discriminatorModel.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 
-# Set BVH writers
+""" Set BVH writers """ 
 BVHWriters = []
 Files = []
 for i in range(len(characters)):
@@ -105,9 +101,18 @@ for i in range(len(characters)):
     Files.append(files)
     BVHWriters.append(bvh_writers)
 
+""" Load model if load mode """
+# args.epoch_begin = 130
+if args.epoch_begin:
+    load(generatorModel, path+save_name, "Gen", args.epoch_begin)
+    load(generatorModel, path+save_name, "Dis", args.epoch_begin)
+
+optimizerG = torch.optim.Adam(generatorModel.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+optimizerD = torch.optim.Adam(discriminatorModel.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+
 if args.is_train == 1:
     # for every epoch
-    for epoch in range(args.n_epoch):
+    for epoch in range(args.epoch_begin, args.n_epoch):
         loss, fk_loss, G_loss, D_loss_real, D_loss_fake = train_epoch(
             args, epoch, generatorModel, discriminatorModel, optimizerG, optimizerD,
             loader, dataset,
@@ -119,9 +124,11 @@ if args.is_train == 1:
         # wandb.log({"D_loss": D_loss},           step=epoch)
         wandb.log({"D_loss_real": D_loss_real}, step=epoch)
         wandb.log({"D_loss_fake": D_loss_fake}, step=epoch)
-        # return np.mean(rec_losses), np.mean(fk_losses), np.mean(G_losses), np.mean(D_losses), np.mean(D_losses_real), np.mean(D_losses_fake)
 
-        save(generatorModel, discriminatorModel, path + save_name, epoch)
+        if epoch % 10 == 0:
+            # save(generatorModel, discriminatorModel, path + save_name, epoch)
+            save(generatorModel, path + save_name, "Gen", epoch)
+            save(discriminatorModel, path + save_name, "Dis", epoch)
 
 else:
     epoch = 30

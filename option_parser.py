@@ -61,7 +61,7 @@ def get_parser():
     parser.add_argument('--weight_decay', type=float, default=1)
     parser.add_argument('--alpha', type=float, default=0, help='penalty of sparsity')
     parser.add_argument('--activation', type=str, default='LeakyReLU', help='activation: ReLU, LeakyReLU, tanh')
-    parser.add_argument('--n_epoch', type=int, default=2001)
+    parser.add_argument('--n_epoch', type=int, default=3001)
     parser.add_argument('--epoch_begin', type=int, default=0)
     # parser.add_argument('--upsampling', type=str, default='linear', help="'stride2' or 'nearest', 'linear'")
     # parser.add_argument('--downsampling', type=str, default='stride2', help='stride2 or max_pooling')

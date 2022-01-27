@@ -404,7 +404,6 @@ class MotionGenerator(nn.Module):
         self.projection = nn.Linear(self.output_size, self.output_size)
 
     """ Transofrmer """
-
     def forward(self, input_character, output_character, enc_inputs, dec_inputs):
         dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = self.transformer(
             input_character, output_character, enc_inputs, dec_inputs)
@@ -413,6 +412,23 @@ class MotionGenerator(nn.Module):
 
         return output, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
 
+    # def load(self, path, save_name, epoch=None):
+    #         # model.load(os.path.join(self.model_save_dir, 'topology{}'.format(i)), epoch)
+    #     # path = os.path.join(args.model_save_dir, 'topology{}'.format(i))
+    #     path = os.path.join(path, save_name, 'modelA',epoch)
+
+    #     print('loading from', path)
+    #     if not os.path.exists(path):
+    #         raise Exception('Unknown loading path')
+
+        # for i, model in enumerate(self.models):
+        #     model.load(os.path.join(self.model_save_dir, 'topology{}'.format(i)), epoch)
+
+        # if self.is_train:
+        #     for i, optimizer in enumerate(self.optimizers):
+        #         file_name = os.path.join(self.model_save_dir, 'optimizers/{}/{}.pt'.format(epoch, i))
+        #         optimizer.load_state_dict(torch.load(file_name))
+        # self.epoch_cnt = epoch
 
 """ Discriminator """
 class Discriminator(nn.Module):

@@ -19,18 +19,14 @@ os.makedirs(SAVE_ATTENTION_DIR, exist_ok=True)
 # def get_data_numbers(motion):
 #     return motion.size(0), motion.size(1), motion.size(2)
 
-
 def get_curr_motion(iter, batch_size):
     return iter * batch_size
-
 
 def get_curr_character(motion_idx, num_motions):
     return int(motion_idx / num_motions)
 
-
 def denormalize(dataset, character_idx, motions):
     return dataset.denorm(1, character_idx, motions)
-
 
 def remake_root_position_from_displacement(args, motions, num_bs, num_frame, num_DoF):
     for bs in range(num_bs):  # dim 0
@@ -44,7 +40,6 @@ def remake_root_position_from_displacement(args, motions, num_bs, num_frame, num
 
     return motions
 
-
 def write_bvh(save_dir, gt_or_output_epoch, motion, characters, character_idx, motion_idx, args):
     save_dir_gt = save_dir + "character{}_{}/{}/".format(
         character_idx, characters[1][character_idx], gt_or_output_epoch)
@@ -57,12 +52,10 @@ def write_bvh(save_dir, gt_or_output_epoch, motion, characters, character_idx, m
             "motion_{}.bvh".format(int(motion_idx % args.num_motions + j))
         bvh_writer.write_raw(motion[j], args.rotation, file_name)
 
-
 def try_mkdir(path):
     if not os.path.exists(path):
         # print('make new dir')
         os.system('mkdir -p {}'.format(path))
-
 
 def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loader, train_dataset, characters, save_name, Files):
     losses = []  # losses for 1 epoch (for all motion, all batch_size)
@@ -207,6 +200,9 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                         loss = gan_criterion(real_output[m][j], True)
                         D_loss_real += loss
                         D_losses_real.append(loss.item())
+                        
+                # for para in modelG.parameters():
+                #     para.requires_grad = False
                 D_loss_real.backward()
 
                 # fake
@@ -223,7 +219,7 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                 optimizerD.step()
 
                 """ Update generator """
-                modelG.zero_grad()
+                # modelG.zero_grad()
                 G_loss = 0
                 fake_output = modelD(character_idx, character_idx, output_motions, output_motions)
                 for m in range(num_bs):
@@ -231,6 +227,7 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                         loss = gan_criterion(fake_output, True)
                         G_loss += loss
                         G_losses.append(loss.item())
+
                 G_loss.backward()
                 optimizerG.step()
 
@@ -258,15 +255,6 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
             #             rec_criterion(dec_enc_attn_probs[l], zero_tensor)
             #         loss_sum += loss
             #         reg_losses.append(loss.item())
-
-            """ Optimization """
-
-            # for para in modelD.parameters():
-            #     para.requires_grad = False
-
-            # for para in modelD.parameters():
-            #         para.requires_grad = True
-            # optimizerD.step()
 
             """ check output error"""
             for m in range(num_bs):
