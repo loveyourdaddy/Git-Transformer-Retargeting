@@ -38,10 +38,13 @@ def save(model, path, epoch):
     path = os.path.join(path, str(epoch))
     torch.save(model.state_dict(), path)
 
-def save(model, path, name, epoch):
+def save(model, optimizer, path, name, epoch):
     try_mkdir(path)
-    path = os.path.join(path, name + str(epoch))
-    torch.save(model.state_dict(), path)
+    path_para = os.path.join(path, name + str(epoch))
+    torch.save(model.state_dict(), path_para)
+
+    path_para = os.path.join(path, name + 'Opti' + str(epoch))
+    torch.save(optimizer.state_dict(), path_para)
 
 def load(model, path, epoch):
     path = os.path.join(path, str(epoch))
@@ -51,12 +54,17 @@ def load(model, path, epoch):
     model.load_state_dict(torch.load(path))
     print('load succeed')
 
-def load(model, path, name, epoch):
-    path = os.path.join(path, name + str(epoch))
-
-    if not os.path.exists(path):
+def load(model, optimizer, path, name, epoch):
+    path_para = os.path.join(path, name + str(epoch))
+    if not os.path.exists(path_para):
         raise Exception('Unknown loading path')
-    model.load_state_dict(torch.load(path))
+    model.load_state_dict(torch.load(path_para))
+
+    path_para = os.path.join(path, name + 'Opti' + str(epoch))
+    if not os.path.exists(path_para):
+        raise Exception('Unknown loading path')
+    optimizer.load_state_dict(torch.load(path_para))
+
     print('load succeed')
 
 """ Set Env Parameters """
@@ -66,7 +74,7 @@ args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # args.model_save_dir = "models"
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "220126_1_Recloss_GANloss/" # 
+save_name = "220127_2_Recloss_GANloss/"
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 
@@ -78,14 +86,13 @@ loader = torch.utils.data.DataLoader(
 offsets = dataset.get_offsets()
 print("characters:{}".format(characters))
 
-""" Train and Test  """
+""" load model  """
 generatorModel = MotionGenerator(args, offsets)
 discriminatorModel = Discriminator(args, offsets)
 generatorModel.to(args.cuda_device)
 discriminatorModel.to(args.cuda_device)
 wandb.watch(generatorModel,     log="all") # , log_graph=True
 wandb.watch(discriminatorModel, log="all") # , log_graph=True
-
 
 """ Set BVH writers """ 
 BVHWriters = []
@@ -102,10 +109,10 @@ for i in range(len(characters)):
     BVHWriters.append(bvh_writers)
 
 """ Load model if load mode """
-# args.epoch_begin = 130
+# args.epoch_begin = 790
 if args.epoch_begin:
     load(generatorModel, path+save_name, "Gen", args.epoch_begin)
-    load(generatorModel, path+save_name, "Dis", args.epoch_begin)
+    load(discriminatorModel, path+save_name, "Dis", args.epoch_begin)
 
 optimizerG = torch.optim.Adam(generatorModel.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 optimizerD = torch.optim.Adam(discriminatorModel.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
@@ -127,8 +134,8 @@ if args.is_train == 1:
 
         if epoch % 10 == 0:
             # save(generatorModel, discriminatorModel, path + save_name, epoch)
-            save(generatorModel, path + save_name, "Gen", epoch)
-            save(discriminatorModel, path + save_name, "Dis", epoch)
+            save(generatorModel, optimizerG, path + save_name, "Gen", epoch)
+            save(discriminatorModel, optimizerD, path + save_name, "Dis", epoch)
 
 else:
     epoch = 30

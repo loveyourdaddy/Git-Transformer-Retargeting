@@ -103,6 +103,7 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
             output_motions, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = modelG(
                 character_idx, character_idx, enc_inputs, dec_inputs)
 
+
             """ Data post-processing """
             """ 1) denorm for bvh_writing """
             if args.normalization == 1:
@@ -156,14 +157,15 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
             """ Get LOSS (orienation & FK & regularization) """
 
             """ loss1. loss on each element """
+            sum_loss = 0
             if args.rec_loss == 1:
-                rec_loss = 0
-                for m in range(num_bs):
-                    for j in range(num_DoF):
-                        loss = rec_criterion(gt_motions[m][j], output_motions[m][j])
-                        rec_loss += loss
-                        rec_losses.append(loss.item())
-                rec_loss.backward(retain_graph=True)
+                # rec_loss = 0
+                for idx_batch in range(num_bs):
+                    rec_loss = rec_criterion(gt_motions[idx_batch], output_motions[idx_batch])
+                    # rec_loss += loss
+                    sum_loss += rec_loss
+                    rec_losses.append(rec_loss.item())
+                # rec_loss.backward() # retain_graph=True
                 # optimizerG.step()
 
             """ loss 1-2. fk loss """
@@ -191,45 +193,37 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
             """ loss2. GAN Loss"""
             # discriminator : (fake output: 0), (real_data: 1)
             if args.gan_loss == 1:
-                """ Update discriminator """
+                """ Discriminator """
                 # real 
-                D_loss_real = 0
+                # D_loss_real = 0
                 real_output = modelD(character_idx, character_idx, enc_inputs, enc_inputs)
-                for m in range(num_bs):
-                    for j in range(num_DoF):
-                        loss = gan_criterion(real_output[m][j], True)
-                        D_loss_real += loss
-                        D_losses_real.append(loss.item())
-                        
-                # for para in modelG.parameters():
-                #     para.requires_grad = False
-                D_loss_real.backward()
+                for idx_batch in range(num_bs):
+                    D_loss_real = gan_criterion(real_output[idx_batch], True)
+                    sum_loss += D_loss_real
+                    D_losses_real.append(D_loss_real.item())
+                # D_loss_real.backward()
 
                 # fake
-                fake_output = modelD(character_idx, character_idx, output_motions.detach(), output_motions.detach())  
-                D_loss_fake = 0
-                for m in range(num_bs):
-                    for j in range(num_DoF):
-                        loss = gan_criterion(fake_output[m][j], False)
-                        D_loss_fake += loss
-                        D_losses_fake.append(loss.item())
-                D_loss_fake.backward()
+                fake_output = modelD(character_idx, character_idx, output_motions.detach(), output_motions.detach())
+                for idx_batch in range(num_bs):
+                    D_loss_fake = gan_criterion(fake_output[idx_batch], False)
+                    sum_loss += D_loss_fake
+                    D_losses_fake.append(D_loss_fake.item())
+                # D_loss_fake.backward()
 
                 # optimize Discriminator  
-                optimizerD.step()
+                # optimizerD.step()
 
-                """ Update generator """
-                # modelG.zero_grad()
-                G_loss = 0
+                """ Generator """
                 fake_output = modelD(character_idx, character_idx, output_motions, output_motions)
-                for m in range(num_bs):
-                    for j in range(num_DoF):
-                        loss = gan_criterion(fake_output, True)
-                        G_loss += loss
-                        G_losses.append(loss.item())
+                for idx_batch in range(num_bs):
+                    G_loss = gan_criterion(fake_output[idx_batch], True)
+                    sum_loss += G_loss
+                    G_losses.append(G_loss.item())
+                # G_loss.backward()
 
-                G_loss.backward()
-                optimizerG.step()
+            #     # optimize Generator
+            #     optimizerG.step()
 
             """ 5. atten score loss """
             # if args.reg_loss == 1:
@@ -257,15 +251,23 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
             #         reg_losses.append(loss.item())
 
             """ check output error"""
-            for m in range(num_bs):
-                for j in range(num_DoF):
-                    loss = rec_criterion(gt_motions[m][j], output_motions[m][j])
-                    rec_losses.append(loss.item())
+            # loss = rec_criterion(gt_motions, output_motions)
+            # losses.append(loss.item())
+
+            """ backward and optimize """
+            sum_loss.backward() # retain_graph=True
+            optimizerG.step()
+            optimizerD.step()
+            # G_loss.backward()
+            # D_loss_real.backward()
+            # D_loss_fake.backward()
 
             """  and show info """
             pbar.update(1)
             pbar.set_postfix_str(
                 f"mean: {np.mean(rec_losses):.3f}, fk_loss: {np.mean(fk_losses):.3f}, G_loss: {np.mean(G_losses):.3f}, D_loss_real: {np.mean(D_losses_real):.3f}, D_loss_fake: {np.mean(D_losses_fake):.3f}")
+
+            # loss 확인할시 추가
 
             """ BVH Writing """
             if epoch == 0:
