@@ -16,7 +16,7 @@ def get_parser():
     parser.add_argument('--window_size', type=int, default=128, help='length of time axis per window')
     # num motions for_character. dummy value 1
     parser.add_argument('--num_motions', type=int, default=1)
-    parser.add_argument('--batch_size', type=int,default=64, help='batch_size')  # 16
+    parser.add_argument('--batch_size', type=int,default=32, help='batch_size')  # 16
     parser.add_argument('--input_size', type=int, default=0, help='')
     parser.add_argument('--output_size', type=int, default=0, help='')
     parser.add_argument('--n_enc_seq', type=int, default=0, help='')

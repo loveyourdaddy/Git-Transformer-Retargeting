@@ -132,7 +132,6 @@ output/*
 attention_vis/*
 attention_vis_intra/*
 attention_vis_cross/*
-datasets/Mixamo/*
 datasets/FBX/*
 datasets/FBX_backup/*
 datasets/BVH/*

@@ -256,6 +256,7 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
 
             """ backward and optimize """
             sum_loss.backward() # retain_graph=True
+            # parameter freee deoesnt needed? 
             optimizerG.step()
             optimizerD.step()
             # G_loss.backward()
