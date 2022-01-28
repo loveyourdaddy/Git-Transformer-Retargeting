@@ -7,61 +7,36 @@ import torch.nn.functional as F
 import numpy as np
 import os
 from wandb import set_trace
-# import option_parser
 from datasets import get_character_names, create_dataset
-# from models import create_model
-# from models.base_model import BaseModel
 from model import *
-# import torchvision
-# from models.vanilla_gan import Discriminator
 
 SAVE_ATTENTION_DIR = "attention_vis/test"
-# i = 0
 
 """ Attentnion Model """
-# function of Q, K, V
-
-
 class ScaledDotProductAttention(nn.Module):
     def __init__(self, args):
         super().__init__()
 
-        # d_head (64) : dim of key vector
         self.d_head = args.d_head
         self.scale = 1 / (self.d_head ** 0.5)
-        # self.V_index = 0
 
     def forward(self, Q, K, V):
-        # Q,K,V: (bs, n_head, window, DoF)
 
-        # (bs, n_head, window, window)
         scores = torch.matmul(Q, K.transpose(-1, -2)).mul_(self.scale)
 
-        # bs = scores.size(0)
-
-        # Softmax on last dim
         attn_prob = nn.Softmax(dim=-1)(scores)
 
         context = torch.matmul(attn_prob, V)
 
-        # context:(bs, n_head, window, DoF) attn_prob (bs, n_head, window, window)
         return context, attn_prob
 
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, args, type):
         super().__init__()
-        # self.input_dim = args.input_size
-        self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.embedding_dim, args.embedding_dim, args.embedding_dim, args.embedding_dim
-        # if type == "Enc": # 69 (enc_input)
-        #     self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.input_size, args.input_size, args.input_size, args.input_size
-        # elif type == "Dec": # 84? 69? (dec_input = enc_input? )
-        #     self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.output_size, args.output_size, args.output_size, args.output_size
-        # elif type == "Dec_enc": # Q: 84(첫번째 Attn_output), K,V: 69(enc_output)
-        #     self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.output_size, args.output_size, args.output_size, args.output_size
-        # else: # EncDec
-        #     self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.output_size, args.output_size, args.input_size, args.input_size
 
+        self.input_dim, self.Q_input_dim, self.K_input_dim, self.V_input_dim = args.embedding_dim, args.embedding_dim, args.embedding_dim, args.embedding_dim
+   
         # head parameters
         self.d_head = args.d_head
         self.n_head = args.n_head
@@ -82,21 +57,15 @@ class MultiHeadAttention(nn.Module):
         batch_size = Q.size(0)
 
         """ Data Encoding 1 """
-        # (bs, *DoF, window) -> (bs, *n_head*d_head, window) -> (bs, window, *n_head, *d_head) -> (bs, *n_head, window, *d_head)
-        q_s = self.W_Q(Q).view(batch_size, -1, self.n_head,
-                               self.d_head).transpose(1, 2)
-        k_s = self.W_K(K).view(batch_size, -1, self.n_head,
-                               self.d_head).transpose(1, 2)
-        v_s = self.W_V(V).view(batch_size, -1, self.n_head,
-                               self.d_head).transpose(1, 2)
+        q_s = self.W_Q(Q).view(batch_size, -1, self.n_head, self.d_head).transpose(1, 2)
+        k_s = self.W_K(K).view(batch_size, -1, self.n_head, self.d_head).transpose(1, 2)
+        v_s = self.W_V(V).view(batch_size, -1, self.n_head, self.d_head).transpose(1, 2)
 
         # Attentinon 계산
-        # context: (bs, n_head, window, d_head)
         context, attn_prob = self.scaled_dot_attn(q_s, k_s, v_s)
 
-        # (bs, n_head, window, d_head) -> (bs, window, n_head * d_head)
-        context = context.transpose(1, 2).contiguous().view(
-            batch_size, -1, self.n_head * self.d_head)
+        context = context.transpose(1, 2).contiguous().view(batch_size, -1, self.n_head * self.d_head)
+        
         # (bs,window,nhead*dhead) -> (bs, window, DoF)
         output = self.linear(context)
 
@@ -104,8 +73,6 @@ class MultiHeadAttention(nn.Module):
 
 
 """ Feed Forward """
-
-
 class PositionFeedForwardNet(nn.Module):
     def __init__(self, args, type):
         super().__init__()
@@ -133,8 +100,6 @@ class PositionFeedForwardNet(nn.Module):
 
 
 """ Layers """
-
-
 class EncoderLayer(nn.Module):
     def __init__(self, args):
         super().__init__()
@@ -200,9 +165,7 @@ class DecoderLayer(nn.Module):
 
 """ sinusoial encoding of each sentence """
 # n_seq: num of total seq(Sentence), d_hidn: 단어를 표시하는 벡터의 크기
-
-
-def get_sinusoid_encoding_table(n_seq, d_hidn):  # seq의 길이,embedding 차원
+def get_sinusoid_encoding_table(n_seq, d_hidn):
     # 포지션을 angle로 나타냄
     def cal_angle(position, i_hidn):
         return position / np.power(10000, 2 * (i_hidn // 2) / d_hidn)
@@ -210,13 +173,11 @@ def get_sinusoid_encoding_table(n_seq, d_hidn):  # seq의 길이,embedding 차�
     def get_posi_ang_vec(position):
         return [cal_angle(position, i_hidn) for i_hidn in range(d_hidn)]
 
-    sinusoid_table = np.array([get_posi_ang_vec(i_seq)
-                              for i_seq in range(n_seq)])
-    # (bs, posiiton value)
+    sinusoid_table = np.array([get_posi_ang_vec(i_seq) for i_seq in range(n_seq)])
+
     sinusoid_table[:, 0::2] = np.sin(sinusoid_table[:, 0::2])
     sinusoid_table[:, 1::2] = np.cos(sinusoid_table[:, 1::2])
 
-    # (DoF+1 , 32): each 프레임(int)들을 32dim의 float으로 나타냅니다
     return sinusoid_table
 
 
@@ -248,7 +209,6 @@ class Encoder(nn.Module):
             [EncoderLayer(self.args) for _ in range(self.args.n_layer)])
         self.projection = nn.Linear(self.embedding_dim, self.embedding_dim)
 
-    # (bs, length of frames, joints): (4, 91, 64) # 4개의 bs 에 대해서 모두 동일한 character index을 가지고 있다.
     def forward(self, input_character, inputs):
         """ option for add_offset """
         if self.args.add_offset:
@@ -259,11 +219,9 @@ class Encoder(nn.Module):
 
         """ Get Position and Embedding """
         if self.args.data_encoding:
-            # (128) -> (1,128,1) -> (16,128)
-            positions = torch.arange(inputs.size(1), device=inputs.device, dtype=torch.long).unsqueeze(
-                0).expand(inputs.size(0), inputs.size(1)).contiguous() + 1
+            positions = torch.arange(inputs.size(1), device=inputs.device, dtype=torch.long)\
+                .unsqueeze(0).expand(inputs.size(0), inputs.size(1)).contiguous() + 1
 
-            # (16,128,256)
             position_encoding = self.pos_emb(positions)
 
             input_embedding = self.input_embedding(inputs)
@@ -335,7 +293,6 @@ class Decoder(nn.Module):
 
         self.de_embedding = nn.Linear(self.embedding_dim, self.output_size)
 
-    # (bs, DoF, d_hidn)
     def forward(self, output_character, dec_inputs, enc_inputs, enc_outputs):
 
         if self.args.add_offset:
@@ -359,7 +316,6 @@ class Decoder(nn.Module):
 
         dec_outputs = self.de_embedding(dec_outputs)
 
-        # (bs, DoF, d_hidn), [(bs, DoF, DoF)], [(bs, DoF, DoF)]
         return dec_outputs, self_attn_probs, dec_enc_attn_probs
 
 
@@ -373,7 +329,6 @@ class Transformer(nn.Module):
         self.decoder = Decoder(args, offsets[1])
 
     def forward(self, input_character, output_character, enc_inputs, dec_inputs):
-        # input: (bs, window, DoF), output: (bs, window, DoF)
 
         enc_outputs, enc_self_attn_probs, context = self.encoder(
             input_character, enc_inputs)
@@ -381,7 +336,6 @@ class Transformer(nn.Module):
         if self.args.swap_dim == 1:
             enc_outputs = self.projection_net(enc_outputs)
 
-        # input: (bs, window, DoF), output: (bs, window, DoF)
         dec_outputs, dec_self_attn_probs, dec_enc_attn_probs = self.decoder(
             output_character, dec_inputs, enc_inputs, enc_outputs)
 
@@ -412,33 +366,12 @@ class MotionGenerator(nn.Module):
 
         return output, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
 
-    # def load(self, path, save_name, epoch=None):
-    #         # model.load(os.path.join(self.model_save_dir, 'topology{}'.format(i)), epoch)
-    #     # path = os.path.join(args.model_save_dir, 'topology{}'.format(i))
-    #     path = os.path.join(path, save_name, 'modelA',epoch)
-
-    #     print('loading from', path)
-    #     if not os.path.exists(path):
-    #         raise Exception('Unknown loading path')
-
-        # for i, model in enumerate(self.models):
-        #     model.load(os.path.join(self.model_save_dir, 'topology{}'.format(i)), epoch)
-
-        # if self.is_train:
-        #     for i, optimizer in enumerate(self.optimizers):
-        #         file_name = os.path.join(self.model_save_dir, 'optimizers/{}/{}.pt'.format(epoch, i))
-        #         optimizer.load_state_dict(torch.load(file_name))
-        # self.epoch_cnt = epoch
-
 """ Discriminator """
 class Discriminator(nn.Module):
     def __init__(self, args, offsets):
         super(Discriminator, self).__init__()
         self.args = args
         self.input_dim = args.window_size
-        # self.window_size = self.args.window_size
-        # self.layers = nn.ModuleList([nn.Linear(self.window_size, self.window_size) for _ in range(self.args.n_layer)])
-        # self.activation = nn.LeakyReLU(negative_slope=0.2)
 
         """ layers """
         self.transformer = Transformer(args, offsets)
