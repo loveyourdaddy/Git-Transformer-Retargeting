@@ -74,7 +74,7 @@ args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # args.model_save_dir = "models"
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "220128_0_GANloss/" # 220128_0_Regloss_FKloss
+save_name = "220128_0_Rec_FK/" # 220128_0_Regloss_FKloss
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 
@@ -128,7 +128,6 @@ if args.is_train == 1:
         wandb.log({"loss": loss},               step=epoch)
         wandb.log({"fk_loss": fk_loss},         step=epoch)
         wandb.log({"G_loss": G_loss},           step=epoch)
-        # wandb.log({"D_loss": D_loss},           step=epoch)
         wandb.log({"D_loss_real": D_loss_real}, step=epoch)
         wandb.log({"D_loss_fake": D_loss_fake}, step=epoch)
 
