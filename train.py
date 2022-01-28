@@ -13,8 +13,10 @@ import torchvision
 from models.utils import GAN_loss
 import wandb
 
-SAVE_ATTENTION_DIR = "attention_vis_intra"
+SAVE_ATTENTION_DIR = "attention_vis"
+SAVE_ATTENTION_DIR_INTRA = "attention_vis_intra"
 os.makedirs(SAVE_ATTENTION_DIR, exist_ok=True)
+os.makedirs(SAVE_ATTENTION_DIR_INTRA, exist_ok=True)
 
 # def get_data_numbers(motion):
 #     return motion.size(0), motion.size(1), motion.size(2)
@@ -127,28 +129,25 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                     args, denorm_output_motions, num_bs, num_frame, num_DoF)
 
             """ save attention map """
-            # if epoch % 10 == 0:
-            #     bs = enc_self_attn_probs[0].size(0)
-            #     img_size = enc_self_attn_probs[0].size(2)
-            #     for att_layer_index, enc_self_attn_prob in enumerate(enc_self_attn_probs):
-            #         att_map = enc_self_attn_prob.view(
-            #             bs*4, -1, img_size, img_size)
-            #         torchvision.utils.save_image(
-            #             att_map, f"./{SAVE_ATTENTION_DIR}/enc_{att_layer_index}_{epoch:04d}.jpg", range=(0, 1), normalize=True)
+            if epoch % 100 == 0:
+                bs = enc_self_attn_probs[0].size(0)
+                img_size = enc_self_attn_probs[0].size(2)
+                for att_layer_index, enc_self_attn_prob in enumerate(enc_self_attn_probs):
+                    att_map = enc_self_attn_prob.view(bs*4, -1, img_size, img_size)
+                    torchvision.utils.save_image(att_map, \
+                        f"./{SAVE_ATTENTION_DIR}/enc_{att_layer_index}_{epoch:04d}.jpg", range=(0, 1), normalize=True)
 
-            #     img_size = dec_self_attn_probs[0].size(2)
-            #     for att_layer_index, dec_self_attn_prob in enumerate(dec_self_attn_probs):
-            #         att_map = dec_self_attn_prob.view(
-            #             bs*4, -1, img_size, img_size)
-            #         torchvision.utils.save_image(
-            #             att_map, f"./{SAVE_ATTENTION_DIR}/dec_{att_layer_index}_{epoch:04d}.jpg", range=(0, 1), normalize=True)
+                img_size = dec_self_attn_probs[0].size(2)
+                for att_layer_index, dec_self_attn_prob in enumerate(dec_self_attn_probs):
+                    att_map = dec_self_attn_prob.view(bs*4, -1, img_size, img_size)
+                    torchvision.utils.save_image(att_map, \
+                        f"./{SAVE_ATTENTION_DIR}/dec_{att_layer_index}_{epoch:04d}.jpg", range=(0, 1), normalize=True)
 
-            #     img_size = dec_enc_attn_probs[0].size(2)
-            #     for att_layer_index, dec_enc_attn_prob in enumerate(dec_enc_attn_probs):
-            #         att_map = dec_enc_attn_prob.view(
-            #             bs*4, -1, img_size, img_size)
-            #         torchvision.utils.save_image(
-            #             att_map, f"./{SAVE_ATTENTION_DIR}/enc_dec_{att_layer_index}_{epoch:04d}.jpg", range=(0, 1), normalize=True)
+                img_size = dec_enc_attn_probs[0].size(2)
+                for att_layer_index, dec_enc_attn_prob in enumerate(dec_enc_attn_probs):
+                    att_map = dec_enc_attn_prob.view(bs*4, -1, img_size, img_size)
+                    torchvision.utils.save_image(att_map, \
+                        f"./{SAVE_ATTENTION_DIR}/enc_dec_{att_layer_index}_{epoch:04d}.jpg", range=(0, 1), normalize=True)
 
             """ Get LOSS (orienation & FK & regularization) """
             """ loss1. loss on each element """
@@ -240,7 +239,7 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
             optimizerD.zero_grad()
             discriminator_loss.backward() 
             optimizerD.step()
-
+            
             """ check output error"""
             # # check rec loss 
             # loss = rec_criterion(gt_motions, output_motions)
