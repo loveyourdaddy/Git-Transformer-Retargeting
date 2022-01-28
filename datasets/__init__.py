@@ -1,7 +1,8 @@
 def get_character_names(args):
 
     # intra strucutre retargeting    
-    characters = [['Aj', 'Aj', 'Aj', 'Aj'], ['Aj', 'BigVegas', 'Kaya', 'SportyGranny']]
+    # characters = [['Aj', 'Aj', 'Aj', 'Aj'], ['Aj', 'BigVegas', 'Kaya', 'SportyGranny']]
+    characters = [['Aj', 'Aj', 'Aj', 'Aj'], ['Aj', 'Aj', 'Aj', 'Aj']]
 
     # cross strucutre retargeting
     # characters = [['Aj', 'BigVegas', 'Kaya', 'SportyGranny'], ['Mousey_m', 'Goblin_m', 'Mremireh_m', 'Vampire_m']]

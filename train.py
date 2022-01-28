@@ -57,6 +57,11 @@ def try_mkdir(path):
         # print('make new dir')
         os.system('mkdir -p {}'.format(path))
 
+def discriminator_requires_grad_(model, requires_grad):
+    # for model in self.models:
+    for para in model.parameters():
+        para.requires_grad = requires_grad
+            
 def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loader, train_dataset, characters, save_name, Files):
     losses = []  # losses for 1 epoch (for all motion, all batch_size)
     fk_losses = []
@@ -80,8 +85,6 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
         try_mkdir(save_dir)
 
         for i, value in enumerate(train_loader):
-            optimizerG.zero_grad()
-            # optimizerD.zero_grad()
 
             """ Get Data and Set value to model and Get output """
             enc_inputs, dec_inputs, gt_motions = map(
@@ -102,7 +105,6 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
             """ feed to NETWORK """
             output_motions, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = modelG(
                 character_idx, character_idx, enc_inputs, dec_inputs)
-
 
             """ Data post-processing """
             """ 1) denorm for bvh_writing """
@@ -155,60 +157,53 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
             #             att_map, f"./{SAVE_ATTENTION_DIR}/enc_dec_{att_layer_index}_{epoch:04d}.jpg", range=(0, 1), normalize=True)
 
             """ Get LOSS (orienation & FK & regularization) """
+            sum_loss_G = 0
+            sum_loss_D = 0
 
             """ loss1. loss on each element """
-            sum_loss = 0
-            if args.rec_loss == 1:
-                # rec_loss = 0
-                for idx_batch in range(num_bs):
-                    rec_loss = rec_criterion(gt_motions[idx_batch], output_motions[idx_batch])
-                    # rec_loss += loss
-                    sum_loss += rec_loss
-                    rec_losses.append(rec_loss.item())
-                # rec_loss.backward() # retain_graph=True
-                # optimizerG.step()
+            # if args.rec_loss == 1:
+            #     for idx_batch in range(num_bs):
+            #         rec_loss = rec_criterion(gt_motions[idx_batch], output_motions[idx_batch])
+            #         sum_loss_G += rec_loss
+            #         rec_losses.append(rec_loss.item())
 
             """ loss 1-2. fk loss """
-            # if args.fk_loss == 1:
-            #     fk_loss = 0
-            #     fk = ForwardKinematics(args, file.edges)
-            #     gt_transform = fk.forward_from_raw(denorm_gt_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
-            #     output_transform = fk.forward_from_raw(denorm_output_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
+            if args.fk_loss == 1:
+                # fk_loss = 0
+                fk = ForwardKinematics(args, file.edges)
+                gt_transform = fk.forward_from_raw(denorm_gt_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
+                output_transform = fk.forward_from_raw(denorm_output_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
 
-            #     gt_global_pos = fk.from_local_to_world(gt_transform).permute(0,2,1)
-            #     output_global_pos = fk.from_local_to_world(output_transform).permute(0,2,1)
+                gt_global_pos = fk.from_local_to_world(gt_transform).permute(0,2,1)
+                output_global_pos = fk.from_local_to_world(output_transform).permute(0,2,1)
 
-            #     for m in range(num_bs):
-            #         for j in range(num_frame): #check dimension
-            #             loss = rec_criterion(gt_global_pos[m][j], output_global_pos[m][j])
-            #             fk_loss += loss
-            #             fk_losses.append(loss.item())
-            #     # modelG.zero_grad()
-            #     fk_loss.backward()
-            #     optimizerG.step()
-                
+                for idx_batch in range(num_bs):
+                    fk_loss = rec_criterion(gt_global_pos[idx_batch], output_global_pos[idx_batch])
+                    sum_loss_G += fk_loss
+                    fk_losses.append(fk_loss.item())
+
                 # render_dots(gt_global_pos[0][0].reshape(-1,3)) # divide 69 -> 23,3
                 # render_dots_and_lines(gt_global_pos[0][0].reshape(-1,3), file.topology) # divide 69 -> 23,3
 
             """ loss2. GAN Loss"""
             # discriminator : (fake output: 0), (real_data: 1)
-            if args.gan_loss == 1:
-                """ Discriminator """
-                # real 
-                # D_loss_real = 0
-                real_output = modelD(character_idx, character_idx, enc_inputs, enc_inputs)
-                for idx_batch in range(num_bs):
-                    D_loss_real = gan_criterion(real_output[idx_batch], True)
-                    sum_loss += D_loss_real
-                    D_losses_real.append(D_loss_real.item())
-                # D_loss_real.backward()
+            # if args.gan_loss == 1:
+            #     """ Discriminator """
+                # # real 
+                # # D_loss_real = 0
+                # real_output = modelD(character_idx, character_idx, enc_inputs, enc_inputs)
+                # for idx_batch in range(num_bs):
+                #     D_loss_real = gan_criterion(real_output[idx_batch], True)
+                #     sum_loss_D += D_loss_real
+                #     D_losses_real.append(D_loss_real.item())
+                # # D_loss_real.backward()
 
-                # fake
-                fake_output = modelD(character_idx, character_idx, output_motions.detach(), output_motions.detach())
-                for idx_batch in range(num_bs):
-                    D_loss_fake = gan_criterion(fake_output[idx_batch], False)
-                    sum_loss += D_loss_fake
-                    D_losses_fake.append(D_loss_fake.item())
+                # # fake
+                # fake_output = modelD(character_idx, character_idx, output_motions.detach(), output_motions.detach())
+                # for idx_batch in range(num_bs):
+                #     D_loss_fake = gan_criterion(fake_output[idx_batch], False)
+                #     sum_loss_D += D_loss_fake
+                #     D_losses_fake.append(D_loss_fake.item())
                 # D_loss_fake.backward()
 
                 # optimize Discriminator  
@@ -218,12 +213,9 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                 fake_output = modelD(character_idx, character_idx, output_motions, output_motions)
                 for idx_batch in range(num_bs):
                     G_loss = gan_criterion(fake_output[idx_batch], True)
-                    sum_loss += G_loss
+                    sum_loss_G += G_loss
                     G_losses.append(G_loss.item())
-                # G_loss.backward()
-
-            #     # optimize Generator
-            #     optimizerG.step()
+                G_loss.backward()
 
             """ 5. atten score loss """
             # if args.reg_loss == 1:
@@ -255,13 +247,15 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
             # losses.append(loss.item())
 
             """ backward and optimize """
-            sum_loss.backward() # retain_graph=True
-            # parameter freee deoesnt needed? 
+            discriminator_requires_grad_(modelD, False)
+            optimizerG.zero_grad()
+            fk_loss.backward() 
             optimizerG.step()
-            optimizerD.step()
-            # G_loss.backward()
-            # D_loss_real.backward()
-            # D_loss_fake.backward()
+
+            # discriminator_requires_grad_(modelD, True)
+            # optimizerD.zero_grad()
+            # sum_loss_D.backward() 
+            # optimizerD.step()
 
             """  and show info """
             pbar.update(1)

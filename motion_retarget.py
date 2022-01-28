@@ -74,7 +74,7 @@ args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # args.model_save_dir = "models"
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "220127_2_Recloss_GANloss/"
+save_name = "220128_0_GANloss/" # 220128_0_Regloss_FKloss
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 
