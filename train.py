@@ -102,6 +102,11 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
             file = Files[1][character_idx]
 
             """ feed to NETWORK """
+            # intra 
+            output_motions, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = modelG(
+                character_idx, character_idx, enc_inputs, dec_inputs)
+
+            # cross 
             output_motions, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = modelG(
                 character_idx, character_idx, enc_inputs, dec_inputs)
 
@@ -160,7 +165,7 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
 
             """ loss 1-2. fk loss """
             if args.fk_loss == 1:
-                sum_FK_loss = 0                
+                sum_FK_loss = 0
                 fk = ForwardKinematics(args, file.edges)
                 gt_transform = fk.forward_from_raw(denorm_gt_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
                 output_transform = fk.forward_from_raw(denorm_output_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
