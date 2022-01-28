@@ -185,36 +185,33 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
                 # render_dots(gt_global_pos[0][0].reshape(-1,3)) # divide 69 -> 23,3
                 # render_dots_and_lines(gt_global_pos[0][0].reshape(-1,3), file.topology) # divide 69 -> 23,3
 
-            """ loss2. GAN Loss"""
-            # discriminator : (fake output: 0), (real_data: 1)
-            # if args.gan_loss == 1:
-            #     """ Discriminator """
-                # # real 
-                # # D_loss_real = 0
-                # real_output = modelD(character_idx, character_idx, enc_inputs, enc_inputs)
-                # for idx_batch in range(num_bs):
-                #     D_loss_real = gan_criterion(real_output[idx_batch], True)
-                #     sum_loss_D += D_loss_real
-                #     D_losses_real.append(D_loss_real.item())
-                # # D_loss_real.backward()
+            """ loss2. GAN Loss : (fake output: 0), (real_data: 1)  """
+            if args.gan_loss == 1:
+                """ Discriminator """
+                # real 
+                real_output = modelD(character_idx, character_idx, enc_inputs, enc_inputs)
+                for idx_batch in range(num_bs):
+                    D_loss_real = gan_criterion(real_output[idx_batch], True)
+                    sum_D_loss += D_loss_real
+                    D_losses_real.append(D_loss_real.item())
+                # D_loss_real.backward()
 
-                # # fake
-                # fake_output = modelD(character_idx, character_idx, output_motions.detach(), output_motions.detach())
-                # for idx_batch in range(num_bs):
-                #     D_loss_fake = gan_criterion(fake_output[idx_batch], False)
-                #     sum_loss_D += D_loss_fake
-                #     D_losses_fake.append(D_loss_fake.item())
+                # fake
+                fake_output = modelD(character_idx, character_idx, output_motions.detach(), output_motions.detach())
+                for idx_batch in range(num_bs):
+                    D_loss_fake = gan_criterion(fake_output[idx_batch], False)
+                    sum_D_loss += D_loss_fake
+                    D_losses_fake.append(D_loss_fake.item())
                 # D_loss_fake.backward()
 
-                # optimize Discriminator  
                 # optimizerD.step()
 
-                # """ Generator """
-                # fake_output = modelD(character_idx, character_idx, output_motions, output_motions)
-                # for idx_batch in range(num_bs):
-                #     G_loss = gan_criterion(fake_output[idx_batch], True)
-                #     sum_loss_G += G_loss
-                #     G_losses.append(G_loss.item())
+                """ Generator """
+                fake_output = modelD(character_idx, character_idx, output_motions, output_motions)
+                for idx_batch in range(num_bs):
+                    G_loss = gan_criterion(fake_output[idx_batch], True)
+                    sum_G_loss += G_loss
+                    G_losses.append(G_loss.item())
                 # G_loss.backward()
 
             """ 5. atten score loss """
@@ -252,24 +249,22 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
             sum_G_loss.backward()
             optimizerG.step()
 
-            # discriminator_requires_grad_(modelD, True)
-            # optimizerD.zero_grad()
-            # sum_loss_D.backward() 
-            # optimizerD.step()
+            discriminator_requires_grad_(modelD, True)
+            optimizerD.zero_grad()
+            sum_D_loss.backward() 
+            optimizerD.step()
 
             """  and show info """
             pbar.update(1)
             pbar.set_postfix_str(
                 f"mean: {np.mean(rec_losses):.3f}, fk_loss: {np.mean(fk_losses):.3f}, G_loss: {np.mean(G_losses):.3f}, D_loss_real: {np.mean(D_losses_real):.3f}, D_loss_fake: {np.mean(D_losses_fake):.3f}")
 
-            # loss 확인할시 추가
-
             """ BVH Writing """
             if epoch == 0:
                 write_bvh(save_dir, "gt", denorm_gt_motions,
                           characters, character_idx, motion_idx, args)
 
-            if epoch % 10 == 0:
+            if epoch % 100 == 0:
                 write_bvh(save_dir, "output_"+str(epoch), denorm_output_motions,
                           characters, character_idx, motion_idx, args)
 

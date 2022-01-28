@@ -74,7 +74,7 @@ args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # args.model_save_dir = "models"
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "220128_0_Rec_FK/" # 220128_0_Regloss_FKloss
+save_name = "220128_0_Rec_FK_lr_5e-4/"
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 
@@ -87,12 +87,12 @@ offsets = dataset.get_offsets()
 print("characters:{}".format(characters))
 
 """ load model  """
-generatorModel = MotionGenerator(args, offsets)
-discriminatorModel = Discriminator(args, offsets)
-generatorModel.to(args.cuda_device)
-discriminatorModel.to(args.cuda_device)
-wandb.watch(generatorModel,     log="all") # , log_graph=True
-wandb.watch(discriminatorModel, log="all") # , log_graph=True
+giscriminator_model = MotionGenerator(args, offsets)
+discriminator_model = Discriminator(args, offsets)
+giscriminator_model.to(args.cuda_device)
+discriminator_model.to(args.cuda_device)
+wandb.watch(giscriminator_model, log="all") # , log_graph=True
+wandb.watch(discriminator_model, log="all") # , log_graph=True
 
 """ Set BVH writers """ 
 BVHWriters = []
@@ -111,19 +111,18 @@ for i in range(len(characters)):
 """ Load model if load mode """
 # args.epoch_begin = 790
 if args.epoch_begin:
-    load(generatorModel, path+save_name, "Gen", args.epoch_begin)
-    load(discriminatorModel, path+save_name, "Dis", args.epoch_begin)
+    load(giscriminator_model, path+save_name, "Gen", args.epoch_begin)
+    load(discriminator_model, path+save_name, "Dis", args.epoch_begin)
 
-optimizerG = torch.optim.Adam(generatorModel.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-optimizerD = torch.optim.Adam(discriminatorModel.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+optimizerG = torch.optim.Adam(giscriminator_model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+optimizerD = torch.optim.Adam(discriminator_model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 
 if args.is_train == 1:
     # for every epoch
     for epoch in range(args.epoch_begin, args.n_epoch):
         loss, fk_loss, G_loss, D_loss_real, D_loss_fake = train_epoch(
-            args, epoch, generatorModel, discriminatorModel, optimizerG, optimizerD,
-            loader, dataset,
-            characters, save_name, Files)
+            args, epoch, giscriminator_model, discriminator_model, optimizerG, optimizerD,
+            loader, dataset, characters, save_name, Files)
 
         wandb.log({"loss": loss},               step=epoch)
         wandb.log({"fk_loss": fk_loss},         step=epoch)
@@ -131,16 +130,17 @@ if args.is_train == 1:
         wandb.log({"D_loss_real": D_loss_real}, step=epoch)
         wandb.log({"D_loss_fake": D_loss_fake}, step=epoch)
 
-        if epoch % 10 == 0:
-            # save(generatorModel, discriminatorModel, path + save_name, epoch)
-            save(generatorModel, optimizerG, path + save_name, "Gen", epoch)
-            save(discriminatorModel, optimizerD, path + save_name, "Dis", epoch)
+        if epoch % 100 == 0:
+            # save(giscriminator_model, discriminator_model, path + save_name, epoch)
+            save(giscriminator_model, optimizerG, path + save_name, "Gen", epoch)
+            save(discriminator_model, optimizerD, path + save_name, "Dis", epoch)
 
 else:
     epoch = 30
 
-    load(model, path + save_name, epoch)
-    eval_epoch(
-        args, model,
-        dataset, loader,
+    load(giscriminator_model, path+save_name, "Gen", args.epoch_begin)
+    load(discriminator_model, path+save_name, "Dis", args.epoch_begin)
+
+    # only test losses 
+    eval_epoch(args, giscriminator_model, discriminator_model, dataset, loader,
         characters, save_name, Files)
