@@ -74,7 +74,7 @@ args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # args.model_save_dir = "models"
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "220128_1_GAN_lr_1e-4/"
+save_name = "220128_1_rec_GAN_FK/"
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 
@@ -120,11 +120,11 @@ optimizerD = torch.optim.Adam(discriminator_model.parameters(), lr=args.learning
 if args.is_train == 1:
     # for every epoch
     for epoch in range(args.epoch_begin, args.n_epoch):
-        loss, fk_loss, G_loss, D_loss_real, D_loss_fake = train_epoch(
+        rec_loss, fk_loss, G_loss, D_loss_real, D_loss_fake = train_epoch(
             args, epoch, giscriminator_model, discriminator_model, optimizerG, optimizerD,
             loader, dataset, characters, save_name, Files)
 
-        wandb.log({"loss": loss},               step=epoch)
+        wandb.log({"loss": rec_loss},               step=epoch)
         wandb.log({"fk_loss": fk_loss},         step=epoch)
         wandb.log({"G_loss": G_loss},           step=epoch)
         wandb.log({"D_loss_real": D_loss_real}, step=epoch)

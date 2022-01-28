@@ -151,19 +151,17 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
             #             att_map, f"./{SAVE_ATTENTION_DIR}/enc_dec_{att_layer_index}_{epoch:04d}.jpg", range=(0, 1), normalize=True)
 
             """ Get LOSS (orienation & FK & regularization) """
-            sum_G_loss = 0
-            sum_D_loss = 0
-
             """ loss1. loss on each element """
             if args.rec_loss == 1:
+                sum_Rec_loss = 0
                 for idx_batch in range(num_bs):
                     rec_loss = rec_criterion(gt_motions[idx_batch], output_motions[idx_batch])
-                    sum_G_loss += rec_loss
+                    sum_Rec_loss += rec_loss
                     rec_losses.append(rec_loss.item())
 
             """ loss 1-2. fk loss """
             if args.fk_loss == 1:
-                # fk_loss = 0
+                sum_FK_loss = 0                
                 fk = ForwardKinematics(args, file.edges)
                 gt_transform = fk.forward_from_raw(denorm_gt_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
                 output_transform = fk.forward_from_raw(denorm_output_motions.permute(0,2,1), train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
@@ -173,11 +171,13 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
 
                 for idx_batch in range(num_bs):
                     fk_loss = rec_criterion(gt_global_pos[idx_batch], output_global_pos[idx_batch])
-                    sum_G_loss += fk_loss
+                    sum_FK_loss += fk_loss
                     fk_losses.append(fk_loss.item())
 
             """ loss2. GAN Loss : (fake output: 0), (real_data: 1)  """
             if args.gan_loss == 1:
+                sum_G_loss = 0
+                sum_D_loss = 0
                 
                 """ Generator """                
                 fake_output = modelD(character_idx, character_idx, output_motions, output_motions)
@@ -226,40 +226,44 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
             #         loss_sum += loss
             #         reg_losses.append(loss.item())
 
+            """ Sum loss """
+            generator_loss = sum_Rec_loss + sum_FK_loss + sum_G_loss
+            discriminator_loss = sum_D_loss
+
             """ backward and optimize """
             requires_grad_(modelD, False)
             optimizerG.zero_grad()
-            sum_G_loss.backward()
+            generator_loss.backward()
             optimizerG.step()
 
             requires_grad_(modelD, True)
             optimizerD.zero_grad()
-            sum_D_loss.backward() 
+            discriminator_loss.backward() 
             optimizerD.step()
 
             """ check output error"""
-            # check rec loss 
-            loss = rec_criterion(gt_motions, output_motions)
-            rec_losses.append(loss.item())
+            # # check rec loss 
+            # loss = rec_criterion(gt_motions, output_motions)
+            # rec_losses.append(loss.item())
 
-            # check fk loss 
-            fk = ForwardKinematics(args, file.edges)
-            gt_transform = fk.forward_from_raw(denorm_gt_motions.permute(0,2,1), \
-                train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
-            output_transform = fk.forward_from_raw(denorm_output_motions.permute(0,2,1), \
-                train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
+            # # check fk loss 
+            # fk = ForwardKinematics(args, file.edges)
+            # gt_transform = fk.forward_from_raw(denorm_gt_motions.permute(0,2,1), \
+            #     train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
+            # output_transform = fk.forward_from_raw(denorm_output_motions.permute(0,2,1), \
+            #     train_dataset.offsets[1][character_idx]).reshape(num_bs, -1, num_frame)
 
-            gt_global_pos = fk.from_local_to_world(gt_transform).permute(0,2,1)
-            output_global_pos = fk.from_local_to_world(output_transform).permute(0,2,1)
-            
-            fk_loss = rec_criterion(gt_global_pos, output_global_pos)
-            fk_losses.append(fk_loss.item())
-            
+            # gt_global_pos = fk.from_local_to_world(gt_transform).permute(0,2,1)
+            # output_global_pos = fk.from_local_to_world(output_transform).permute(0,2,1)
+
+            # fk_loss = rec_criterion(gt_global_pos, output_global_pos)
+            # fk_losses.append(fk_loss.item())
+
             """  and show info """
             pbar.update(1)
             pbar.set_postfix_str(
-                f"mean: {np.mean(rec_losses):.3f}, fk_loss: {np.mean(fk_losses):.3f}, G_loss: {np.mean(G_losses):.3f},\
-                    D_loss_real: {np.mean(D_losses_real):.3f}, D_loss_fake: {np.mean(D_losses_fake):.3f}")
+                f"mean: {np.mean(rec_losses):.3f}, fk_loss: {np.mean(fk_losses):.3f},\
+                     G_loss: {np.mean(G_losses):.3f}, D_loss_real: {np.mean(D_losses_real):.3f}, D_loss_fake: {np.mean(D_losses_fake):.3f}")
 
             """ BVH Writing """
             if epoch == 0:
