@@ -102,11 +102,6 @@ def train_epoch(args, epoch, modelG, modelD, optimizerG, optimizerD, train_loade
             file = Files[1][character_idx]
 
             """ feed to NETWORK """
-            # intra 
-            output_motions, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = modelG(
-                character_idx, character_idx, enc_inputs, dec_inputs)
-
-            # cross 
             output_motions, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = modelG(
                 character_idx, character_idx, enc_inputs, dec_inputs)
 

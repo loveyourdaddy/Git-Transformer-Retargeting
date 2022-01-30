@@ -386,3 +386,20 @@ class Discriminator(nn.Module):
         output = output.reshape(output.shape[0], -1)
 
         return torch.sigmoid(output)
+
+class IntegratedModel(nn.Module):
+    def __init__(self, args, offsets):
+        generator_model = MotionGenerator(args, offsets)
+        discriminator_model = Discriminator(args, offsets)
+        generator_model.to(args.cuda_device)
+        discriminator_model.to(args.cuda_device)
+
+    def forward(): #  enc_inputs = dec_inputs
+
+        return 
+        # dec_inputs = enc_inputs
+        # output_motions, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs \
+        #     = generator_model(input_character, output_character, enc_inputs, dec_inputs)
+        # # D_output
+
+        # fake_output = modelD(character_idx, character_idx, output_motions, output_motions)

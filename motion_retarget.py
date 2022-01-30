@@ -6,6 +6,7 @@ import option_parser
 from datasets import get_character_names, create_dataset
 from model import MotionGenerator
 from model import Discriminator
+from model import IntegratedModel
 from datasets.bvh_parser import BVH_file
 from datasets.bvh_writer import BVH_writer
 import wandb
@@ -72,10 +73,11 @@ def load(model, optimizer, path, name, epoch):
 args = option_parser.get_args()
 # args = args_
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+args.n_topology = 2
 # args.model_save_dir = "models"
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "220128_1_rec_GAN_FK/" # "220128_2_Cross/"
+save_name = "220130_0_Cross/"
 wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 
@@ -88,6 +90,10 @@ offsets = dataset.get_offsets()
 print("characters:{}".format(characters))
 
 """ load model  """
+models = []
+for i in range(args.n_topology):
+    models.append(IntegratedModel(args, offsets))
+
 generator_model = MotionGenerator(args, offsets)
 discriminator_model = Discriminator(args, offsets)
 generator_model.to(args.cuda_device)
@@ -113,7 +119,7 @@ for i in range(len(characters)):
     BVHWriters.append(bvh_writers)
 
 """ Load model if load mode """
-args.epoch_begin = 500
+# args.epoch_begin = 500
 if args.epoch_begin:
     load(generator_model,     optimizerG, path+save_name, "Gen", args.epoch_begin)
     load(discriminator_model, optimizerD, path+save_name, "Dis", args.epoch_begin)
