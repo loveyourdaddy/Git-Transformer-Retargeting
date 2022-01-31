@@ -125,19 +125,19 @@ class MixedData(Dataset):
             self.final_data.append(MixedData0(args, motions))
         
         """ Get enc / dec input motions """
-        self.gt = self.final_data[1][:] 
-        self.enc_inputs = self.final_data[0][:] 
-        self.dec_inputs = self.final_data[1][:] 
+        self.source_motions = self.final_data[0][:] 
+        self.target_motions = self.final_data[1][:]  
+        # self.dec_inputs = self.final_data[1][:] 
         
         """ update input/output dimension of network: Set DoF  """
         #swap_dim=0: (bs, Window, DoF) 
         if args.swap_dim == 0:
-            args.input_size = self.enc_inputs.size(2)
-            args.output_size = self.dec_inputs.size(2)
+            args.input_size = self.source_motions.size(2)
+            args.output_size = self.target_motions.size(2)
         #swap_dim=1: (bs, DoF, Window)
         else: 
-            args.input_size = self.enc_inputs.size(1)
-            args.output_size = self.dec_inputs.size(1)
+            args.input_size = self.source_motions.size(1)
+            args.output_size = self.target_motions.size(1)
 
     def denorm(self, gid, pid, data):
         means = self.means[gid][pid, ...]
@@ -159,9 +159,9 @@ class MixedData(Dataset):
         return self.length
 
     def __getitem__(self, item):
-        return (torch.as_tensor(self.enc_inputs[item].data),    # source motion
-                torch.as_tensor(self.dec_inputs[item].data),    # decoder source motion
-                torch.as_tensor(self.gt[item].data)) # gt target motion
+        return (torch.as_tensor(self.source_motions[item].data),    # source motion
+                torch.as_tensor(self.target_motions[item].data)) # gt target motion
+                # torch.as_tensor(self.dec_inputs[item].data),    # decoder source motion
 
 
 class TestData(Dataset):

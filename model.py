@@ -242,27 +242,45 @@ class Encoder(nn.Module):
 
 
 class ProjectionNet(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args, i):
         super().__init__()
         self.args = args
-        self.input_dim = args.input_size
+        if i == 0:
+            self.input_dim = args.input_size
+        else: 
+            self.input_dim = args.output_size
         self.d_hidn = args.d_hidn
-        self.output_dim = args.output_size
 
         """ layer """
         self.fc1 = nn.Linear(self.input_dim, self.d_hidn)
-        self.fc2 = nn.Linear(self.d_hidn, self.output_dim)
 
     def forward(self, enc_output):
         enc_output = torch.transpose(enc_output, 1, 2)
-
         latent_img = self.fc1(enc_output)
+
+        return latent_img
+
+class DeprojectionNet(nn.Module):
+    def __init__(self, args, i):
+        super().__init__()
+        self.args = args
+        self.d_hidn = args.d_hidn
+        # self.output_dim = args.output_size
+
+        if i == 0:
+            self.output_dim = args.input_size
+        else: 
+            self.output_dim = args.output_size
+
+        """ layer """
+        self.fc2 = nn.Linear(self.d_hidn, self.output_dim)
+
+    def forward(self, latent_img):
         dec_input = self.fc2(latent_img)
 
         dec_input = torch.transpose(dec_input, 1, 2)
 
         return dec_input
-
 
 class Decoder(nn.Module):
     def __init__(self, args, offset):
@@ -321,29 +339,31 @@ class Decoder(nn.Module):
 
 """ Transoformer Model """
 class Transformer(nn.Module):
-    def __init__(self, args, offsets):
+    def __init__(self, args, offsets, i):
         super().__init__()
         self.args = args
         self.encoder = Encoder(args, offsets[0])
-        self.projection_net = ProjectionNet(args)
+        self.projection_net = ProjectionNet(args, i)
+        self.deprojection_net = DeprojectionNet(args, i)
         self.decoder = Decoder(args, offsets[1])
 
-    def forward(self, input_character, output_character, enc_inputs, dec_inputs):
+    def forward(self, input_character, output_character, enc_inputs):
 
         enc_outputs, enc_self_attn_probs, context = self.encoder(
             input_character, enc_inputs)
 
         if self.args.swap_dim == 1:
-            enc_outputs = self.projection_net(enc_outputs)
+            latent_feature = self.projection_net(enc_outputs)
+            dec_inputs     = self.deprojection_net(latent_feature)
 
         dec_outputs, dec_self_attn_probs, dec_enc_attn_probs = self.decoder(
-            output_character, dec_inputs, enc_inputs, enc_outputs)
+            output_character, enc_inputs, enc_inputs, dec_inputs)
 
         return dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
 
 
 class MotionGenerator(nn.Module):
-    def __init__(self, args, offsets):
+    def __init__(self, args, offsets, i):
         super().__init__()
         self.args = args
         self.output_size = args.window_size
@@ -354,13 +374,13 @@ class MotionGenerator(nn.Module):
 
         """ Transformer """
         # layers
-        self.transformer = Transformer(args, offsets)
+        self.transformer = Transformer(args, offsets, i)
         self.projection = nn.Linear(self.output_size, self.output_size)
 
     """ Transofrmer """
-    def forward(self, input_character, output_character, enc_inputs, dec_inputs):
+    def forward(self, input_character, output_character, enc_inputs):
         dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = self.transformer(
-            input_character, output_character, enc_inputs, dec_inputs)
+            input_character, output_character, enc_inputs)
 
         output = self.projection(dec_outputs)
 
@@ -368,38 +388,21 @@ class MotionGenerator(nn.Module):
 
 """ Discriminator """
 class Discriminator(nn.Module):
-    def __init__(self, args, offsets):
+    def __init__(self, args, offsets, i):
         super(Discriminator, self).__init__()
         self.args = args
         self.input_dim = args.window_size
 
         """ layers """
-        self.transformer = Transformer(args, offsets)
+        self.transformer = Transformer(args, offsets, i)
         self.projection = nn.Linear(self.input_dim, self.input_dim)
 
-    def forward(self, input_character, output_character, enc_inputs, dec_inputs):
+    def forward(self, input_character, output_character, enc_inputs):
         output, _, _, _ = self.transformer(
-            input_character, output_character, enc_inputs, dec_inputs)
+            input_character, output_character, enc_inputs)
 
         output = self.projection(output)
 
         output = output.reshape(output.shape[0], -1)
 
         return torch.sigmoid(output)
-
-class IntegratedModel(nn.Module):
-    def __init__(self, args, offsets):
-        generator_model = MotionGenerator(args, offsets)
-        discriminator_model = Discriminator(args, offsets)
-        generator_model.to(args.cuda_device)
-        discriminator_model.to(args.cuda_device)
-
-    def forward(): #  enc_inputs = dec_inputs
-
-        return 
-        # dec_inputs = enc_inputs
-        # output_motions, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs \
-        #     = generator_model(input_character, output_character, enc_inputs, dec_inputs)
-        # # D_output
-
-        # fake_output = modelD(character_idx, character_idx, output_motions, output_motions)
