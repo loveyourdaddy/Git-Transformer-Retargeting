@@ -76,7 +76,7 @@ args.n_topology = 2
 # args.model_save_dir = "models"
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "220131_0_Cross/"
+save_name = "220131_0_Cross_rec/"
 
 # wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
@@ -100,8 +100,6 @@ for i in range(args.n_topology):
     discriminator_model = Discriminator(args, offsets, i)    
     generator_model.to(args.cuda_device)
     discriminator_model.to(args.cuda_device)
-    # wandb.watch(generator_model, log="all") # , log_graph=True
-    # wandb.watch(discriminator_model, log="all") # , log_graph=True
 
     # optimizer
     optimizerG = torch.optim.Adam(generator_model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
@@ -113,6 +111,9 @@ for i in range(args.n_topology):
 
     optimizerGs.append(optimizerG)
     optimizerDs.append(optimizerD)
+
+# wandb.watch(generator_models[0], log="all") # , log_graph=True
+# wandb.watch(discriminator_models[0], log="all") # , log_graph=True
 
 """ Set BVH writers """ 
 BVHWriters = []
@@ -135,14 +136,11 @@ if args.epoch_begin:
         load(generator_models[i],     optimizerGs[i], path+save_name, "Gen"+i+"_", args.epoch_begin)
         load(discriminator_models[i], optimizerDs[i], path+save_name, "Dis"+i+"_", args.epoch_begin)
 
-# optimizerG = torch.optim.Adam(generator_model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-# optimizerD = torch.optim.Adam(discriminator_model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-
 if args.is_train == 1:
     # for every epoch
     for epoch in range(args.epoch_begin, args.n_epoch):
         rec_loss, fk_loss, G_loss, D_loss_real, D_loss_fake = train_epoch(
-            args, epoch, generator_models, discriminator_models, optimizerG, optimizerD,
+            args, epoch, generator_models, discriminator_models, optimizerGs, optimizerDs,
             loader, dataset, characters, save_name, Files)
 
         # wandb.log({"loss": rec_loss},           step=epoch)

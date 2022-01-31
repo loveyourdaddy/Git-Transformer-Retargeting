@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 import os
-from wandb import set_trace
+# from wandb import set_trace
 from datasets import get_character_names, create_dataset
 from model import *
 

@@ -1,7 +1,7 @@
 import torch
 import os
 import numpy as np
-from wandb import set_trace
+# from wandb import set_trace
 from datasets import get_character_names
 import option_parser
 from tqdm import tqdm
@@ -63,7 +63,7 @@ def requires_grad_(model, requires_grad):
     for para in model.parameters():
         para.requires_grad = requires_grad
             
-def train_epoch(args, epoch, modelGs, modelDs, optimizerG, optimizerD, train_loader, train_dataset, characters, save_name, Files):
+def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_loader, train_dataset, characters, save_name, Files):
 
     # Set return list 
     n_topology = len(modelGs)
@@ -74,7 +74,8 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerG, optimizerD, train_loa
     denorm_output_motions   = [0] * n_topology
 
     fk_losses     = []
-    rec_losses    = []
+    rec_losses0   = []
+    rec_losses1   = []
     G_losses      = []
     D_losses_fake = []
     D_losses_real = []
@@ -150,7 +151,6 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerG, optimizerD, train_loa
             """ 1) denorm for bvh_writing """
             for i in range(args.n_topology):
                 if args.normalization == 1:
-
                     denorm_gt_motions[i]     = denormalize(train_dataset, character_idx, gt_motions[i], i)
                     denorm_output_motions[i] = denormalize(train_dataset, character_idx, output_motions[i], i)
                 else:
@@ -177,7 +177,11 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerG, optimizerD, train_loa
                     for idx_batch in range(num_bs):
                         rec_loss = rec_criterion(gt_motions[i][idx_batch], output_motions[i][idx_batch])
                         sum_Rec_loss += rec_loss
-                        rec_losses.append(rec_loss.item())
+                        if i == 0:
+                            rec_losses0.append(rec_loss.item())
+                        else:
+                            rec_losses1.append(rec_loss.item()) 
+
 
                 """ loss 1-2. fk loss """
                 # if args.fk_loss == 1:
@@ -255,8 +259,8 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerG, optimizerD, train_loa
                 """ backward and optimize """
                 # requires_grad_(modelDs[i], False)
                 # optimizerGs[i].zero_grad()
-                # generator_loss.backward()
-                # optimizerG.step()
+                generator_loss.backward()
+                optimizerGs[i].step()
 
                 # requires_grad_(modelDs[i], True)
                 # optimizerD.zero_grad()
@@ -289,14 +293,11 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerG, optimizerD, train_loa
                 if epoch % 100 == 0:
                     write_bvh(save_dir, "output"+str(i)+"_"+str(epoch), denorm_output_motions[i],
                             characters, character_idx, motion_idx, args, i)
-            generator_loss.backward()
-            optimizerG.step()
-            
-            """  and show info """
+
+            """ show info """
             pbar.update(1)
             pbar.set_postfix_str(
-                f"mean: {np.mean(rec_losses):.3f}, fk_loss: {np.mean(fk_losses):.3f},\
-                     G_loss: {np.mean(G_losses):.3f}, D_loss_real: {np.mean(D_losses_real):.3f}, D_loss_fake: {np.mean(D_losses_fake):.3f}")
+                f"mean: {np.mean(rec_losses):.3f}, fk_loss: {np.mean(fk_losses):.3f}, G_loss: {np.mean(G_losses):.3f}, D_loss_real: {np.mean(D_losses_real):.3f}, D_loss_fake: {np.mean(D_losses_fake):.3f}")
 
 
         torch.cuda.empty_cache()

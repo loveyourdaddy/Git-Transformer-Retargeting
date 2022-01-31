@@ -2,7 +2,7 @@ import json
 import torch
 import os
 import numpy as np
-from wandb import set_trace
+# from wandb import set_trace
 from datasets import get_character_names
 import option_parser
 from tqdm import tqdm
