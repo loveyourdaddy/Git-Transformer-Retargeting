@@ -33,21 +33,18 @@ def denormalize(dataset, character_idx, motions, i):
 def remake_root_position_from_displacement(args, motions, num_bs, num_frame, num_DoF):
     for bs in range(num_bs):  # dim 0
         for frame in range(num_frame - 1):  # dim 2 # frame: 0~62. update 1 ~ 63
-            motions[bs][frame + 1][num_DoF -
-                                   3] += motions[bs][frame][num_DoF - 3]
-            motions[bs][frame + 1][num_DoF -
-                                   2] += motions[bs][frame][num_DoF - 2]
-            motions[bs][frame + 1][num_DoF -
-                                   1] += motions[bs][frame][num_DoF - 1]
+            motions[bs][frame + 1][num_DoF - 3] += motions[bs][frame][num_DoF - 3]
+            motions[bs][frame + 1][num_DoF - 2] += motions[bs][frame][num_DoF - 2]
+            motions[bs][frame + 1][num_DoF - 1] += motions[bs][frame][num_DoF - 1]
 
     return motions
 
 def write_bvh(save_dir, gt_or_output_epoch, motion, characters, character_idx, motion_idx, args,i):
     save_dir_gt = save_dir + "character{}_{}/{}/".format(
-        character_idx, characters[1][character_idx], gt_or_output_epoch)
+        character_idx, characters[i][character_idx], gt_or_output_epoch)
     try_mkdir(save_dir_gt)
-    file = BVH_file(option_parser.get_std_bvh(
-        dataset=characters[i][character_idx]))
+    file = BVH_file(option_parser.get_std_bvh(dataset=characters[i][character_idx]))
+
     bvh_writer = BVH_writer(file.edges, file.names)
     for j in range(args.batch_size):
         file_name = save_dir_gt + \
@@ -119,69 +116,74 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
 
             motion_idx = get_curr_motion(i, args.batch_size)
             character_idx = get_curr_character(motion_idx, args.num_motions)
-            file = Files[1][character_idx] # change this 
 
             """ feed to NETWORK """
-            for i in range(args.n_topology):
-                output_motions[i], enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = modelGs[i](
-                    character_idx, character_idx, input_motions[i])
+            for j in range(args.n_topology):
+                file = Files[j][character_idx] # change this 
+                optimizerGs[j].zero_grad()
+                optimizerDs[j].zero_grad()
+
+                output_motions[j], enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = modelGs[j](
+                    character_idx, character_idx, input_motions[j])
 
                 """ save attention map """
-                if epoch % 100 == 0:
-                    bs = enc_self_attn_probs[0].size(0)
-                    img_size = enc_self_attn_probs[0].size(2)
-                    for att_layer_index, enc_self_attn_prob in enumerate(enc_self_attn_probs):
-                        att_map = enc_self_attn_prob.view(bs*4, -1, img_size, img_size)
-                        torchvision.utils.save_image(att_map, \
-                            f"./{SAVE_ATTENTION_DIR}/enc_{att_layer_index}_{epoch:04d}.jpg", range=(0, 1), normalize=True)
+                # if epoch % 100 == 0:
+                #     bs = enc_self_attn_probs[0].size(0)
+                #     img_size = enc_self_attn_probs[0].size(2)
+                #     for att_layer_index, enc_self_attn_prob in enumerate(enc_self_attn_probs):
+                #         att_map = enc_self_attn_prob.view(bs*4, -1, img_size, img_size)
+                #         torchvision.utils.save_image(att_map, \
+                #             f"./{SAVE_ATTENTION_DIR}/enc_{att_layer_index}_{epoch:04d}.jpg", range=(0, 1), normalize=True)
 
-                    img_size = dec_self_attn_probs[0].size(2)
-                    for att_layer_index, dec_self_attn_prob in enumerate(dec_self_attn_probs):
-                        att_map = dec_self_attn_prob.view(bs*4, -1, img_size, img_size)
-                        torchvision.utils.save_image(att_map, \
-                            f"./{SAVE_ATTENTION_DIR}/dec_{att_layer_index}_{epoch:04d}.jpg", range=(0, 1), normalize=True)
+                #     img_size = dec_self_attn_probs[0].size(2)
+                #     for att_layer_index, dec_self_attn_prob in enumerate(dec_self_attn_probs):
+                #         att_map = dec_self_attn_prob.view(bs*4, -1, img_size, img_size)
+                #         torchvision.utils.save_image(att_map, \
+                #             f"./{SAVE_ATTENTION_DIR}/dec_{att_layer_index}_{epoch:04d}.jpg", range=(0, 1), normalize=True)
 
-                    img_size = dec_enc_attn_probs[0].size(2)
-                    for att_layer_index, dec_enc_attn_prob in enumerate(dec_enc_attn_probs):
-                        att_map = dec_enc_attn_prob.view(bs*4, -1, img_size, img_size)
-                        torchvision.utils.save_image(att_map, \
-                            f"./{SAVE_ATTENTION_DIR}/enc_dec_{att_layer_index}_{epoch:04d}.jpg", range=(0, 1), normalize=True)
+                #     img_size = dec_enc_attn_probs[0].size(2)
+                #     for att_layer_index, dec_enc_attn_prob in enumerate(dec_enc_attn_probs):
+                #         att_map = dec_enc_attn_prob.view(bs*4, -1, img_size, img_size)
+                #         torchvision.utils.save_image(att_map, \
+                #             f"./{SAVE_ATTENTION_DIR}/enc_dec_{att_layer_index}_{epoch:04d}.jpg", range=(0, 1), normalize=True)
 
             """ Data post-processing """
             """ 1) denorm for bvh_writing """
-            for i in range(args.n_topology):
+            for j in range(args.n_topology):
                 if args.normalization == 1:
-                    denorm_gt_motions[i]     = denormalize(train_dataset, character_idx, gt_motions[i], i)
-                    denorm_output_motions[i] = denormalize(train_dataset, character_idx, output_motions[i], i)
+                    denorm_gt_motions[j]     = denormalize(train_dataset, character_idx, gt_motions[j], j)
+                    denorm_output_motions[j] = denormalize(train_dataset, character_idx, output_motions[j], j)
                 else:
-                    denorm_gt_motions[i]     = gt_motions[i]
-                    denorm_output_motions[i] = output_motions[i]
+                    denorm_gt_motions[j]     = gt_motions[j]
+                    denorm_output_motions[j] = output_motions[j]
 
                 if args.swap_dim == 1:
-                    denorm_gt_motions[i]     = torch.transpose(denorm_gt_motions[i], 1, 2)
-                    denorm_output_motions[i] = torch.transpose(denorm_output_motions[i], 1, 2)
+                    denorm_gt_motions[j]     = torch.transpose(denorm_gt_motions[j], 1, 2)
+                    denorm_output_motions[j] = torch.transpose(denorm_output_motions[j], 1, 2)
 
                 """ 3) remake root position from displacement """
-                if args.root_pos_disp == 1:
-                    denorm_gt_motions[i] = remake_root_position_from_displacement(
-                        args, denorm_gt_motions[i], num_bs, num_frame, num_DoF)
-                    denorm_output_motions[i] = remake_root_position_from_displacement(
-                        args, denorm_output_motions[i], num_bs, num_frame, num_DoF)
+                # if args.root_pos_disp == 1:
+                #     denorm_gt_motions[j] = remake_root_position_from_displacement(
+                #         args, denorm_gt_motions[j], num_bs, num_frame, num_DoF)
+                #     denorm_output_motions[j] = remake_root_position_from_displacement(
+                #         args, denorm_output_motions[j], num_bs, num_frame, num_DoF)
 
 
             """ Get LOSS (orienation & FK & regularization) """
-            for i in range(args.n_topology):
+            for j in range(args.n_topology):
                 """ loss1. loss on each element """
                 if args.rec_loss == 1:
                     sum_Rec_loss = 0
                     for idx_batch in range(num_bs):
-                        rec_loss = rec_criterion(gt_motions[i][idx_batch], output_motions[i][idx_batch])
+                        rec_loss = rec_criterion(gt_motions[j][idx_batch], output_motions[j][idx_batch])
                         sum_Rec_loss += rec_loss
-                        if i == 0:
+                        if j == 0:
                             rec_losses0.append(rec_loss.item())
                         else:
                             rec_losses1.append(rec_loss.item()) 
 
+                    sum_Rec_loss.backward()
+                    optimizerGs[j].step()
 
                 """ loss 1-2. fk loss """
                 # if args.fk_loss == 1:
@@ -253,14 +255,14 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
                 #         reg_losses.append(loss.item())
 
                 """ Sum loss """
-                generator_loss = sum_Rec_loss #+ sum_FK_loss + sum_G_loss
+                # generator_loss = sum_Rec_loss #+ sum_FK_loss + sum_G_loss
                 # discriminator_loss = sum_D_loss
 
                 """ backward and optimize """
                 # requires_grad_(modelDs[i], False)
                 # optimizerGs[i].zero_grad()
-                generator_loss.backward()
-                optimizerGs[i].step()
+                # generator_loss.backward()
+                # optimizerGs[i].step()
 
                 # requires_grad_(modelDs[i], True)
                 # optimizerD.zero_grad()
@@ -287,20 +289,22 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
 
                 """ BVH Writing """ 
                 if epoch == 0:
-                    write_bvh(save_dir, "gt"+str(i)+"_", denorm_gt_motions[i],
-                            characters, character_idx, motion_idx, args, i)
+                    write_bvh(save_dir, "gt"+str(j), denorm_gt_motions[j],
+                            characters, character_idx, motion_idx, args, j)
 
                 if epoch % 100 == 0:
-                    write_bvh(save_dir, "output"+str(i)+"_"+str(epoch), denorm_output_motions[i],
-                            characters, character_idx, motion_idx, args, i)
+                    write_bvh(save_dir, "output"+str(j)+"_"+str(epoch), denorm_output_motions[j],
+                            characters, character_idx, motion_idx, args, j)
 
             """ show info """
             pbar.update(1)
-            pbar.set_postfix_str(
-                f"mean: {np.mean(rec_losses):.3f}, fk_loss: {np.mean(fk_losses):.3f}, G_loss: {np.mean(G_losses):.3f}, D_loss_real: {np.mean(D_losses_real):.3f}, D_loss_fake: {np.mean(D_losses_fake):.3f}")
+            pbar.set_postfix_str(f"mean1: {np.mean(rec_losses0):.3f}, mean2: {np.mean(rec_losses1):.3f}")
+
+            # pbar.set_postfix_str(
+            #     f"mean: {np.mean(rec_losses):.3f}, fk_loss: {np.mean(fk_losses):.3f}, G_loss: {np.mean(G_losses):.3f}, D_loss_real: {np.mean(D_losses_real):.3f}, D_loss_fake: {np.mean(D_losses_fake):.3f}")
 
 
         torch.cuda.empty_cache()
         del source_motions, gt_motions, output_motions
 
-    return np.mean(rec_losses), np.mean(fk_losses), np.mean(G_losses), np.mean(D_losses_real), np.mean(D_losses_fake)
+    return np.mean(rec_losses0), np.mean(rec_losses1) # , np.mean(G_losses), np.mean(D_losses_real), np.mean(D_losses_fake)

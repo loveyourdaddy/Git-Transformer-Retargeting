@@ -328,7 +328,7 @@ class Decoder(nn.Module):
         self_attn_probs, dec_enc_attn_probs = [], []
         for layer in self.layers:
             dec_outputs, self_attn_prob, dec_enc_attn_prob = layer(
-                dec_outputs, enc_outputs)
+                dec_outputs, enc_outputs)  # check: dec_inputs, enc_inputs is not used 
             self_attn_probs.append(self_attn_prob)
             dec_enc_attn_probs.append(dec_enc_attn_prob)
 
@@ -342,10 +342,10 @@ class Transformer(nn.Module):
     def __init__(self, args, offsets, i):
         super().__init__()
         self.args = args
-        self.encoder = Encoder(args, offsets[0])
+        self.encoder = Encoder(args, offsets[i])
         self.projection_net = ProjectionNet(args, i)
         self.deprojection_net = DeprojectionNet(args, i)
-        self.decoder = Decoder(args, offsets[1])
+        self.decoder = Decoder(args, offsets[i])
 
     def forward(self, input_character, output_character, enc_inputs):
 

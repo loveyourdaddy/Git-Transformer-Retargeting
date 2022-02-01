@@ -38,12 +38,12 @@ def motion_collate_fn(inputs):
 #     path = os.path.join(path, str(epoch))
 #     torch.save(model.state_dict(), path)
 
-def save(model, optimizer, path, name, epoch):
+def save(model, optimizer, path, name, epoch, i):
     try_mkdir(path)
-    path_para = os.path.join(path, name + str(epoch))
+    path_para = os.path.join(path, name + str(i) +'_' + str(epoch))
     torch.save(model.state_dict(), path_para)
 
-    path_para = os.path.join(path, name + 'Opti' + str(epoch))
+    path_para = os.path.join(path, name + str(i)+ 'Opti_' + str(epoch))
     torch.save(optimizer.state_dict(), path_para)
 
 # def load(model, path, epoch):
@@ -76,7 +76,7 @@ args.n_topology = 2
 # args.model_save_dir = "models"
 log_path = os.path.join(args.save_dir, 'logs/')
 path = "./parameters/"
-save_name = "220131_0_Cross_rec/"
+save_name = "220131_3_Cross_rec/"
 
 # wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
@@ -139,9 +139,12 @@ if args.epoch_begin:
 if args.is_train == 1:
     # for every epoch
     for epoch in range(args.epoch_begin, args.n_epoch):
-        rec_loss, fk_loss, G_loss, D_loss_real, D_loss_fake = train_epoch(
+        rec_loss0, rec_loss1 = train_epoch(
             args, epoch, generator_models, discriminator_models, optimizerGs, optimizerDs,
             loader, dataset, characters, save_name, Files)
+        # rec_loss, fk_loss, G_loss, D_loss_real, D_loss_fake = train_epoch(
+        #     args, epoch, generator_models, discriminator_models, optimizerGs, optimizerDs,
+        #     loader, dataset, characters, save_name, Files)
 
         # wandb.log({"loss": rec_loss},           step=epoch)
         # wandb.log({"fk_loss": fk_loss},         step=epoch)
@@ -151,8 +154,8 @@ if args.is_train == 1:
 
         if epoch % 100 == 0:
             for i in range(args.n_topology):
-                save(generator_models[i], optimizerGs[i], path + save_name, "Gen", epoch)
-                save(discriminator_models[i], optimizerDs[i], path + save_name, "Dis", epoch)
+                save(generator_models[i], optimizerGs[i], path + save_name, "Gen", epoch, i)
+                save(discriminator_models[i], optimizerDs[i], path + save_name, "Dis", epoch, i)
 
 else:
     epoch = 30
