@@ -1,0 +1,5 @@
+[default]
+entity = inseo
+project = transformer-retargeting
+base_url = http://localhost:8080
+

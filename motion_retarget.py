@@ -75,9 +75,11 @@ args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args.n_topology = 2
 # args.model_save_dir = "models"
 log_path = os.path.join(args.save_dir, 'logs/')
-path = "./parameters/"
-save_name = "220131_3_Cross_rec/"
+para_path = "./parameters/"
+save_name = "220202_0_rec_fk/"
 
+import pdb; pdb.set_trace()
+wandb.init(project='retargeting')
 # wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 
@@ -133,18 +135,15 @@ for i in range(len(characters)):
 # args.epoch_begin = 500
 if args.epoch_begin:
     for i in range(args.n_topology):
-        load(generator_models[i],     optimizerGs[i], path+save_name, "Gen"+i+"_", args.epoch_begin)
-        load(discriminator_models[i], optimizerDs[i], path+save_name, "Dis"+i+"_", args.epoch_begin)
+        load(generator_models[i],     optimizerGs[i], para_path+save_name, "Gen"+i+"_", args.epoch_begin)
+        load(discriminator_models[i], optimizerDs[i], para_path+save_name, "Dis"+i+"_", args.epoch_begin)
 
 if args.is_train == 1:
     # for every epoch
     for epoch in range(args.epoch_begin, args.n_epoch):
-        rec_loss0, rec_loss1 = train_epoch(
+        rec_loss0, rec_loss1, fk_losses, G_loss, D_loss_real, D_loss_fake = train_epoch(
             args, epoch, generator_models, discriminator_models, optimizerGs, optimizerDs,
             loader, dataset, characters, save_name, Files)
-        # rec_loss, fk_loss, G_loss, D_loss_real, D_loss_fake = train_epoch(
-        #     args, epoch, generator_models, discriminator_models, optimizerGs, optimizerDs,
-        #     loader, dataset, characters, save_name, Files)
 
         # wandb.log({"loss": rec_loss},           step=epoch)
         # wandb.log({"fk_loss": fk_loss},         step=epoch)
@@ -154,14 +153,14 @@ if args.is_train == 1:
 
         if epoch % 100 == 0:
             for i in range(args.n_topology):
-                save(generator_models[i], optimizerGs[i], path + save_name, "Gen", epoch, i)
-                save(discriminator_models[i], optimizerDs[i], path + save_name, "Dis", epoch, i)
+                save(generator_models[i], optimizerGs[i], para_path + save_name, "Gen", epoch, i)
+                save(discriminator_models[i], optimizerDs[i], para_path + save_name, "Dis", epoch, i)
 
 else:
     epoch = 30
 
-    load(generator_model, path+save_name, "Gen", args.epoch_begin)
-    load(discriminator_model, path+save_name, "Dis", args.epoch_begin)
+    load(generator_model, para_path+save_name, "Gen", args.epoch_begin)
+    load(discriminator_model, para_path+save_name, "Dis", args.epoch_begin)
 
     # only test losses 
     eval_epoch(args, generator_model, discriminator_model, dataset, loader,

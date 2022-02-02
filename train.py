@@ -119,7 +119,6 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
 
             """ feed to NETWORK """
             for j in range(args.n_topology):
-                file = Files[j][character_idx] # change this 
                 optimizerGs[j].zero_grad()
                 optimizerDs[j].zero_grad()
 
@@ -171,6 +170,8 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
 
             """ Get LOSS (orienation & FK & regularization) """
             for j in range(args.n_topology):
+                file = Files[j][character_idx] # change this 
+
                 """ loss1. loss on each element """
                 if args.rec_loss == 1:
                     sum_Rec_loss = 0
@@ -182,52 +183,49 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
                         else:
                             rec_losses1.append(rec_loss.item()) 
 
-                    sum_Rec_loss.backward()
-                    optimizerGs[j].step()
-
                 """ loss 1-2. fk loss """
-                # if args.fk_loss == 1:
-                #     sum_FK_loss = 0
-                #     fk = ForwardKinematics(args, file.edges)
-                #     gt_transform     = fk.forward_from_raw \
-                #         (denorm_gt_motions[i].permute(0,2,1),     train_dataset.offsets[i][character_idx]).reshape(num_bs, -1, num_frame)
-                #     output_transform = fk.forward_from_raw \
-                #         (denorm_output_motions[i].permute(0,2,1), train_dataset.offsets[i][character_idx]).reshape(num_bs, -1, num_frame)
+                if args.fk_loss == 1:
+                    sum_FK_loss = 0
+                    fk = ForwardKinematics(args, file.edges)
+                    gt_transform     = fk.forward_from_raw \
+                        (denorm_gt_motions[j].permute(0,2,1),     train_dataset.offsets[j][character_idx]).reshape(num_bs, -1, num_frame)
+                    output_transform = fk.forward_from_raw \
+                        (denorm_output_motions[j].permute(0,2,1), train_dataset.offsets[j][character_idx]).reshape(num_bs, -1, num_frame)
 
-                #     gt_global_pos = fk.from_local_to_world(gt_transform).permute(0,2,1)
-                #     output_global_pos = fk.from_local_to_world(output_transform).permute(0,2,1)
+                    gt_global_pos = fk.from_local_to_world(gt_transform).permute(0,2,1)
+                    output_global_pos = fk.from_local_to_world(output_transform).permute(0,2,1)
 
-                #     for idx_batch in range(num_bs):
-                #         fk_loss = rec_criterion(gt_global_pos[idx_batch], output_global_pos[idx_batch])
-                #         sum_FK_loss += fk_loss
-                #         fk_losses.append(fk_loss.item())
+                    for idx_batch in range(num_bs):
+                        fk_loss = rec_criterion(gt_global_pos[idx_batch], output_global_pos[idx_batch])
+                        sum_FK_loss += fk_loss
+                        fk_losses.append(fk_loss.item())
 
                 # """ loss2. GAN Loss : (fake output: 0), (real_data: 1)  """
-                # if args.gan_loss == 1:
-                #     sum_G_loss = 0
-                #     sum_D_loss = 0
+                if args.gan_loss == 1:
+                    sum_G_loss = 0
+                    sum_D_loss = 0
                     
-                #     """ Generator """                
-                #     fake_output = modelDs[i](character_idx, character_idx, output_motions[i])
-                #     for idx_batch in range(num_bs):
-                #         G_loss = gan_criterion(fake_output[idx_batch], True)
-                #         sum_G_loss += G_loss
-                #         G_losses.append(G_loss.item())
+                    """ Generator """          
+                    fake_output = modelDs[j](character_idx, character_idx, output_motions[j])
+                    for idx_batch in range(num_bs):
+                        G_loss = gan_criterion(fake_output[idx_batch], True)
+                        sum_G_loss += G_loss
+                        G_losses.append(G_loss.item())
 
-                #     """ Discriminator """
-                #     # real 
-                #     real_output = modelDs[i](character_idx, character_idx, source_motions[i])
-                #     for idx_batch in range(num_bs):
-                #         D_loss_real = gan_criterion(real_output[idx_batch], True)
-                #         sum_D_loss += D_loss_real
-                #         D_losses_real.append(D_loss_real.item())
+                    """ Discriminator """
+                    # real 
+                    real_output = modelDs[j](character_idx, character_idx, gt_motions[j])
+                    for idx_batch in range(num_bs):
+                        D_loss_real = gan_criterion(real_output[idx_batch], True)
+                        sum_D_loss += D_loss_real
+                        D_losses_real.append(D_loss_real.item())
 
-                #     # fake
-                #     fake_output = modelDs(character_idx, character_idx, output_motions[i].detach())
-                #     for idx_batch in range(num_bs):
-                #         D_loss_fake = gan_criterion(fake_output[idx_batch], False)
-                #         sum_D_loss += D_loss_fake
-                #         D_losses_fake.append(D_loss_fake.item())
+                    # fake
+                    fake_output = modelDs[j](character_idx, character_idx, output_motions[j].detach())
+                    for idx_batch in range(num_bs):
+                        D_loss_fake = gan_criterion(fake_output[idx_batch], False)
+                        sum_D_loss += D_loss_fake
+                        D_losses_fake.append(D_loss_fake.item())
 
                 """ 5. atten score loss """
                 # if args.reg_loss == 1:
@@ -255,19 +253,19 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
                 #         reg_losses.append(loss.item())
 
                 """ Sum loss """
-                # generator_loss = sum_Rec_loss #+ sum_FK_loss + sum_G_loss
-                # discriminator_loss = sum_D_loss
+                generator_loss = sum_Rec_loss + sum_FK_loss + sum_G_loss
+                discriminator_loss = sum_D_loss
 
                 """ backward and optimize """
-                # requires_grad_(modelDs[i], False)
-                # optimizerGs[i].zero_grad()
-                # generator_loss.backward()
-                # optimizerGs[i].step()
+                requires_grad_(modelDs[j], False)
+                optimizerGs[j].zero_grad()
+                generator_loss.backward()
+                optimizerGs[j].step()
 
-                # requires_grad_(modelDs[i], True)
-                # optimizerD.zero_grad()
-                # discriminator_loss.backward() 
-                # optimizerD.step()
+                requires_grad_(modelDs[j], True)
+                optimizerDs[j].zero_grad()
+                discriminator_loss.backward() 
+                optimizerDs[j].step()
                 
                 """ check output error"""
                 # # check rec loss 
@@ -298,13 +296,9 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
 
             """ show info """
             pbar.update(1)
-            pbar.set_postfix_str(f"mean1: {np.mean(rec_losses0):.3f}, mean2: {np.mean(rec_losses1):.3f}")
-
-            # pbar.set_postfix_str(
-            #     f"mean: {np.mean(rec_losses):.3f}, fk_loss: {np.mean(fk_losses):.3f}, G_loss: {np.mean(G_losses):.3f}, D_loss_real: {np.mean(D_losses_real):.3f}, D_loss_fake: {np.mean(D_losses_fake):.3f}")
-
+            pbar.set_postfix_str(f"mean1: {np.mean(rec_losses0):.3f}, mean2: {np.mean(rec_losses1):.3f}, fk_loss: {np.mean(fk_losses):.3f}, G_loss: {np.mean(G_losses):.3f}, D_loss_real: {np.mean(D_losses_real):.3f}, D_loss_fake: {np.mean(D_losses_fake):.3f}")
 
         torch.cuda.empty_cache()
         del source_motions, gt_motions, output_motions
 
-    return np.mean(rec_losses0), np.mean(rec_losses1) # , np.mean(G_losses), np.mean(D_losses_real), np.mean(D_losses_fake)
+    return np.mean(rec_losses0), np.mean(rec_losses1), np.mean(fk_losses), np.mean(G_losses), np.mean(D_losses_real), np.mean(D_losses_fake)
