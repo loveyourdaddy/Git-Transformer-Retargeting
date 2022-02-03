@@ -66,17 +66,16 @@ def load(model, optimizer, path, name, epoch):
 
     print('load succeed')
 
-""" Set Env Parameters """
-writer = SummaryWriter('runs/Transformer-retargeting')
 
+
+""" Set Env Parameters """
 args = option_parser.get_args()
-# args = args_
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args.n_topology = 2
-# args.model_save_dir = "models"
-log_path = os.path.join(args.save_dir, 'logs/')
 para_path = "./parameters/"
 save_name = "220202_0_rec_fk/"
+log_dir = './run'
+writer = SummaryWriter(log_dir)
 
 # wandb.init(project='retargeting')
 # wandb.init(project='transformer-retargeting', entity='loveyourdaddy')

@@ -124,6 +124,7 @@ dmypy.json
 .pyre/
 
 # data / parameters folder
+run/*
 wandb/*
 venv/*
 __pycache__/*

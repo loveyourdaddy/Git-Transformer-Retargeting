@@ -35,7 +35,7 @@ class ForwardKinematics:
         new_shape[1] += 1
         new_shape[2] = 1
         rotation_final = identity.repeat(new_shape)
-
+        
         for i, j in enumerate(self.rotation_map):
             rotation_final[:, j, :, :] = rotation[:, i, :, :]
 
@@ -58,9 +58,6 @@ class ForwardKinematics:
         norm = torch.norm(rotation, dim=-1, keepdim=True) # 16,128,23,4 -> 16,128,23,1
         #norm[norm < 1e-10] = 1
 
-        # 이게 정말 필요할까요? 
-        # norm 이 0 인 경우는 어떻게 해야할까요?
-        # if quater:
         rotation = rotation / norm
 
         if quater:
@@ -77,7 +74,7 @@ class ForwardKinematics:
                 assert i == 0
                 continue
 
-            transform[..., i, :, :] = torch.matmul(transform[..., pi, :, :], transform[..., i, :, :])
+            transform[..., i, :, :] = torch.matmul(transform[..., pi, :, :].clone(), transform[..., i, :, :].clone())
             result[..., i, :] = torch.matmul(transform[..., i, :, :], offset[..., i, :, :]).squeeze()
             if world: result[..., i, :] += result[..., pi, :]
         return result
