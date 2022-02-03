@@ -8,7 +8,7 @@ from tqdm import tqdm
 from datasets.bvh_parser import BVH_file
 from datasets.bvh_writer import BVH_writer
 from models.Kinematics import ForwardKinematics
-from rendering import *
+# from rendering import *
 import torchvision
 from models.utils import GAN_loss
 import wandb
@@ -206,7 +206,7 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
                     sum_D_loss = 0
                     
                     """ Generator """          
-                    fake_output = modelDs[j](character_idx, character_idx, output_motions[j])
+                    fake_output = modelDs[j](character_idx, character_idx, output_motions[j].detach())
                     for idx_batch in range(num_bs):
                         G_loss = gan_criterion(fake_output[idx_batch], True)
                         sum_G_loss += G_loss
@@ -253,19 +253,19 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
                 #         reg_losses.append(loss.item())
 
                 """ Sum loss """
-                generator_loss = sum_Rec_loss + sum_FK_loss + sum_G_loss
+                generator_loss = sum_Rec_loss + sum_FK_loss# + sum_G_loss
                 discriminator_loss = sum_D_loss
 
                 """ backward and optimize """
-                requires_grad_(modelDs[j], False)
+                # requires_grad_(modelDs[j], False)
                 optimizerGs[j].zero_grad()
                 generator_loss.backward()
                 optimizerGs[j].step()
 
-                requires_grad_(modelDs[j], True)
-                optimizerDs[j].zero_grad()
-                discriminator_loss.backward() 
-                optimizerDs[j].step()
+                # requires_grad_(modelDs[j], True)
+                # optimizerDs[j].zero_grad()
+                # discriminator_loss.backward() 
+                # optimizerDs[j].step()
                 
                 """ check output error"""
                 # # check rec loss 

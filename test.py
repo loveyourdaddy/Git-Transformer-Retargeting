@@ -9,16 +9,13 @@ from tqdm import tqdm
 from datasets.bvh_parser import BVH_file
 from datasets.bvh_writer import BVH_writer
 from models.Kinematics import ForwardKinematics
-from rendering import *
+# from rendering import *
 from train import *
-
 
 SAVE_ATTENTION_DIR = "attention_vis/test"
 os.makedirs(SAVE_ATTENTION_DIR, exist_ok=True)
 
 """ eval """
-
-
 def eval_epoch(args, model, test_dataset, data_loader, characters, save_name, Files):
     model.eval()
     losses = []  # losses for test epoch # 매 스텝마다 초기화 되는 loss들

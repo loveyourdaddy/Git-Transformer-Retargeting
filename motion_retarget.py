@@ -1,4 +1,3 @@
-# import json
 import torch
 import os
 from datasets import bvh_writer
@@ -8,13 +7,12 @@ from model import MotionGenerator
 from model import Discriminator
 from datasets.bvh_parser import BVH_file
 from datasets.bvh_writer import BVH_writer
-import wandb
+# import wandb
 from train import *
 from test import *
+from torch.utils.tensorboard import SummaryWriter
 
 """ motion data collate function """
-
-
 def motion_collate_fn(inputs):
     # Data foramt: (4,96,1,69,32) (캐릭터수, , 1, 조인트, 윈도우)
     source_motions, target_motions = list(zip(*inputs)) #enc_input_motions, 
@@ -69,6 +67,8 @@ def load(model, optimizer, path, name, epoch):
     print('load succeed')
 
 """ Set Env Parameters """
+writer = SummaryWriter('runs/Transformer-retargeting')
+
 args = option_parser.get_args()
 # args = args_
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -78,8 +78,7 @@ log_path = os.path.join(args.save_dir, 'logs/')
 para_path = "./parameters/"
 save_name = "220202_0_rec_fk/"
 
-import pdb; pdb.set_trace()
-wandb.init(project='retargeting')
+# wandb.init(project='retargeting')
 # wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 
@@ -145,6 +144,13 @@ if args.is_train == 1:
             args, epoch, generator_models, discriminator_models, optimizerGs, optimizerDs,
             loader, dataset, characters, save_name, Files)
 
+        writer.add_scalar("Loss/rec_loss0", rec_loss0, epoch)
+        writer.add_scalar("Loss/rec_loss1", rec_loss1, epoch)
+        writer.add_scalar("Loss/fk_loss", fk_losses, epoch)
+        writer.add_scalar("Loss/G_loss", G_loss, epoch)
+        writer.add_scalar("Loss/D_loss_real", D_loss_real, epoch)
+        writer.add_scalar("Loss/D_loss_fake", D_loss_fake, epoch)
+        
         # wandb.log({"loss": rec_loss},           step=epoch)
         # wandb.log({"fk_loss": fk_loss},         step=epoch)
         # wandb.log({"G_loss": G_loss},           step=epoch)
