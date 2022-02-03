@@ -73,13 +73,13 @@ args = option_parser.get_args()
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args.n_topology = 2
 para_path = "./parameters/"
-save_name = "220202_0_rec_fk/"
 log_dir = './run'
-writer = SummaryWriter(log_dir)
+writer = SummaryWriter(log_dir, flush_secs=1)
+print("cuda availiable: {}".format(torch.cuda.is_available()))
+save_name = "220202_1_rec_fk_gan_vanliaGAN/"
 
 # wandb.init(project='retargeting')
 # wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
-print("cuda availiable: {}".format(torch.cuda.is_available()))
 
 """ load Motion Dataset """
 characters = get_character_names(args)

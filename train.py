@@ -195,44 +195,39 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
                         
 
                 """ loss2. GAN Loss : (fake output: 0), (real_data: 1)  """
-                if args.gan_loss == 1:                    
-                    """ Generator """          
-                    fake_output = modelDs[j](character_idx, character_idx, output_motions[j]) # .detach()
-                    for idx_batch in range(num_bs):
-                        G_loss = gan_criterion(fake_output[idx_batch], True)
-                        # sum_G_loss += G_loss
-                        G_losses.append(G_loss.item())
+                if args.gan_loss == 1:        
+                    optimizerDs[j].zero_grad()
+                    optimizerGs[j].zero_grad()            
+
+                    """ Generator """
+                    fake_output = modelDs[j](character_idx, character_idx, output_motions[j]).view(-1) # .detach()
+                    G_loss = gan_criterion(fake_output, True)
+                    G_losses.append(G_loss.item())
 
                     """ Discriminator """
                     # real 
-                    real_output = modelDs[j](character_idx, character_idx, gt_motions[j])
-                    for idx_batch in range(num_bs):
-                        D_loss_real = gan_criterion(real_output[idx_batch], True)
-                        # sum_D_loss += D_loss_real
-                        D_losses_real.append(D_loss_real.item())
+                    real_output = modelDs[j](character_idx, character_idx, gt_motions[j]).view(-1)
+                    D_loss_real = gan_criterion(real_output, True)
+                    D_losses_real.append(D_loss_real.item())
 
                     # fake
-                    fake_output = modelDs[j](character_idx, character_idx, output_motions[j].detach())
-                    for idx_batch in range(num_bs):
-                        D_loss_fake = gan_criterion(fake_output[idx_batch], False)
-                        # sum_D_loss += D_loss_fake
-                        D_losses_fake.append(D_loss_fake.item())
+                    fake_output = modelDs[j](character_idx, character_idx, output_motions[j].detach()).view(-1)
+                    D_loss_fake = gan_criterion(fake_output, False)
+                    D_losses_fake.append(D_loss_fake.item())
 
 
                 """ backward and optimize """
                 requires_grad_(modelDs[j], False)
                 generator_loss = rec_loss + fk_loss + G_loss
-                optimizerGs[j].zero_grad()
                 generator_loss.backward()
                 optimizerGs[j].step()
 
                 requires_grad_(modelDs[j], True)
                 discriminator_loss = D_loss_real + D_loss_fake
-                optimizerDs[j].zero_grad()
                 discriminator_loss.backward() 
                 optimizerDs[j].step()
 
-                
+
             """  remake root & BVH Writing """ 
             """ 3) remake root position from displacement """
             for j in range(args.n_topology):

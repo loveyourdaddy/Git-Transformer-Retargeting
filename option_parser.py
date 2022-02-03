@@ -48,7 +48,7 @@ def get_parser():
     # xyz embedding dimenstion: 69 -> (64) -> 32
     # quaternion embedding dimenstion: 91 -> 91 -> 111
     parser.add_argument('--embedding_dim', type=int, default=256,help='embedding dimension')  # window을 얼마나 줄일지에 대한 embedding
-    parser.add_argument('--gan_mode', type=str, default='lsgan')
+    parser.add_argument('--gan_mode', type=str, default='vanilla') # lsgan
 
     # loss 
     parser.add_argument('--rec_loss', type=int, default=1, help='1. rec loss')
