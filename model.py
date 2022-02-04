@@ -379,10 +379,10 @@ class MotionGenerator(nn.Module):
 
     """ Transofrmer """
     def forward(self, input_character, output_character, enc_inputs):
-        dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = self.transformer(
+        output, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = self.transformer(
             input_character, output_character, enc_inputs)
 
-        output = self.projection(dec_outputs)
+        output = self.projection(output)
 
         return output, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
 

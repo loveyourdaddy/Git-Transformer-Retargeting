@@ -67,19 +67,15 @@ def load(model, optimizer, path, name, epoch):
     print('load succeed')
 
 
-
 """ Set Env Parameters """
 args = option_parser.get_args()
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args.n_topology = 2
 para_path = "./parameters/"
-log_dir = './run'
-writer = SummaryWriter(log_dir, flush_secs=1)
 print("cuda availiable: {}".format(torch.cuda.is_available()))
-save_name = "220202_1_rec_fk_gan_vanliaGAN/"
-
-# wandb.init(project='retargeting')
-# wandb.init(project='transformer-retargeting', entity='loveyourdaddy')
+save_name = "220204_0_rec_fk_consistency_loss/"
+log_dir = './run/' + save_name
+writer = SummaryWriter(log_dir, flush_secs=1)
 
 """ load Motion Dataset """
 characters = get_character_names(args)
@@ -139,7 +135,7 @@ if args.epoch_begin:
 if args.is_train == 1:
     # for every epoch
     for epoch in range(args.epoch_begin, args.n_epoch):
-        rec_loss0, rec_loss1, fk_losses, G_loss, D_loss_real, D_loss_fake = train_epoch(
+        rec_loss0, rec_loss1, fk_losses, G_loss, D_loss_real, D_loss_fake, consist_loss = train_epoch(
             args, epoch, generator_models, discriminator_models, optimizerGs, optimizerDs,
             loader, dataset, characters, save_name, Files)
 
@@ -149,6 +145,7 @@ if args.is_train == 1:
         writer.add_scalar("Loss/G_loss", G_loss, epoch)
         writer.add_scalar("Loss/D_loss_real", D_loss_real, epoch)
         writer.add_scalar("Loss/D_loss_fake", D_loss_fake, epoch)
+        writer.add_scalar("Loss/consist_loss", consist_loss, epoch)
         
         # wandb.log({"loss": rec_loss},           step=epoch)
         # wandb.log({"fk_loss": fk_loss},         step=epoch)

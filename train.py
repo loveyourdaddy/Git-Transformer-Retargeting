@@ -3,6 +3,7 @@ import os
 import numpy as np
 # from wandb import set_trace
 from datasets import get_character_names
+from model import ProjectionNet
 import option_parser
 from tqdm import tqdm
 from datasets.bvh_parser import BVH_file
@@ -69,20 +70,18 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
     gt_motions              = [0] * n_topology
     denorm_gt_motions       = [0] * n_topology
     denorm_output_motions   = [0] * n_topology
+    latent_feature          = [0] * n_topology
 
-    fk_losses     = []
-    rec_losses0   = []
-    rec_losses1   = []
-    G_losses      = []
-    D_losses_fake = []
-    D_losses_real = []
+    # set loss list to mean
+    rec_loss   = [0] * n_topology
+    fk_loss   = [0] * n_topology
+    consist_loss   = [0] * n_topology
     
-    # set loss list 
-    # fk_losses     = [0] * n_topology
-    # rec_losses    = [0] * n_topology
-    # G_losses      = [0] * n_topology
-    # D_losses_fake = [0] * n_topology
-    # D_losses_real = [0] * n_topology
+    # set loss list to mean
+    rec_losses0    = []
+    rec_losses1    = []
+    fk_losses      = []
+    consist_losses = []
 
     for i in range(n_topology):
         modelGs[i].train()
@@ -117,36 +116,11 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
             motion_idx = get_curr_motion(i, args.batch_size)
             character_idx = get_curr_character(motion_idx, args.num_motions)
 
-            # for j in range(args.n_topology):
-            #     optimizerGs[j].zero_grad()
-            #     optimizerDs[j].zero_grad()
-
-                # output_motions[j], enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = modelGs[j](
-                #     character_idx, character_idx, input_motions[j])
-
-            # """ save attention map """
-            # if epoch % 100 == 0:
-            #     bs = enc_self_attn_probs[0].size(0)
-            #     img_size = enc_self_attn_probs[0].size(2)
-            #     for att_layer_index, enc_self_attn_prob in enumerate(enc_self_attn_probs):
-            #         att_map = enc_self_attn_prob.view(bs*4, -1, img_size, img_size)
-            #         torchvision.utils.save_image(att_map, \
-            #             f"./{SAVE_ATTENTION_DIR}/enc_{att_layer_index}_{epoch:04d}.jpg", range=(0, 1), normalize=True)
-
-            #     img_size = dec_self_attn_probs[0].size(2)
-            #     for att_layer_index, dec_self_attn_prob in enumerate(dec_self_attn_probs):
-            #         att_map = dec_self_attn_prob.view(bs*4, -1, img_size, img_size)
-            #         torchvision.utils.save_image(att_map, \
-            #             f"./{SAVE_ATTENTION_DIR}/dec_{att_layer_index}_{epoch:04d}.jpg", range=(0, 1), normalize=True)
-
-            #     img_size = dec_enc_attn_probs[0].size(2)
-            #     for att_layer_index, dec_enc_attn_prob in enumerate(dec_enc_attn_probs):
-            #         att_map = dec_enc_attn_prob.view(bs*4, -1, img_size, img_size)
-            #         torchvision.utils.save_image(att_map, \
-            #             f"./{SAVE_ATTENTION_DIR}/enc_dec_{att_layer_index}_{epoch:04d}.jpg", range=(0, 1), normalize=True)
 
             """ Get LOSS (orienation & FK & regularization) """
             for j in range(args.n_topology):
+                optimizerDs[j].zero_grad()
+                optimizerGs[j].zero_grad()            
 
                 """ feed to NETWORK """
                 output_motions[j], enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = modelGs[j](
@@ -155,11 +129,12 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
                 """ loss1. loss on each element """
                 if args.rec_loss == 1:                    
                     # get rec loss 
-                    rec_loss = rec_criterion(gt_motions[j], output_motions[j])
+                    loss = rec_criterion(gt_motions[j], output_motions[j])
+                    rec_loss[j] = loss
                     if j == 0:
-                        rec_losses0.append(rec_loss.item())
+                        rec_losses0.append(loss.item())
                     else:
-                        rec_losses1.append(rec_loss.item()) 
+                        rec_losses1.append(loss.item()) 
 
 
                 """ loss 1-2. fk loss """
@@ -190,42 +165,56 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
                     output_global_pos = fk.from_local_to_world(output_transform).permute(0,2,1)
 
                     # for idx_batch in range(num_bs):
-                    fk_loss = rec_criterion(gt_global_pos, output_global_pos)
-                    fk_losses.append(fk_loss.item())
+                    loss = rec_criterion(gt_global_pos, output_global_pos)
+                    fk_loss[j] = loss
+                    fk_losses.append(loss.item())
                         
 
                 """ loss2. GAN Loss : (fake output: 0), (real_data: 1)  """
-                if args.gan_loss == 1:        
-                    optimizerDs[j].zero_grad()
-                    optimizerGs[j].zero_grad()            
+                # if args.gan_loss == 1:
 
-                    """ Generator """
-                    fake_output = modelDs[j](character_idx, character_idx, output_motions[j]).view(-1) # .detach()
-                    G_loss = gan_criterion(fake_output, True)
-                    G_losses.append(G_loss.item())
+                #     """ Generator """
+                #     fake_output = modelDs[j](character_idx, character_idx, output_motions[j]).view(-1) # .detach()
+                #     G_loss = gan_criterion(fake_output, True)
+                #     G_losses.append(G_loss.item())
 
-                    """ Discriminator """
-                    # real 
-                    real_output = modelDs[j](character_idx, character_idx, gt_motions[j]).view(-1)
-                    D_loss_real = gan_criterion(real_output, True)
-                    D_losses_real.append(D_loss_real.item())
+                #     """ Discriminator """
+                #     # real 
+                #     real_output = modelDs[j](character_idx, character_idx, gt_motions[j]).view(-1)
+                #     D_loss_real = gan_criterion(real_output, True)
+                #     D_losses_real.append(D_loss_real.item())
 
-                    # fake
-                    fake_output = modelDs[j](character_idx, character_idx, output_motions[j].detach()).view(-1)
-                    D_loss_fake = gan_criterion(fake_output, False)
-                    D_losses_fake.append(D_loss_fake.item())
+                #     # fake
+                #     fake_output = modelDs[j](character_idx, character_idx, output_motions[j].detach()).view(-1)
+                #     D_loss_fake = gan_criterion(fake_output, False)
+                #     D_losses_fake.append(D_loss_fake.item())
 
 
-                """ backward and optimize """
-                requires_grad_(modelDs[j], False)
-                generator_loss = rec_loss + fk_loss + G_loss
+            """ loss3. consistency Loss """
+            if args.consist_loss == 1:
+                for j in range(args.n_topology):
+                    enc_output, _, _ = modelGs[j].transformer.encoder(character_idx, input_motions[j])
+                    latent_feature[j] = modelGs[j].transformer.projection_net(enc_output)
+                
+                loss = rec_criterion(latent_feature[0], latent_feature[1])
+                consist_losses.append(loss.item())
+                for j in range(args.n_topology):                    
+                    consist_loss[j] = loss
+
+            """ backward and optimize """
+            for j in range(args.n_topology):
+                import pdb; pdb.set_trace()
+                generator_loss = rec_loss[j] + fk_loss[j] + consist_loss[j] #  + G_loss
                 generator_loss.backward()
                 optimizerGs[j].step()
 
-                requires_grad_(modelDs[j], True)
-                discriminator_loss = D_loss_real + D_loss_fake
-                discriminator_loss.backward() 
-                optimizerDs[j].step()
+                # requires_grad_(modelDs[j], False)
+                # generator_loss = rec_loss + consist_loss
+
+                # requires_grad_(modelDs[j], True)
+                # discriminator_loss = D_loss_real + D_loss_fake
+                # discriminator_loss.backward() 
+                # optimizerDs[j].step()
 
 
             """  remake root & BVH Writing """ 
