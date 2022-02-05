@@ -19,9 +19,6 @@ SAVE_ATTENTION_DIR_INTRA = "attention_vis_intra"
 os.makedirs(SAVE_ATTENTION_DIR, exist_ok=True)
 os.makedirs(SAVE_ATTENTION_DIR_INTRA, exist_ok=True)
 
-# def get_data_numbers(motion):
-#     return motion.size(0), motion.size(1), motion.size(2)
-
 def get_curr_motion(iter, batch_size):
     return iter * batch_size
 
@@ -72,16 +69,16 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
     denorm_output_motions   = [0] * n_topology
     latent_feature          = [0] * n_topology
 
-    # set loss list to mean
-    rec_loss   = [0] * n_topology
-    fk_loss   = [0] * n_topology
-    consist_loss   = [0] * n_topology
+    # loss to backward
+    rec_loss     = [0] * n_topology
+    fk_loss      = [0] * n_topology
+    consist_loss = [0] * n_topology
     
     # set loss list to mean
-    rec_losses0    = []
-    rec_losses1    = []
-    fk_losses      = []
-    consist_losses = []
+    rec_losses0     = [0] * n_topology
+    rec_losses1     = [0] * n_topology
+    fk_losses       = [0] * n_topology
+    consist_losses  = [0] * n_topology
 
     for i in range(n_topology):
         modelGs[i].train()
@@ -91,23 +88,30 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
     character_idx = 0
     rec_criterion = torch.nn.MSELoss()
     gan_criterion = GAN_loss(args.gan_mode).to(args.cuda_device)
-
+    
+    save_dir = args.save_dir + save_name
+    try_mkdir(save_dir)
+    
     with tqdm(total=len(train_loader), desc=f"TrainEpoch {epoch}") as pbar:
-        save_dir = args.save_dir + save_name
-        try_mkdir(save_dir)
-
         for i, value in enumerate(train_loader):
 
             """ Get Data and Set value to model and Get output """
             source_motions, target_motions = map(lambda v: v.to(args.cuda_device), value)
 
-            input_motions[0] = source_motions
-            input_motions[1] = target_motions
-            gt_motions[0] = source_motions
-            gt_motions[1] = target_motions
+            for j in range(args.n_topology):
+                if j == 0 : 
+                    input_motions[j] = source_motions
+                    gt_motions[j] = source_motions
+                else:
+                    input_motions[j] = target_motions
+                    gt_motions[j] = target_motions
 
             # """ Get Data numbers: (bs, DoF, window) """
-            num_bs, Dim1, Dim2 = target_motions.size(0), target_motions.size(1), target_motions.size(2)
+            if j == 0 : 
+                num_bs, Dim1, Dim2 = source_motions.size(0), source_motions.size(1), source_motions.size(2)
+            else:
+                num_bs, Dim1, Dim2 = target_motions.size(0), target_motions.size(1), target_motions.size(2)
+
             if args.swap_dim == 0:
                 num_frame, num_DoF = Dim1, Dim2
             else:
@@ -123,103 +127,86 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
                 optimizerGs[j].zero_grad()            
 
                 """ feed to NETWORK """
-                output_motions[j], enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = modelGs[j](
+                output_motions[j], _, _, _ = modelGs[j](
                     character_idx, character_idx, input_motions[j])
 
                 """ loss1. loss on each element """
-                if args.rec_loss == 1:                    
+                if args.rec_loss == 1:
                     # get rec loss 
-                    loss = rec_criterion(gt_motions[j], output_motions[j])
-                    rec_loss[j] = loss
+                    rec_loss[j] = 0
+                    for idx_batch in range(num_bs):
+                        loss = rec_criterion(gt_motions[j][idx_batch], output_motions[j][idx_batch])
+                        rec_loss[j] += loss
+
                     if j == 0:
                         rec_losses0.append(loss.item())
                     else:
                         rec_losses1.append(loss.item()) 
 
-
-                """ loss 1-2. fk loss """
-                if args.fk_loss == 1:
-                    # Data post-processing
-                    """ 1) denorm """
-                    if args.normalization == 1:
-                        denorm_gt_motions[j]     = denormalize(train_dataset, character_idx, gt_motions[j], j)
-                        denorm_output_motions[j] = denormalize(train_dataset, character_idx, output_motions[j], j)
-                    else:
-                        denorm_gt_motions[j]     = gt_motions[j]
-                        denorm_output_motions[j] = output_motions[j]
-                    """ 2) swap dim """
-                    if args.swap_dim == 1:
-                        denorm_gt_motions[j]     = torch.transpose(denorm_gt_motions[j], 1, 2)
-                        denorm_output_motions[j] = torch.transpose(denorm_output_motions[j], 1, 2)
-
-                    # Get fk 
-                    file = Files[j][character_idx] 
-                    fk = ForwardKinematics(args, file.edges)
-                    
-                    # Get transform (local)
-                    gt_transform     = fk.forward_from_raw(denorm_gt_motions[j].permute(0,2,1),     train_dataset.offsets[j][character_idx]).reshape(num_bs, -1, num_frame)
-                    output_transform = fk.forward_from_raw(denorm_output_motions[j].permute(0,2,1), train_dataset.offsets[j][character_idx]).reshape(num_bs, -1, num_frame)
-
-                    # Get global pos
-                    gt_global_pos = fk.from_local_to_world(gt_transform).permute(0,2,1)
-                    output_global_pos = fk.from_local_to_world(output_transform).permute(0,2,1)
-
-                    # for idx_batch in range(num_bs):
-                    loss = rec_criterion(gt_global_pos, output_global_pos)
-                    fk_loss[j] = loss
-                    fk_losses.append(loss.item())
-                        
-
-                """ loss2. GAN Loss : (fake output: 0), (real_data: 1)  """
-                # if args.gan_loss == 1:
-
-                #     """ Generator """
-                #     fake_output = modelDs[j](character_idx, character_idx, output_motions[j]).view(-1) # .detach()
-                #     G_loss = gan_criterion(fake_output, True)
-                #     G_losses.append(G_loss.item())
-
-                #     """ Discriminator """
-                #     # real 
-                #     real_output = modelDs[j](character_idx, character_idx, gt_motions[j]).view(-1)
-                #     D_loss_real = gan_criterion(real_output, True)
-                #     D_losses_real.append(D_loss_real.item())
-
-                #     # fake
-                #     fake_output = modelDs[j](character_idx, character_idx, output_motions[j].detach()).view(-1)
-                #     D_loss_fake = gan_criterion(fake_output, False)
-                #     D_losses_fake.append(D_loss_fake.item())
-
-
             """ loss3. consistency Loss """
             if args.consist_loss == 1:
                 for j in range(args.n_topology):
-                    enc_output, _, _ = modelGs[j].transformer.encoder(character_idx, input_motions[j])
+                    enc_output, _, _  = modelGs[j].transformer.encoder(character_idx, input_motions[j])
                     latent_feature[j] = modelGs[j].transformer.projection_net(enc_output)
                 
                 loss = rec_criterion(latent_feature[0], latent_feature[1])
                 consist_losses.append(loss.item())
-                for j in range(args.n_topology):                    
-                    consist_loss[j] = loss
+                for j in range(args.n_topology):
+                    consist_loss[j] = loss.clone().detach().requires_grad_(True)
 
             """ backward and optimize """
             for j in range(args.n_topology):
-                import pdb; pdb.set_trace()
-                generator_loss = rec_loss[j] + fk_loss[j] + consist_loss[j] #  + G_loss
+                generator_loss = rec_loss[j] + consist_loss[j]
                 generator_loss.backward()
                 optimizerGs[j].step()
 
-                # requires_grad_(modelDs[j], False)
-                # generator_loss = rec_loss + consist_loss
 
-                # requires_grad_(modelDs[j], True)
-                # discriminator_loss = D_loss_real + D_loss_fake
-                # discriminator_loss.backward() 
-                # optimizerDs[j].step()
+                """ loss 1-2. fk loss """
+                # if args.fk_loss == 1:
+                #     # Data post-processing
+                #     """ 1) denorm """
+                #     if args.normalization == 1:
+                #         denorm_gt_motions[j]     = denormalize(train_dataset, character_idx, gt_motions[j], j)
+                #         denorm_output_motions[j] = denormalize(train_dataset, character_idx, output_motions[j], j)
+                #     else:
+                #         denorm_gt_motions[j]     = gt_motions[j]
+                #         denorm_output_motions[j] = output_motions[j]
+                #     """ 2) swap dim """
+                #     if args.swap_dim == 1:
+                #         denorm_gt_motions[j]     = torch.transpose(denorm_gt_motions[j], 1, 2)
+                #         denorm_output_motions[j] = torch.transpose(denorm_output_motions[j], 1, 2)
 
+                #     # Get fk 
+                #     file = Files[j][character_idx] 
+                #     fk = ForwardKinematics(args, file.edges)
+                    
+                #     # Get transform (local)
+                #     gt_transform     = fk.forward_from_raw(denorm_gt_motions[j].permute(0,2,1),     train_dataset.offsets[j][character_idx]).reshape(num_bs, -1, num_frame)
+                #     output_transform = fk.forward_from_raw(denorm_output_motions[j].permute(0,2,1), train_dataset.offsets[j][character_idx]).reshape(num_bs, -1, num_frame)
+
+                #     # Get global pos
+                #     gt_global_pos = fk.from_local_to_world(gt_transform).permute(0,2,1)
+                #     output_global_pos = fk.from_local_to_world(output_transform).permute(0,2,1)
+
+                #     # for idx_batch in range(num_bs):
+                #     loss2 = rec_criterion(gt_global_pos, output_global_pos)
+                #     fk_loss[j] = loss2
+                #     fk_losses.append(loss2.item())
 
             """  remake root & BVH Writing """ 
-            """ 3) remake root position from displacement """
             for j in range(args.n_topology):
+                """ 1) denorm """
+                if args.normalization == 1:
+                    denorm_gt_motions[j]     = denormalize(train_dataset, character_idx, gt_motions[j], j)
+                    denorm_output_motions[j] = denormalize(train_dataset, character_idx, output_motions[j], j)
+                else:
+                    denorm_gt_motions[j]     = gt_motions[j]
+                    denorm_output_motions[j] = output_motions[j]
+                """ 2) swap dim """
+                if args.swap_dim == 1:
+                    denorm_gt_motions[j]     = torch.transpose(denorm_gt_motions[j], 1, 2)
+                    denorm_output_motions[j] = torch.transpose(denorm_output_motions[j], 1, 2)
+                """ 3) remake root position from displacement """
                 if args.root_pos_disp == 1:
                     denorm_gt_motions[j] = remake_root_position_from_displacement(
                         args, denorm_gt_motions[j], num_bs, num_frame, num_DoF)
@@ -236,9 +223,12 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
 
             """ show info """
             pbar.update(1)
-            pbar.set_postfix_str(f"mean1: {np.mean(rec_losses0):.3f}, mean2: {np.mean(rec_losses1):.3f}, fk_loss: {np.mean(fk_losses):.3f}, G_loss: {np.mean(G_losses):.3f}, D_loss_real: {np.mean(D_losses_real):.3f}, D_loss_fake: {np.mean(D_losses_fake):.3f}")
+            pbar.set_postfix_str(
+                f"mean1: {np.mean(rec_losses0):.3f}, mean2: {np.mean(rec_losses1):.3f}, consist_losses: {np.mean(consist_losses):.3f}")
+            # fk_loss: {np.mean(fk_losses):.3f},
 
         torch.cuda.empty_cache()
         del source_motions, gt_motions, output_motions
 
-    return np.mean(rec_losses0), np.mean(rec_losses1), np.mean(fk_losses), np.mean(G_losses), np.mean(D_losses_real), np.mean(D_losses_fake)
+    return np.mean(rec_losses0), np.mean(rec_losses1), np.mean(consist_losses)
+    # np.mean(fk_losses),

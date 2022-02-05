@@ -12,7 +12,7 @@ def get_parser():
     parser.add_argument('--render', type=int, default=0)
 
     # learning parameter
-    parser.add_argument('--learning_rate', type=float, default=5e-5 , help='lr')  # 2e-4 # 5e-5
+    parser.add_argument('--learning_rate', type=float, default=1e-4 , help='lr')  # 2e-4 # 5e-5
     parser.add_argument('--weight_decay', type=float, default=1)
     parser.add_argument('--alpha', type=float, default=0, help='penalty of sparsity')
     parser.add_argument('--activation', type=str, default='LeakyReLU', help='activation: ReLU, LeakyReLU, tanh')
@@ -51,10 +51,10 @@ def get_parser():
 
     # loss 
     parser.add_argument('--rec_loss',     type=int, default=1, help='1. rec loss')
-    parser.add_argument('--fk_loss',      type=int, default=1, help='1-2. fk loss')    
+    parser.add_argument('--fk_loss',      type=int, default=0, help='1-2. fk loss')    
     parser.add_argument('--consist_loss', type=int, default=1, help='2. consistency loss')
-    parser.add_argument('--gan_loss',     type=int, default=0, help='3. gan loss')    
-    parser.add_argument('--reg_loss',     type=int, default=0, help='5. regularization loss on score(prob) matrix')
+    # parser.add_argument('--gan_loss',     type=int, default=0, help='3. gan loss')    
+    # parser.add_argument('--reg_loss',     type=int, default=0, help='5. regularization loss on score(prob) matrix')
     # 3. latency consistenecy
     # 4. ee loss 
 
