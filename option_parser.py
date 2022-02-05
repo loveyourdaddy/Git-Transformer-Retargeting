@@ -24,9 +24,6 @@ def get_parser():
     parser.add_argument('--rotation', type=str, default='quaternion', help='representatio0 of rotation:xyz, quaternion')
     parser.add_argument('--window_size', type=int, default=128, help='length of time axis per window')
     parser.add_argument('--num_motions', type=int, default=1)    
-    # parser.add_argument('--input_size', type=int, default=0, help='')
-    # parser.add_argument('--output_size', type=int, default=0, help='')
-    # parser.add_argument('--n_enc_seq', type=int, default=0, help='')
 
     # Dataset representation (flag)
     parser.add_argument('--normalization', type=int, default=1)
@@ -55,7 +52,6 @@ def get_parser():
     parser.add_argument('--consist_loss', type=int, default=1, help='2. consistency loss')
     # parser.add_argument('--gan_loss',     type=int, default=0, help='3. gan loss')    
     # parser.add_argument('--reg_loss',     type=int, default=0, help='5. regularization loss on score(prob) matrix')
-    # 3. latency consistenecy
     # 4. ee loss 
 
     return parser

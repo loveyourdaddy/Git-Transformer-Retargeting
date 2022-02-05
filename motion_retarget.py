@@ -57,7 +57,7 @@ args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args.n_topology = 2
 para_path = "./parameters/"
 print("cuda availiable: {}".format(torch.cuda.is_available()))
-save_name = "220205_1_rec/"
+save_name = "220205_6_Rec_ltc/"
 log_dir = './run/' + save_name
 writer = SummaryWriter(log_dir, flush_secs=1)
 
@@ -74,6 +74,7 @@ generator_models = []
 discriminator_models = []
 optimizerGs = []
 optimizerDs = []
+# Get models
 for i in range(args.n_topology):
     # model 
     generator_model     = MotionGenerator(args, offsets, i)

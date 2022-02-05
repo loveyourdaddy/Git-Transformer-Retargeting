@@ -38,14 +38,18 @@ def remake_root_position_from_displacement(args, motions, num_bs, num_frame, num
     return motions
 
 def write_bvh(save_dir, gt_or_output_epoch, motion, characters, character_idx, motion_idx, args,i):
-    save_dir_gt = save_dir + "character{}_{}/{}/".format(
-        character_idx, characters[i][character_idx], gt_or_output_epoch)
-    try_mkdir(save_dir_gt)
+    if i == 0: 
+        group = 'intra/'
+    else: 
+        group = 'cross/'
+
+    save_dir = save_dir + group + "character{}_{}/{}/".format(character_idx, characters[i][character_idx], gt_or_output_epoch)
+    try_mkdir(save_dir)
     file = BVH_file(option_parser.get_std_bvh(dataset=characters[i][character_idx]))
 
     bvh_writer = BVH_writer(file.edges, file.names)
     for j in range(args.batch_size):
-        file_name = save_dir_gt + \
+        file_name = save_dir + \
             "motion_{}.bvh".format(int(motion_idx % args.num_motions + j))
         bvh_writer.write_raw(motion[j], args.rotation, file_name)
 
@@ -86,7 +90,8 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
 
     args.epoch = epoch
     character_idx = 0
-    rec_criterion = torch.nn.MSELoss()
+    rec_criterion = torch.nn.MSELoss(reduction='sum')
+    ltc_criterion = torch.nn.L1Loss(reduce='sum')
     gan_criterion = GAN_loss(args.gan_mode).to(args.cuda_device)
     
     save_dir = args.save_dir + save_name
@@ -122,41 +127,39 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
 
 
             """ Get LOSS (orienation & FK & regularization) """
+            """ feed to NETWORK """
             for j in range(args.n_topology):
                 optimizerDs[j].zero_grad()
-                optimizerGs[j].zero_grad()            
-
-                """ feed to NETWORK """
-                output_motions[j], _, _, _ = modelGs[j](
-                    character_idx, character_idx, input_motions[j])
-
-                """ loss1. loss on each element """
+                optimizerGs[j].zero_grad()
+                output_motions[j], _, _, _ = modelGs[j](character_idx, character_idx, input_motions[j])
+            
+            """ loss1. loss on each element """
+            for j in range(args.n_topology):
                 if args.rec_loss == 1:
                     # get rec loss 
-                    rec_loss[j] = 0
-                    for idx_batch in range(num_bs):
-                        loss = rec_criterion(gt_motions[j][idx_batch], output_motions[j][idx_batch])
-                        rec_loss[j] += loss
-
+                    loss = rec_criterion(gt_motions[j], output_motions[j])
+                    rec_loss[j] = loss
                     if j == 0:
                         rec_losses0.append(loss.item())
                     else:
                         rec_losses1.append(loss.item()) 
 
             """ loss3. consistency Loss """
-            if args.consist_loss == 1:
-                for j in range(args.n_topology):
-                    enc_output, _, _  = modelGs[j].transformer.encoder(character_idx, input_motions[j])
-                    latent_feature[j] = modelGs[j].transformer.projection_net(enc_output)
+            # if args.consist_loss == 1:
+            #     for j in range(args.n_topology):
+            #         enc_output, _, _  = modelGs[j].transformer.encoder(character_idx, input_motions[j])
+            #         latent_feature[j] = modelGs[j].transformer.projection_net(enc_output)
                 
-                loss = rec_criterion(latent_feature[0], latent_feature[1])
-                consist_losses.append(loss.item())
-                for j in range(args.n_topology):
-                    consist_loss[j] = loss.clone().detach().requires_grad_(True)
+            #     loss = ltc_criterion(latent_feature[0], latent_feature[1])
+            #     consist_loss[j] += loss
+            #     consist_losses.append(loss.item())
+
+            #     for j in range(args.n_topology):
+            #         consist_loss[j] = loss.clone().detach().requires_grad_(True)
 
             """ backward and optimize """
             for j in range(args.n_topology):
-                generator_loss = rec_loss[j] + consist_loss[j]
+                generator_loss = rec_loss[j]  #+ consist_loss[j]
                 generator_loss.backward()
                 optimizerGs[j].step()
 
@@ -215,16 +218,16 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
                 
                 """ BVH Writing """ 
                 if epoch == 0:
-                    write_bvh(save_dir, "gt"+str(j), denorm_gt_motions[j],
+                    write_bvh(save_dir, "gt", denorm_gt_motions[j],
                             characters, character_idx, motion_idx, args, j)
                 if epoch % 100 == 0:
-                    write_bvh(save_dir, "output"+str(j)+"_"+str(epoch), denorm_output_motions[j],
+                    write_bvh(save_dir, "output"+str(epoch), denorm_output_motions[j],
                             characters, character_idx, motion_idx, args, j)
 
             """ show info """
             pbar.update(1)
             pbar.set_postfix_str(
-                f"mean1: {np.mean(rec_losses0):.3f}, mean2: {np.mean(rec_losses1):.3f}, consist_losses: {np.mean(consist_losses):.3f}")
+                f"mean1: {np.mean(rec_losses0):.3f}, mean2: {np.mean(rec_losses1):.3f}, consist: {np.mean(consist_losses):.3f}")
             # fk_loss: {np.mean(fk_losses):.3f},
 
         torch.cuda.empty_cache()

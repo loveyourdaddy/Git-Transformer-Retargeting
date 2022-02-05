@@ -193,40 +193,32 @@ class Encoder(nn.Module):
             self.input_size = args.window_size
         self.embedding_dim = args.embedding_dim
 
-        """ Embedding networks """
-        # input embedding
-        self.input_embedding = nn.Linear(self.input_size, self.embedding_dim)
+        # """ Embedding networks """
+        # # input embedding
+        # self.input_embedding = nn.Linear(self.input_size, self.embedding_dim)
 
-        # Positional Embedding
-        self.sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(
-            self.args.window_size + 1, self.embedding_dim))
-        self.pos_emb = nn.Embedding.from_pretrained(
-            self.sinusoid_table, freeze=True)
+        # # Positional Embedding
+        # self.sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(
+        #     self.args.window_size + 1, self.embedding_dim))
+        # self.pos_emb = nn.Embedding.from_pretrained(
+        #     self.sinusoid_table, freeze=True)
 
         """ Layer """
         self.fc1 = nn.Linear(self.embedding_dim, self.embedding_dim)
-        self.layers = nn.ModuleList(
-            [EncoderLayer(self.args) for _ in range(self.args.n_layer)])
+        self.layers = nn.ModuleList([EncoderLayer(self.args) for _ in range(self.args.n_layer)])
         self.projection = nn.Linear(self.embedding_dim, self.embedding_dim)
 
     def forward(self, input_character, inputs):
-        """ option for add_offset """
-        if self.args.add_offset:
-            offset = self.offset[input_character]
-            offset = torch.reshape(offset, (-1, 1)).unsqueeze(0).expand(
-                inputs.size(0), -1, -1).to(torch.device(inputs.device))
-            inputs = torch.cat([inputs, offset], dim=-1)
+        # """ Get Position and Embedding """
+        # if self.args.data_encoding:
+        #     positions = torch.arange(inputs.size(1), device=inputs.device, dtype=torch.long)\
+        #         .unsqueeze(0).expand(inputs.size(0), inputs.size(1)).contiguous() + 1
 
-        """ Get Position and Embedding """
-        if self.args.data_encoding:
-            positions = torch.arange(inputs.size(1), device=inputs.device, dtype=torch.long)\
-                .unsqueeze(0).expand(inputs.size(0), inputs.size(1)).contiguous() + 1
+        #     position_encoding = self.pos_emb(positions)
 
-            position_encoding = self.pos_emb(positions)
+        #     input_embedding = self.input_embedding(inputs)
 
-            input_embedding = self.input_embedding(inputs)
-
-            inputs = input_embedding + position_encoding
+        #     inputs = input_embedding + position_encoding
 
         outputs = self.fc1(inputs)
 
@@ -239,6 +231,55 @@ class Encoder(nn.Module):
         outputs = self.projection(outputs)
 
         return outputs, attn_probs, context
+
+
+class Decoder(nn.Module):
+    def __init__(self, args, offset):
+        super().__init__()
+        self.args = args
+        self.offset = offset
+        self.embedding_dim = args.embedding_dim
+        if args.swap_dim == 0:
+            self.output_size = args.output_size
+        else:
+            self.output_size = args.window_size
+
+        """ layers """
+        # self.deprojection = nn.Linear(self.embedding_dim, self.embedding_dim)  # d_hidn
+        self.fc1 = nn.Linear(self.embedding_dim, self.embedding_dim)
+        self.layers = nn.ModuleList([DecoderLayer(self.args) for _ in range(self.args.n_layer)])
+        self.de_embedding = nn.Linear(self.embedding_dim, self.output_size)
+
+        # """ De-embedding / Embedding networks """
+        # # input embedding
+        # self.input_embedding = nn.Linear(
+        #     self.embedding_dim, self.embedding_dim)
+        # # Positional Embedding
+        # self.sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(
+        #     self.args.window_size + 1, self.embedding_dim))
+        # self.pos_emb = nn.Embedding.from_pretrained(
+        #     self.sinusoid_table, freeze=True)
+
+    def forward(self, output_character, dec_inputs, enc_outputs):
+
+        # 1. enc output
+        # outputs = self.deprojection(enc_outputs)
+        outputs = enc_outputs
+
+        # 2. dec input
+        # dec_outputs = enc_outputs
+        dec_inputs = self.fc1(dec_inputs)
+        # dec_inputs = self.deprojection(dec_inputs)
+
+        self_attn_probs, dec_enc_attn_probs = [], []
+        for layer in self.layers:
+            outputs, self_attn_prob, dec_enc_attn_prob = layer(dec_inputs, outputs)
+            self_attn_probs.append(self_attn_prob)
+            dec_enc_attn_probs.append(dec_enc_attn_prob)
+
+        outputs = self.de_embedding(outputs)
+
+        return outputs, self_attn_probs, dec_enc_attn_probs
 
 
 class ProjectionNet(nn.Module):
@@ -282,82 +323,54 @@ class DeprojectionNet(nn.Module):
 
         return dec_input
 
-class Decoder(nn.Module):
-    def __init__(self, args, offset):
-        super().__init__()
-        self.args = args
-        self.offset = offset
-        self.embedding_dim = args.embedding_dim
-        if args.swap_dim == 0:
-            self.output_size = args.output_size
-        else:
-            self.output_size = args.window_size
-
-        """ layers """
-        self.deprojection = nn.Linear(
-            self.embedding_dim, self.embedding_dim)  # d_hidn
-        self.layers = nn.ModuleList(
-            [DecoderLayer(self.args) for _ in range(self.args.n_layer)])
-
-        """ De-embedding / Embedding networks """
-        # input embedding
-        self.input_embedding = nn.Linear(
-            self.embedding_dim, self.embedding_dim)
-        # Positional Embedding
-        self.sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(
-            self.args.window_size + 1, self.embedding_dim))
-        self.pos_emb = nn.Embedding.from_pretrained(
-            self.sinusoid_table, freeze=True)
-
-        self.de_embedding = nn.Linear(self.embedding_dim, self.output_size)
-
-    def forward(self, output_character, dec_inputs, enc_inputs, enc_outputs):
-
-        if self.args.add_offset:
-            offset = self.offset[output_character]
-            offset = torch.reshape(offset, (-1, 1)).unsqueeze(0).expand(
-                enc_outputs.size(0), -1, -1).to(torch.device(dec_inputs.device))
-            # enc_outputs = torch.cat([enc_inputs, offset], dim=-1)
-
-        # 1. enc output
-        enc_outputs = self.deprojection(enc_outputs)
-
-        # 2. dec input
-        dec_outputs = enc_outputs
-
-        self_attn_probs, dec_enc_attn_probs = [], []
-        for layer in self.layers:
-            dec_outputs, self_attn_prob, dec_enc_attn_prob = layer(
-                dec_outputs, enc_outputs)  # check: dec_inputs, enc_inputs is not used 
-            self_attn_probs.append(self_attn_prob)
-            dec_enc_attn_probs.append(dec_enc_attn_prob)
-
-        dec_outputs = self.de_embedding(dec_outputs)
-
-        return dec_outputs, self_attn_probs, dec_enc_attn_probs
-
-
 """ Transoformer Model """
 class Transformer(nn.Module):
     def __init__(self, args, offsets, i):
         super().__init__()
         self.args = args
+        self.window_size = args.window_size
+        self.embedding_dim = args.embedding_dim
+    
+        """ Embedding networks """
+        # input embedding
+        self.input_embedding = nn.Linear(self.window_size, self.embedding_dim)
+        # Positional Embedding
+        self.sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(
+            self.window_size + 1, self.embedding_dim))
+        self.pos_emb = nn.Embedding.from_pretrained(
+            self.sinusoid_table, freeze=True)
+
+        # layers 
         self.encoder = Encoder(args, offsets[i])
         self.projection_net = ProjectionNet(args, i)
         self.deprojection_net = DeprojectionNet(args, i)
         self.decoder = Decoder(args, offsets[i])
 
-    def forward(self, input_character, output_character, enc_inputs):
+    def forward(self, input_character, output_character, inputs):
+        
+        """ Get Position and Embedding """
+        if self.args.data_encoding:
+            positions = torch.arange(inputs.size(1), device=inputs.device, dtype=torch.long)\
+                .unsqueeze(0).expand(inputs.size(0), inputs.size(1)).contiguous() + 1
 
-        enc_outputs, enc_self_attn_probs, context = self.encoder(
-            input_character, enc_inputs)
+            position_encoding = self.pos_emb(positions)
 
+            input_embedding = self.input_embedding(inputs)
+
+            inputs = input_embedding + position_encoding
+            
+        # Encoder
+        enc_outputs, enc_self_attn_probs, context = self.encoder(input_character, inputs)
+
+        # Dimension change
         if self.args.swap_dim == 1:
             latent_feature = self.projection_net(enc_outputs)
-            dec_inputs     = self.deprojection_net(latent_feature)
+            enc_outputs    = self.deprojection_net(latent_feature)
+        
+        # Decoder
+        inputs = self.deprojection_net(self.projection_net(inputs))
 
-        dec_outputs, dec_self_attn_probs, dec_enc_attn_probs = self.decoder(
-            output_character, enc_inputs, enc_inputs, dec_inputs)
+        dec_outputs, dec_self_attn_probs, dec_enc_attn_probs = self.decoder(output_character, inputs, enc_outputs)
 
         return dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
 
