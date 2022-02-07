@@ -57,7 +57,7 @@ args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args.n_topology = 2
 para_path = "./parameters/"
 print("cuda availiable: {}".format(torch.cuda.is_available()))
-save_name = "220205_6_Rec_ltc/"
+save_name = "220207_1_Rec1000_FK100_Cons100/"
 log_dir = './run/' + save_name
 writer = SummaryWriter(log_dir, flush_secs=1)
 
@@ -93,9 +93,6 @@ for i in range(args.n_topology):
     optimizerGs.append(optimizerG)
     optimizerDs.append(optimizerD)
 
-# wandb.watch(generator_models[0], log="all") # , log_graph=True
-# wandb.watch(discriminator_models[0], log="all") # , log_graph=True
-
 """ Set BVH writers """ 
 BVHWriters = []
 Files = []
@@ -120,13 +117,14 @@ if args.epoch_begin:
 if args.is_train == 1:
     # for every epoch
     for epoch in range(args.epoch_begin, args.n_epoch):
-        rec_loss0, rec_loss1, consist_loss = train_epoch( # fk_losses, 
+        # Train network and get loss for each epoch
+        rec_loss0, rec_loss1, fk_losses, consist_loss = train_epoch( 
             args, epoch, generator_models, discriminator_models, optimizerGs, optimizerDs,
             loader, dataset, characters, save_name, Files)
 
         writer.add_scalar("Loss/rec_loss0", rec_loss0, epoch)
         writer.add_scalar("Loss/rec_loss1", rec_loss1, epoch)
-        # writer.add_scalar("Loss/fk_loss", fk_losses, epoch)
+        writer.add_scalar("Loss/fk_loss", fk_losses, epoch)
         writer.add_scalar("Loss/consist_loss", consist_loss, epoch)
         
         if epoch % 100 == 0:

@@ -358,7 +358,7 @@ class Transformer(nn.Module):
             input_embedding = self.input_embedding(inputs)
 
             inputs = input_embedding + position_encoding
-            
+
         # Encoder
         enc_outputs, enc_self_attn_probs, context = self.encoder(input_character, inputs)
 
@@ -372,7 +372,7 @@ class Transformer(nn.Module):
 
         dec_outputs, dec_self_attn_probs, dec_enc_attn_probs = self.decoder(output_character, inputs, enc_outputs)
 
-        return dec_outputs, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
+        return dec_outputs, latent_feature, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
 
 
 class MotionGenerator(nn.Module):
@@ -392,12 +392,12 @@ class MotionGenerator(nn.Module):
 
     """ Transofrmer """
     def forward(self, input_character, output_character, enc_inputs):
-        output, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = self.transformer(
+        output, latent_feature, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = self.transformer(
             input_character, output_character, enc_inputs)
 
         output = self.projection(output)
 
-        return output, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
+        return output, latent_feature, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
 
 """ Discriminator """
 class Discriminator(nn.Module):

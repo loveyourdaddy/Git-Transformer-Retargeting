@@ -90,8 +90,8 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
 
     args.epoch = epoch
     character_idx = 0
-    rec_criterion = torch.nn.MSELoss(reduction='sum')
-    ltc_criterion = torch.nn.L1Loss(reduce='sum')
+    rec_criterion = torch.nn.MSELoss() #reduction='sum'
+    ltc_criterion = torch.nn.L1Loss(reduction='sum')
     gan_criterion = GAN_loss(args.gan_mode).to(args.cuda_device)
     
     save_dir = args.save_dir + save_name
@@ -131,11 +131,11 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
             for j in range(args.n_topology):
                 optimizerDs[j].zero_grad()
                 optimizerGs[j].zero_grad()
-                output_motions[j], _, _, _ = modelGs[j](character_idx, character_idx, input_motions[j])
+                output_motions[j], latent_feature[j],  _, _, _ = modelGs[j](character_idx, character_idx, input_motions[j])
             
             """ loss1. loss on each element """
-            for j in range(args.n_topology):
-                if args.rec_loss == 1:
+            if args.rec_loss == 1:
+                for j in range(args.n_topology):
                     # get rec loss 
                     loss = rec_criterion(gt_motions[j], output_motions[j])
                     rec_loss[j] = loss
@@ -145,56 +145,53 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
                         rec_losses1.append(loss.item()) 
 
             """ loss3. consistency Loss """
-            # if args.consist_loss == 1:
-            #     for j in range(args.n_topology):
-            #         enc_output, _, _  = modelGs[j].transformer.encoder(character_idx, input_motions[j])
-            #         latent_feature[j] = modelGs[j].transformer.projection_net(enc_output)
-                
-            #     loss = ltc_criterion(latent_feature[0], latent_feature[1])
-            #     consist_loss[j] += loss
-            #     consist_losses.append(loss.item())
+            if args.consist_loss == 1:                
+                loss = ltc_criterion(latent_feature[0], latent_feature[1])
+                consist_loss[j] = loss
+                consist_losses.append(loss.item())
 
-            #     for j in range(args.n_topology):
-            #         consist_loss[j] = loss.clone().detach().requires_grad_(True)
+                for j in range(args.n_topology):
+                    consist_loss[j] = loss.clone().detach().requires_grad_(True)
+
+            """ loss 1-2. fk loss """
+            if args.fk_loss == 1:
+                for j in range(args.n_topology):
+                    # Data post-processing
+                    """ 1) denorm """
+                    if args.normalization == 1:
+                        denorm_gt_motions[j]     = denormalize(train_dataset, character_idx, gt_motions[j], j)
+                        denorm_output_motions[j] = denormalize(train_dataset, character_idx, output_motions[j], j)
+                    else:
+                        denorm_gt_motions[j]     = gt_motions[j]
+                        denorm_output_motions[j] = output_motions[j]
+                    """ 2) swap dim """
+                    if args.swap_dim == 1:
+                        denorm_gt_motions[j]     = torch.transpose(denorm_gt_motions[j], 1, 2)
+                        denorm_output_motions[j] = torch.transpose(denorm_output_motions[j], 1, 2)
+
+                    # Get fk 
+                    file = Files[j][character_idx] 
+                    fk = ForwardKinematics(args, file.edges)
+                    
+                    # Get transform (local)
+                    gt_transform     = fk.forward_from_raw(denorm_gt_motions[j].permute(0,2,1),     train_dataset.offsets[j][character_idx]).reshape(num_bs, -1, num_frame)
+                    output_transform = fk.forward_from_raw(denorm_output_motions[j].permute(0,2,1), train_dataset.offsets[j][character_idx]).reshape(num_bs, -1, num_frame)
+
+                    # Get global pos
+                    gt_global_pos = fk.from_local_to_world(gt_transform).permute(0,2,1)
+                    output_global_pos = fk.from_local_to_world(output_transform).permute(0,2,1)
+
+                    # for idx_batch in range(num_bs):
+                    loss = rec_criterion(gt_global_pos, output_global_pos)
+                    fk_loss[j] = loss
+                    fk_losses.append(loss.item())
 
             """ backward and optimize """
             for j in range(args.n_topology):
-                generator_loss = rec_loss[j]  #+ consist_loss[j]
+                generator_loss = 1000 * rec_loss[j] + 100 * fk_losses[j] + 100 * consist_loss[j]
                 generator_loss.backward()
                 optimizerGs[j].step()
 
-
-                """ loss 1-2. fk loss """
-                # if args.fk_loss == 1:
-                #     # Data post-processing
-                #     """ 1) denorm """
-                #     if args.normalization == 1:
-                #         denorm_gt_motions[j]     = denormalize(train_dataset, character_idx, gt_motions[j], j)
-                #         denorm_output_motions[j] = denormalize(train_dataset, character_idx, output_motions[j], j)
-                #     else:
-                #         denorm_gt_motions[j]     = gt_motions[j]
-                #         denorm_output_motions[j] = output_motions[j]
-                #     """ 2) swap dim """
-                #     if args.swap_dim == 1:
-                #         denorm_gt_motions[j]     = torch.transpose(denorm_gt_motions[j], 1, 2)
-                #         denorm_output_motions[j] = torch.transpose(denorm_output_motions[j], 1, 2)
-
-                #     # Get fk 
-                #     file = Files[j][character_idx] 
-                #     fk = ForwardKinematics(args, file.edges)
-                    
-                #     # Get transform (local)
-                #     gt_transform     = fk.forward_from_raw(denorm_gt_motions[j].permute(0,2,1),     train_dataset.offsets[j][character_idx]).reshape(num_bs, -1, num_frame)
-                #     output_transform = fk.forward_from_raw(denorm_output_motions[j].permute(0,2,1), train_dataset.offsets[j][character_idx]).reshape(num_bs, -1, num_frame)
-
-                #     # Get global pos
-                #     gt_global_pos = fk.from_local_to_world(gt_transform).permute(0,2,1)
-                #     output_global_pos = fk.from_local_to_world(output_transform).permute(0,2,1)
-
-                #     # for idx_batch in range(num_bs):
-                #     loss2 = rec_criterion(gt_global_pos, output_global_pos)
-                #     fk_loss[j] = loss2
-                #     fk_losses.append(loss2.item())
 
             """  remake root & BVH Writing """ 
             for j in range(args.n_topology):
@@ -220,18 +217,16 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
                 if epoch == 0:
                     write_bvh(save_dir, "gt", denorm_gt_motions[j],
                             characters, character_idx, motion_idx, args, j)
-                if epoch % 100 == 0:
+                if epoch % 10 == 0:
                     write_bvh(save_dir, "output"+str(epoch), denorm_output_motions[j],
                             characters, character_idx, motion_idx, args, j)
 
             """ show info """
             pbar.update(1)
             pbar.set_postfix_str(
-                f"mean1: {np.mean(rec_losses0):.3f}, mean2: {np.mean(rec_losses1):.3f}, consist: {np.mean(consist_losses):.3f}")
-            # fk_loss: {np.mean(fk_losses):.3f},
-
+                f"mean1: {np.mean(rec_losses0):.3f}, mean2: {np.mean(rec_losses1):.3f}, fk_loss: {np.mean(fk_losses):.3f}, consist: {np.mean(consist_losses):.3f}")
+            
         torch.cuda.empty_cache()
         del source_motions, gt_motions, output_motions
 
-    return np.mean(rec_losses0), np.mean(rec_losses1), np.mean(consist_losses)
-    # np.mean(fk_losses),
+    return np.mean(rec_losses0), np.mean(rec_losses1), np.mean(fk_losses), np.mean(consist_losses)
