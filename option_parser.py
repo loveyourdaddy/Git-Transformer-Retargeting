@@ -20,7 +20,7 @@ def get_parser():
     parser.add_argument('--epoch_begin', type=int, default=0)
 
     # Dataset representation
-    parser.add_argument('--batch_size', type=int,default=32, help='batch_size')
+    parser.add_argument('--batch_size', type=int,default=32, help='batch_size') # 32 
     parser.add_argument('--rotation', type=str, default='quaternion', help='representatio0 of rotation:xyz, quaternion')
     parser.add_argument('--window_size', type=int, default=128, help='length of time axis per window')
     parser.add_argument('--num_motions', type=int, default=1)    
@@ -44,14 +44,14 @@ def get_parser():
     # xyz embedding dimenstion: 69 -> (64) -> 32
     # quaternion embedding dimenstion: 91 -> 91 -> 111
     parser.add_argument('--embedding_dim', type=int, default=256,help='embedding dimension')  # window을 얼마나 줄일지에 대한 embedding
-    parser.add_argument('--gan_mode', type=str, default='vanilla') # lsgan
+    parser.add_argument('--gan_mode', type=str, default='lsgan') # vanilla 
 
     # loss 
-    parser.add_argument('--rec_loss',     type=int, default=1, help='1. rec loss')
-    parser.add_argument('--fk_loss',      type=int, default=1, help='1-2. fk loss')    
-    parser.add_argument('--consist_loss', type=int, default=1, help='2. consistency loss')
-    # parser.add_argument('--gan_loss',     type=int, default=0, help='3. gan loss')    
-    # parser.add_argument('--reg_loss',     type=int, default=0, help='5. regularization loss on score(prob) matrix')
+    parser.add_argument('--rec_loss', type=int, default=1, help='1. rec loss')
+    parser.add_argument('--fk_loss',  type=int, default=1, help='1-2. fk loss')    
+    parser.add_argument('--ltc_loss', type=int, default=1, help='2. consistency loss')
+    parser.add_argument('--gan_loss', type=int, default=1, help='3. gan loss')    
+    # parser.add_argument('--reg_loss', type=int, default=0, help='5. regularization loss on score(prob) matrix')
     # 4. ee loss 
 
     return parser

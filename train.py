@@ -71,18 +71,26 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
     gt_motions              = [0] * n_topology
     denorm_gt_motions       = [0] * n_topology
     denorm_output_motions   = [0] * n_topology
+    denorm_gt_motions_      = [0] * n_topology
+    denorm_output_motions_  = [0] * n_topology
     latent_feature          = [0] * n_topology
 
-    # loss to backward
-    rec_loss     = [0] * n_topology
-    fk_loss      = [0] * n_topology
-    consist_loss = [0] * n_topology
-    
-    # set loss list to mean
-    rec_losses0     = [0] * n_topology
-    rec_losses1     = [0] * n_topology
-    fk_losses       = [0] * n_topology
-    consist_losses  = [0] * n_topology
+    # loss to backward (assign value)
+    rec_loss      = [0] * n_topology
+    fk_loss       = [0] * n_topology
+    ltc_loss  = [0] * n_topology
+    G_loss        = [0] * n_topology
+    D_real_loss   = [0] * n_topology
+    D_fake_loss   = [0] * n_topology
+
+    # set loss list to mean (append)
+    rec_losses0    = [] #  = [0] * n_topology
+    rec_losses1    = [] #  = [0] * n_topology
+    fk_losses      = [] #  = [0] * n_topology
+    ltc_losses = [] #  = [0] * n_topology
+    G_losses       = [] #= [0] * n_topology
+    D_real_losses  = [] #= [0] * n_topology
+    D_fake_losses  = [] #= [0] * n_topology
 
     for i in range(n_topology):
         modelGs[i].train()
@@ -133,65 +141,93 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
                 optimizerGs[j].zero_grad()
                 output_motions[j], latent_feature[j],  _, _, _ = modelGs[j](character_idx, character_idx, input_motions[j])
             
+
             """ loss1. loss on each element """
             if args.rec_loss == 1:
-                for j in range(args.n_topology):
-                    # get rec loss 
-                    loss = rec_criterion(gt_motions[j], output_motions[j])
-                    rec_loss[j] = loss
-                    if j == 0:
-                        rec_losses0.append(loss.item())
-                    else:
-                        rec_losses1.append(loss.item()) 
-
-            """ loss3. consistency Loss """
-            if args.consist_loss == 1:                
-                loss = ltc_criterion(latent_feature[0], latent_feature[1])
-                consist_loss[j] = loss
-                consist_losses.append(loss.item())
-
-                for j in range(args.n_topology):
-                    consist_loss[j] = loss.clone().detach().requires_grad_(True)
+                # get rec loss for 1st path (J = 0)
+                loss = rec_criterion(gt_motions[0], output_motions[0])
+                rec_loss[0] = loss
+                rec_losses0.append(loss.item())
 
             """ loss 1-2. fk loss """
-            if args.fk_loss == 1:
+            # if args.fk_loss == 1:
+            #     j = 0
+            #     file = Files[j][character_idx] # change this 
+            #     fk = ForwardKinematics(args, file.edges)
+
+            #     """ Data post-processing """
+            #     if args.normalization == 1:
+            #         denorm_gt_motions[j]     = denormalize(train_dataset, character_idx, gt_motions[j], j)
+            #         denorm_output_motions[j] = denormalize(train_dataset, character_idx, output_motions[j], j)
+            #     else:
+            #         denorm_gt_motions[j]     = gt_motions[j]
+            #         denorm_output_motions[j] = output_motions[j]
+
+            #     if args.swap_dim == 1:
+            #         denorm_gt_motions_[j]     = torch.transpose(denorm_gt_motions[j], 1, 2)
+            #         denorm_output_motions_[j] = torch.transpose(denorm_output_motions[j], 1, 2)
+
+            #     gt_transform     = fk.forward_from_raw(denorm_gt_motions_[j].permute(0,2,1),     train_dataset.offsets[j][character_idx]).reshape(num_bs, -1, num_frame)
+            #     output_transform = fk.forward_from_raw(denorm_output_motions_[j].permute(0,2,1), train_dataset.offsets[j][character_idx]).reshape(num_bs, -1, num_frame)
+
+            #     gt_global_pos = fk.from_local_to_world(gt_transform).permute(0,2,1)
+            #     output_global_pos = fk.from_local_to_world(output_transform).permute(0,2,1)
+                
+            #     loss = rec_criterion(gt_global_pos, output_global_pos)
+            #     fk_loss[0] = loss
+            #     fk_losses.append(loss.item())
+
+            """ loss2. consistency Loss """
+            if args.ltc_loss == 1:
+                _, latent_feature[1], _, _, _ = modelGs[1](character_idx, character_idx, output_motions[1]) # detach? 
+                # get ltc loss for both path
+                loss = ltc_criterion(latent_feature[0], latent_feature[1])
                 for j in range(args.n_topology):
-                    # Data post-processing
-                    """ 1) denorm """
-                    if args.normalization == 1:
-                        denorm_gt_motions[j]     = denormalize(train_dataset, character_idx, gt_motions[j], j)
-                        denorm_output_motions[j] = denormalize(train_dataset, character_idx, output_motions[j], j)
-                    else:
-                        denorm_gt_motions[j]     = gt_motions[j]
-                        denorm_output_motions[j] = output_motions[j]
-                    """ 2) swap dim """
-                    if args.swap_dim == 1:
-                        denorm_gt_motions[j]     = torch.transpose(denorm_gt_motions[j], 1, 2)
-                        denorm_output_motions[j] = torch.transpose(denorm_output_motions[j], 1, 2)
+                    ltc_loss[j] = loss.clone().detach().requires_grad_(True)
+                ltc_losses.append(loss.item())
+              
+            """ loss3. GAN Loss : (fake output: 0), (real_data: 1)  """
+            if args.gan_loss == 1:
+                j = 1 
+                """ Generator """
+                fake_output = modelDs[j](character_idx, character_idx, output_motions[j]).view(-1) # .detach()
+                loss = gan_criterion(fake_output, True)
+                G_loss[j] = loss
+                G_losses.append(loss.item())
 
-                    # Get fk 
-                    file = Files[j][character_idx] 
-                    fk = ForwardKinematics(args, file.edges)
-                    
-                    # Get transform (local)
-                    gt_transform     = fk.forward_from_raw(denorm_gt_motions[j].permute(0,2,1),     train_dataset.offsets[j][character_idx]).reshape(num_bs, -1, num_frame)
-                    output_transform = fk.forward_from_raw(denorm_output_motions[j].permute(0,2,1), train_dataset.offsets[j][character_idx]).reshape(num_bs, -1, num_frame)
+                """ Discriminator """
+                # real 
+                real_output = modelDs[j](character_idx, character_idx, gt_motions[j]).view(-1)
+                loss = gan_criterion(real_output, True)
+                D_real_loss[j] = loss
+                D_real_losses.append(loss.item())
 
-                    # Get global pos
-                    gt_global_pos = fk.from_local_to_world(gt_transform).permute(0,2,1)
-                    output_global_pos = fk.from_local_to_world(output_transform).permute(0,2,1)
+                # fake
+                fake_output = modelDs[j](character_idx, character_idx, output_motions[j].detach()).view(-1)
+                loss = gan_criterion(fake_output, False)
+                D_fake_loss[j] = loss
+                D_fake_losses.append(loss.item())
 
-                    # for idx_batch in range(num_bs):
-                    loss = rec_criterion(gt_global_pos, output_global_pos)
-                    fk_loss[j] = loss
-                    fk_losses.append(loss.item())
-
+            if args.epoch_begin == 500:
+                import pdb; pdb.set_trace()
+                
             """ backward and optimize """
             for j in range(args.n_topology):
-                generator_loss = 1000 * rec_loss[j] + 100 * fk_losses[j] + 100 * consist_loss[j]
-                generator_loss.backward()
-                optimizerGs[j].step()
+                if j == 0:
+                    generator_loss = 100 * (rec_loss[j] + fk_loss[j])+ 50 * (ltc_loss[j]) # G_loss[j] # + 100 * fk_losses[j] 
+                    generator_loss.backward()
+                    optimizerGs[j].step()
 
+                else:
+                    requires_grad_(modelDs[j], False)
+                    generator_loss = 100 * (ltc_loss[j] + G_loss[j]) # + 100 * fk_losses[j] 
+                    generator_loss.backward()
+                    optimizerGs[j].step()
+
+                    requires_grad_(modelDs[j], True)
+                    discriminator_loss = 100 * (D_real_loss[j] + D_fake_loss[j]) 
+                    discriminator_loss.backward()
+                    optimizerDs[j].step()
 
             """  remake root & BVH Writing """ 
             for j in range(args.n_topology):
@@ -202,31 +238,43 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
                 else:
                     denorm_gt_motions[j]     = gt_motions[j]
                     denorm_output_motions[j] = output_motions[j]
+                
                 """ 2) swap dim """
                 if args.swap_dim == 1:
-                    denorm_gt_motions[j]     = torch.transpose(denorm_gt_motions[j], 1, 2)
-                    denorm_output_motions[j] = torch.transpose(denorm_output_motions[j], 1, 2)
+                    denorm_gt_motions_[j]     = torch.transpose(denorm_gt_motions[j], 1, 2)
+                    denorm_output_motions_[j] = torch.transpose(denorm_output_motions[j], 1, 2)
+                else:
+                    denorm_gt_motions_[j]     = denorm_gt_motions[j]
+                    denorm_output_motions_[j] = denorm_output_motions[j]
+                
                 """ 3) remake root position from displacement """
                 if args.root_pos_disp == 1:
                     denorm_gt_motions[j] = remake_root_position_from_displacement(
-                        args, denorm_gt_motions[j], num_bs, num_frame, num_DoF)
+                        args, denorm_gt_motions_[j], num_bs, num_frame, num_DoF)
                     denorm_output_motions[j] = remake_root_position_from_displacement(
-                        args, denorm_output_motions[j], num_bs, num_frame, num_DoF)
+                        args, denorm_output_motions_[j], num_bs, num_frame, num_DoF)
                 
                 """ BVH Writing """ 
                 if epoch == 0:
-                    write_bvh(save_dir, "gt", denorm_gt_motions[j],
+                    write_bvh(save_dir, "gt", denorm_gt_motions_[j],
                             characters, character_idx, motion_idx, args, j)
-                if epoch % 10 == 0:
-                    write_bvh(save_dir, "output"+str(epoch), denorm_output_motions[j],
+                if epoch % 50 == 0:
+                    write_bvh(save_dir, "output"+str(epoch), denorm_output_motions_[j],
                             characters, character_idx, motion_idx, args, j)
+
+            """Check """
+            loss = rec_criterion(gt_motions[1], output_motions[1])            
+            rec_losses1.append(loss.item())
 
             """ show info """
             pbar.update(1)
             pbar.set_postfix_str(
-                f"mean1: {np.mean(rec_losses0):.3f}, mean2: {np.mean(rec_losses1):.3f}, fk_loss: {np.mean(fk_losses):.3f}, consist: {np.mean(consist_losses):.3f}")
-            
-        torch.cuda.empty_cache()
-        del source_motions, gt_motions, output_motions
+                f"mean1: {np.mean(rec_losses0):.3f}, mean2: {np.mean(rec_losses1):.3f}, consist: {np.mean(ltc_losses):.3f}")
+               # fk_loss: {np.mean(fk_losses):.3f}, 
 
-    return np.mean(rec_losses0), np.mean(rec_losses1), np.mean(fk_losses), np.mean(consist_losses)
+        torch.cuda.empty_cache()
+        del source_motions, gt_motions, output_motions, latent_feature #, fake_output, real_output
+
+    return np.mean(rec_losses0), np.mean(rec_losses1), np.mean(ltc_losses), \
+        np.mean(G_losses), np.mean(D_real_losses), np.mean(D_fake_losses)
+        # np.mean(fk_losses),

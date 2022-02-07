@@ -411,7 +411,7 @@ class Discriminator(nn.Module):
         self.projection = nn.Linear(self.input_dim, self.input_dim)
 
     def forward(self, input_character, output_character, enc_inputs):
-        output, _, _, _ = self.transformer(
+        output, _, _, _, _ = self.transformer(
             input_character, output_character, enc_inputs)
 
         output = self.projection(output)

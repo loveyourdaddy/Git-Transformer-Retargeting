@@ -33,17 +33,16 @@ def save(model, optimizer, path, name, epoch, i):
     path_para = os.path.join(path, name + str(i) +'_' + str(epoch))
     torch.save(model.state_dict(), path_para)
 
-    path_para = os.path.join(path, name + str(i)+ 'Opti_' + str(epoch))
+    path_para = os.path.join(path, name + str(i)+ '_Opti_' + str(epoch))
     torch.save(optimizer.state_dict(), path_para)
 
-def load(model, optimizer, path, name, epoch):
-    path_para = os.path.join(path, name + str(epoch))
-    
+def load(model, optimizer, path, name, epoch, i):
+    path_para = os.path.join(path, name + str(i) +'_' + str(epoch))
     if not os.path.exists(path_para):
         raise Exception('Unknown loading path')
     model.load_state_dict(torch.load(path_para))
 
-    path_para = os.path.join(path, name + 'Opti' + str(epoch))
+    path_para = os.path.join(path, name + str(i) + '_Opti_' + str(epoch))
     if not os.path.exists(path_para):
         raise Exception('Unknown loading path')
     optimizer.load_state_dict(torch.load(path_para))
@@ -57,7 +56,7 @@ args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args.n_topology = 2
 para_path = "./parameters/"
 print("cuda availiable: {}".format(torch.cuda.is_available()))
-save_name = "220207_1_Rec1000_FK100_Cons100/"
+save_name = "220207_4_Rec_Cons_GAN/"
 log_dir = './run/' + save_name
 writer = SummaryWriter(log_dir, flush_secs=1)
 
@@ -111,21 +110,24 @@ for i in range(len(characters)):
 # args.epoch_begin = 500
 if args.epoch_begin:
     for i in range(args.n_topology):
-        load(generator_models[i],     optimizerGs[i], para_path+save_name, "Gen"+i+"_", args.epoch_begin)
-        load(discriminator_models[i], optimizerDs[i], para_path+save_name, "Dis"+i+"_", args.epoch_begin)
+        load(generator_models[i],     optimizerGs[i], para_path+save_name, "Gen", args.epoch_begin, i)
+        load(discriminator_models[i], optimizerDs[i], para_path+save_name, "Dis", args.epoch_begin, i)
 
 if args.is_train == 1:
     # for every epoch
     for epoch in range(args.epoch_begin, args.n_epoch):
         # Train network and get loss for each epoch
-        rec_loss0, rec_loss1, fk_losses, consist_loss = train_epoch( 
+        rec_loss0, rec_loss1, ltc_loss, G_losses, D_real_loss, D_fake_loss \
+            = train_epoch( 
             args, epoch, generator_models, discriminator_models, optimizerGs, optimizerDs,
             loader, dataset, characters, save_name, Files)
 
         writer.add_scalar("Loss/rec_loss0", rec_loss0, epoch)
         writer.add_scalar("Loss/rec_loss1", rec_loss1, epoch)
-        writer.add_scalar("Loss/fk_loss", fk_losses, epoch)
-        writer.add_scalar("Loss/consist_loss", consist_loss, epoch)
+        writer.add_scalar("Loss/ltc_loss", ltc_loss, epoch)
+        writer.add_scalar("Loss/G_losses", G_losses, epoch)
+        writer.add_scalar("Loss/D_real_loss", D_real_loss, epoch)
+        writer.add_scalar("Loss/D_fake_loss", D_fake_loss, epoch)
         
         if epoch % 100 == 0:
             for i in range(args.n_topology):
@@ -135,8 +137,8 @@ if args.is_train == 1:
 else:
     epoch = 1500
     for i in range(args.n_topology):
-        load(generator_models[i],     optimizerGs[i], para_path+save_name, "Gen"+i+"_", args.epoch_begin)
-        load(discriminator_models[i], optimizerDs[i], para_path+save_name, "Dis"+i+"_", args.epoch_begin)
+        load(generator_models[i],     optimizerGs[i], para_path+save_name, "Gen"+str(i), args.epoch_begin)
+        load(discriminator_models[i], optimizerDs[i], para_path+save_name, "Dis"+str(i), args.epoch_begin)
 
     # only test losses 
     eval_epoch(args, generator_model, discriminator_model, dataset, loader,
