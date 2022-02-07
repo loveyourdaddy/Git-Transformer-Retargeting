@@ -50,7 +50,8 @@ def get_parser():
     parser.add_argument('--rec_loss', type=int, default=1, help='1. rec loss')
     parser.add_argument('--fk_loss',  type=int, default=1, help='1-2. fk loss')    
     parser.add_argument('--ltc_loss', type=int, default=1, help='2. consistency loss')
-    parser.add_argument('--gan_loss', type=int, default=1, help='3. gan loss')    
+    parser.add_argument('--cyc_loss', type=int, default=1, help='3. cycle loss')
+    # parser.add_argument('--gan_loss', type=int, default=1, help='3. gan loss')    
     # parser.add_argument('--reg_loss', type=int, default=0, help='5. regularization loss on score(prob) matrix')
     # 4. ee loss 
 

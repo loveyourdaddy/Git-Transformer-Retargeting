@@ -144,38 +144,14 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
 
             """ loss1. loss on each element """
             if args.rec_loss == 1:
-                # get rec loss for 1st path (J = 0)
-                loss = rec_criterion(gt_motions[0], output_motions[0])
-                rec_loss[0] = loss
-                rec_losses0.append(loss.item())
-
-            """ loss 1-2. fk loss """
-            # if args.fk_loss == 1:
-            #     j = 0
-            #     file = Files[j][character_idx] # change this 
-            #     fk = ForwardKinematics(args, file.edges)
-
-            #     """ Data post-processing """
-            #     if args.normalization == 1:
-            #         denorm_gt_motions[j]     = denormalize(train_dataset, character_idx, gt_motions[j], j)
-            #         denorm_output_motions[j] = denormalize(train_dataset, character_idx, output_motions[j], j)
-            #     else:
-            #         denorm_gt_motions[j]     = gt_motions[j]
-            #         denorm_output_motions[j] = output_motions[j]
-
-            #     if args.swap_dim == 1:
-            #         denorm_gt_motions_[j]     = torch.transpose(denorm_gt_motions[j], 1, 2)
-            #         denorm_output_motions_[j] = torch.transpose(denorm_output_motions[j], 1, 2)
-
-            #     gt_transform     = fk.forward_from_raw(denorm_gt_motions_[j].permute(0,2,1),     train_dataset.offsets[j][character_idx]).reshape(num_bs, -1, num_frame)
-            #     output_transform = fk.forward_from_raw(denorm_output_motions_[j].permute(0,2,1), train_dataset.offsets[j][character_idx]).reshape(num_bs, -1, num_frame)
-
-            #     gt_global_pos = fk.from_local_to_world(gt_transform).permute(0,2,1)
-            #     output_global_pos = fk.from_local_to_world(output_transform).permute(0,2,1)
-                
-            #     loss = rec_criterion(gt_global_pos, output_global_pos)
-            #     fk_loss[0] = loss
-            #     fk_losses.append(loss.item())
+                # get rec loss 
+                for j in range(args.n_topology):
+                    loss = rec_criterion(gt_motions[j], output_motions[j])
+                    rec_loss[j] = loss
+                    if j == 0:
+                        rec_losses0.append(loss.item())
+                    else:
+                        rec_losses1.append(loss.item()) 
 
             """ loss2. consistency Loss """
             if args.ltc_loss == 1:
@@ -185,49 +161,27 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
                 for j in range(args.n_topology):
                     ltc_loss[j] = loss.clone().detach().requires_grad_(True)
                 ltc_losses.append(loss.item())
-              
-            """ loss3. GAN Loss : (fake output: 0), (real_data: 1)  """
-            if args.gan_loss == 1:
-                j = 1 
-                """ Generator """
-                fake_output = modelDs[j](character_idx, character_idx, output_motions[j]).view(-1) # .detach()
-                loss = gan_criterion(fake_output, True)
-                G_loss[j] = loss
-                G_losses.append(loss.item())
 
-                """ Discriminator """
-                # real 
-                real_output = modelDs[j](character_idx, character_idx, gt_motions[j]).view(-1)
-                loss = gan_criterion(real_output, True)
-                D_real_loss[j] = loss
-                D_real_losses.append(loss.item())
+            """ loss3. cycle loss"""
+            if args.cyc_loss == 1:
+                modelGs[1](character_idx, character_idx, output_motions[1])
 
-                # fake
-                fake_output = modelDs[j](character_idx, character_idx, output_motions[j].detach()).view(-1)
-                loss = gan_criterion(fake_output, False)
-                D_fake_loss[j] = loss
-                D_fake_losses.append(loss.item())
-
-            if args.epoch_begin == 500:
-                import pdb; pdb.set_trace()
-                
             """ backward and optimize """
             for j in range(args.n_topology):
                 if j == 0:
-                    generator_loss = 100 * (rec_loss[j] + fk_loss[j])+ 50 * (ltc_loss[j]) # G_loss[j] # + 100 * fk_losses[j] 
+                    generator_loss = 100 * (rec_loss[j]) + 1 * (ltc_loss[j]) # G_loss[j] # + 100 * fk_losses[j] 
                     generator_loss.backward()
                     optimizerGs[j].step()
-
                 else:
-                    requires_grad_(modelDs[j], False)
-                    generator_loss = 100 * (ltc_loss[j] + G_loss[j]) # + 100 * fk_losses[j] 
+                    # requires_grad_(modelDs[j], False)
+                    generator_loss = 100 * (rec_loss[j]) + 1 * ltc_loss[j] # + 100 * G_loss[j] # + 100 * fk_losses[j] 
                     generator_loss.backward()
                     optimizerGs[j].step()
 
-                    requires_grad_(modelDs[j], True)
-                    discriminator_loss = 100 * (D_real_loss[j] + D_fake_loss[j]) 
-                    discriminator_loss.backward()
-                    optimizerDs[j].step()
+                    # requires_grad_(modelDs[j], True)
+                    # discriminator_loss = 100 * (D_real_loss[j] + D_fake_loss[j]) 
+                    # discriminator_loss.backward()
+                    # optimizerDs[j].step()
 
             """  remake root & BVH Writing """ 
             for j in range(args.n_topology):
@@ -275,6 +229,6 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
         torch.cuda.empty_cache()
         del source_motions, gt_motions, output_motions, latent_feature #, fake_output, real_output
 
-    return np.mean(rec_losses0), np.mean(rec_losses1), np.mean(ltc_losses), \
-        np.mean(G_losses), np.mean(D_real_losses), np.mean(D_fake_losses)
+    return np.mean(rec_losses0), np.mean(rec_losses1), np.mean(ltc_losses)
+            # np.mean(G_losses), np.mean(D_real_losses), np.mean(D_fake_losses)
         # np.mean(fk_losses),
