@@ -187,38 +187,33 @@ class Encoder(nn.Module):
         super().__init__()
         self.args = args
         self.offset = offset
+        self.window_size = args.window_size
+        self.embedding_dim = args.embedding_dim
         if args.swap_dim == 0:
             self.input_size = args.input_size
         else:
             self.input_size = args.window_size
-        self.embedding_dim = args.embedding_dim
 
-        # """ Embedding networks """
-        # # input embedding
-        # self.input_embedding = nn.Linear(self.input_size, self.embedding_dim)
-
-        # # Positional Embedding
-        # self.sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(
-        #     self.args.window_size + 1, self.embedding_dim))
-        # self.pos_emb = nn.Embedding.from_pretrained(
-        #     self.sinusoid_table, freeze=True)
+        """ Embedding networks """
+        # input embedding
+        self.input_embedding = nn.Linear(self.window_size, self.embedding_dim)
+        # Positional Embedding
+        self.sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(self.window_size + 1, self.embedding_dim))
+        self.pos_emb = nn.Embedding.from_pretrained(self.sinusoid_table, freeze=True)
 
         """ Layer """
         self.fc1 = nn.Linear(self.embedding_dim, self.embedding_dim)
         self.layers = nn.ModuleList([EncoderLayer(self.args) for _ in range(self.args.n_layer)])
         self.projection = nn.Linear(self.embedding_dim, self.embedding_dim)
 
-    def forward(self, input_character, inputs):
-        # """ Get Position and Embedding """
-        # if self.args.data_encoding:
-        #     positions = torch.arange(inputs.size(1), device=inputs.device, dtype=torch.long)\
-        #         .unsqueeze(0).expand(inputs.size(0), inputs.size(1)).contiguous() + 1
-
-        #     position_encoding = self.pos_emb(positions)
-
-        #     input_embedding = self.input_embedding(inputs)
-
-        #     inputs = input_embedding + position_encoding
+    def forward(self, input_character, inputs, data_encoding):
+        """ Get Position and Embedding """
+        if data_encoding:
+            positions = torch.arange(inputs.size(1), device=inputs.device, dtype=torch.long)\
+                .unsqueeze(0).expand(inputs.size(0), inputs.size(1)).contiguous() + 1
+            position_encoding = self.pos_emb(positions)
+            input_embedding = self.input_embedding(inputs)
+            inputs = input_embedding + position_encoding
 
         outputs = self.fc1(inputs)
 
@@ -238,6 +233,7 @@ class Decoder(nn.Module):
         super().__init__()
         self.args = args
         self.offset = offset
+        self.window_size = args.window_size
         self.embedding_dim = args.embedding_dim
         if args.swap_dim == 0:
             self.output_size = args.output_size
@@ -245,31 +241,32 @@ class Decoder(nn.Module):
             self.output_size = args.window_size
 
         """ layers """
-        # self.deprojection = nn.Linear(self.embedding_dim, self.embedding_dim)  # d_hidn
         self.fc1 = nn.Linear(self.embedding_dim, self.embedding_dim)
         self.layers = nn.ModuleList([DecoderLayer(self.args) for _ in range(self.args.n_layer)])
         self.de_embedding = nn.Linear(self.embedding_dim, self.output_size)
 
-        # """ De-embedding / Embedding networks """
-        # # input embedding
-        # self.input_embedding = nn.Linear(
-        #     self.embedding_dim, self.embedding_dim)
-        # # Positional Embedding
-        # self.sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(
-        #     self.args.window_size + 1, self.embedding_dim))
-        # self.pos_emb = nn.Embedding.from_pretrained(
-        #     self.sinusoid_table, freeze=True)
+        """ Embedding networks """
+        # input embedding
+        self.input_embedding = nn.Linear(self.window_size, self.embedding_dim)
+        # Positional Embedding
+        self.sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(self.window_size + 1, self.embedding_dim))
+        self.pos_emb = nn.Embedding.from_pretrained(self.sinusoid_table, freeze=True)
+            
+    def forward(self, output_character, inputs, enc_outputs, data_encoding): # inputs = dec_inputs 
 
-    def forward(self, output_character, dec_inputs, enc_outputs):
+        """ Get Position and Embedding """
+        if data_encoding:
+            positions = torch.arange(inputs.size(1), device=inputs.device, dtype=torch.long)\
+                .unsqueeze(0).expand(inputs.size(0), inputs.size(1)).contiguous() + 1
+            position_encoding = self.pos_emb(positions)
+            input_embedding = self.input_embedding(inputs)
+            inputs = input_embedding + position_encoding
 
         # 1. enc output
-        # outputs = self.deprojection(enc_outputs)
         outputs = enc_outputs
 
         # 2. dec input
-        # dec_outputs = enc_outputs
-        dec_inputs = self.fc1(dec_inputs)
-        # dec_inputs = self.deprojection(dec_inputs)
+        dec_inputs = self.fc1(inputs)
 
         self_attn_probs, dec_enc_attn_probs = [], []
         for layer in self.layers:
@@ -328,17 +325,6 @@ class Transformer(nn.Module):
     def __init__(self, args, offsets, i):
         super().__init__()
         self.args = args
-        self.window_size = args.window_size
-        self.embedding_dim = args.embedding_dim
-    
-        """ Embedding networks """
-        # input embedding
-        self.input_embedding = nn.Linear(self.window_size, self.embedding_dim)
-        # Positional Embedding
-        self.sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(
-            self.window_size + 1, self.embedding_dim))
-        self.pos_emb = nn.Embedding.from_pretrained(
-            self.sinusoid_table, freeze=True)
 
         # layers 
         self.encoder = Encoder(args, offsets[i])
@@ -346,23 +332,11 @@ class Transformer(nn.Module):
         self.deprojection_net = DeprojectionNet(args, i)
         self.decoder = Decoder(args, offsets[i])
 
-    def forward(self, input_character, output_character, inputs):
-        
-        """ Get Position and Embedding """
-        if self.args.data_encoding:
-            positions = torch.arange(inputs.size(1), device=inputs.device, dtype=torch.long)\
-                .unsqueeze(0).expand(inputs.size(0), inputs.size(1)).contiguous() + 1
-
-            position_encoding = self.pos_emb(positions)
-
-            input_embedding = self.input_embedding(inputs)
-
-            inputs = input_embedding + position_encoding
-
+    def forward(self, input_character, output_character, inputs):        
         # Encoder
-        enc_outputs, enc_self_attn_probs, context = self.encoder(input_character, inputs)
+        enc_outputs, enc_self_attn_probs, context = self.encoder(input_character, inputs, data_encoding = 1)
 
-        # Dimension change
+        # Dimension change (Projection)
         if self.args.swap_dim == 1:
             latent_feature = self.projection_net(enc_outputs)
             enc_outputs    = self.deprojection_net(latent_feature)
@@ -370,7 +344,7 @@ class Transformer(nn.Module):
         # Decoder
         inputs = self.deprojection_net(self.projection_net(inputs))
 
-        dec_outputs, dec_self_attn_probs, dec_enc_attn_probs = self.decoder(output_character, inputs, enc_outputs)
+        dec_outputs, dec_self_attn_probs, dec_enc_attn_probs = self.decoder(output_character, inputs, enc_outputs, data_encoding = 1)
 
         return dec_outputs, latent_feature, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
 

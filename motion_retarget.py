@@ -56,7 +56,7 @@ args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args.n_topology = 2
 para_path = "./parameters/"
 print("cuda availiable: {}".format(torch.cuda.is_available()))
-save_name = "220207_5_Rec_ltc_cycle/"
+save_name = "220208_0_rec_ltc_cycle_/" # rec_ltc_cycle
 log_dir = './run/' + save_name
 writer = SummaryWriter(log_dir, flush_secs=1)
 
@@ -117,13 +117,13 @@ if args.is_train == 1:
     # for every epoch
     for epoch in range(args.epoch_begin, args.n_epoch):
         # Train network and get loss for each epoch
-        rec_loss0, rec_loss1, ltc_loss = train_epoch(  # , G_losses, D_real_loss, D_fake_loss
+        rec_loss0, rec_loss1, cyc_losses = train_epoch(  # , G_losses, D_real_loss, D_fake_loss
             args, epoch, generator_models, discriminator_models, optimizerGs, optimizerDs,
             loader, dataset, characters, save_name, Files)
 
         writer.add_scalar("Loss/rec_loss0", rec_loss0, epoch)
         writer.add_scalar("Loss/rec_loss1", rec_loss1, epoch)
-        writer.add_scalar("Loss/ltc_loss", ltc_loss, epoch)
+        writer.add_scalar("Loss/cyc_losses", cyc_losses, epoch)
         # writer.add_scalar("Loss/G_losses", G_losses, epoch)
         # writer.add_scalar("Loss/D_real_loss", D_real_loss, epoch)
         # writer.add_scalar("Loss/D_fake_loss", D_fake_loss, epoch)
