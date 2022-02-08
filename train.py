@@ -100,8 +100,8 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
 
     args.epoch = epoch
     character_idx = 0
-    rec_criterion = torch.nn.MSELoss() #reduction='sum'
-    ltc_criterion = torch.nn.L1Loss(reduction='sum')
+    rec_criterion = torch.nn.MSELoss()
+    ltc_criterion = torch.nn.L1Loss()
     gan_criterion = GAN_loss(args.gan_mode).to(args.cuda_device)
     
     save_dir = args.save_dir + save_name
@@ -155,46 +155,48 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
                     else:
                         rec_losses1.append(loss.item()) 
 
-            """ loss2. consistency Loss """
-            if args.ltc_loss == 1:
-                _, latent_feature[1], _, _, _ = modelGs[1](character_idx, character_idx, output_motions[1]) # detach? 
-                # get ltc loss for both path
-                loss = ltc_criterion(latent_feature[0], latent_feature[1])
-                for j in range(args.n_topology):
-                    ltc_loss[j] = loss.clone().detach().requires_grad_(True)
-                ltc_losses.append(loss.item())
+            """ loss2. latent consistency Loss bw (source a, output b) """
+            # if args.ltc_loss == 1:
+            #     _, fake_latent, _, _, _ = modelGs[1](character_idx, character_idx, output_motions[1]) # detach? 
+            #     # get ltc loss for both path
+            #     loss = ltc_criterion(latent_feature[0], fake_latent)
+            #     for j in range(args.n_topology):
+            #         ltc_loss[j] = loss.clone().detach().requires_grad_(True)
+            #     ltc_losses.append(loss.item())
 
             """ loss3. cycle loss"""
-            if args.cyc_loss == 1:
+            # if args.cyc_loss == 1:
+            #     fake_latent = 
+
                 # source motion -> ltc -> target motion
-                source_enc_output, _, _ = modelGs[0].transformer.encoder(character_idx, input_motions[0], data_encoding=1)
-                input_ltc = modelGs[0].transformer.projection_net(source_enc_output)
+                # source_enc_output, _, _ = modelGs[0].transformer.encoder(character_idx, input_motions[0], data_encoding=1)
+                # input_ltc = modelGs[0].transformer.projection_net(source_enc_output)
 
-                input_ltc = modelGs[1].transformer.deprojection_net(input_ltc)
-                target_motion, _, _ = modelGs[1].transformer.decoder(character_idx, input_ltc, source_enc_output, data_encoding=0)
+                # input_ltc = modelGs[1].transformer.deprojection_net(input_ltc)
+                # target_motion, _, _ = modelGs[1].transformer.decoder(character_idx, input_ltc, source_enc_output, data_encoding=0)
 
-                # target motion -> ltc -> source motion 
-                target_enc_output, _, _ = modelGs[1].transformer.encoder(character_idx, target_motion, data_encoding=1)
-                output_ltc = modelGs[1].transformer.projection_net(target_enc_output)
+                # # target motion -> ltc -> source motion 
+                # target_enc_output, _, _ = modelGs[1].transformer.encoder(character_idx, target_motion, data_encoding=1)
+                # output_ltc = modelGs[1].transformer.projection_net(target_enc_output)
 
-                output_ltc = modelGs[0].transformer.deprojection_net(output_ltc)
-                recon_motion, _, _ =  modelGs[0].transformer.decoder(character_idx, output_ltc, target_enc_output, data_encoding=0)
+                # output_ltc = modelGs[0].transformer.deprojection_net(output_ltc)
+                # recon_motion, _, _ =  modelGs[0].transformer.decoder(character_idx, output_ltc, target_enc_output, data_encoding=0)
 
                 # cycle loss 
-                loss = rec_criterion(input_motions[0], recon_motion)
-                cyc_loss = loss.clone().detach().requires_grad_(True)
-                cyc_losses.append(loss.item())
+                # loss = rec_criterion(input_motions[0], recon_motion)
+                # cyc_loss = loss.clone().detach().requires_grad_(True)
+                # cyc_losses.append(loss.item())
 
             """ backward and optimize """
             for j in range(args.n_topology):
                 if j == 0:
                     # requires_grad_(modelGs[0], True)
-                    generator_loss = 100 * (rec_loss[j]) # + (ltc_loss[j])
+                    generator_loss = 128 * (rec_loss[j]) # + (ltc_loss[j])
                     generator_loss.backward()
                     optimizerGs[j].step()
                 else:
                     # requires_grad_(modelGs[0], False)
-                    generator_loss = 100 * (rec_loss[j]) + 100 * cyc_loss # 0.1 * ltc_loss[j] + 
+                    generator_loss = 128 * (rec_loss[j]) # + ltc_loss[j] # + 100 * cyc_loss
                     generator_loss.backward()
                     optimizerGs[j].step()
             
@@ -227,24 +229,24 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
                 if epoch == 0:
                     write_bvh(save_dir, "gt", denorm_gt_motions_[j],
                             characters, character_idx, motion_idx, args, j)
-                if epoch % 50 == 0:
+                if epoch % 50 == 0 and epoch != 0:
                     write_bvh(save_dir, "output"+str(epoch), denorm_output_motions_[j],
                             characters, character_idx, motion_idx, args, j)
 
-            """Check """
-            loss = rec_criterion(gt_motions[1], output_motions[1])            
-            rec_losses1.append(loss.item())
+            # """Check """
+            # loss = rec_criterion(gt_motions[1], output_motions[1])            
+            # rec_losses1.append(loss.item())
 
             """ show info """
             pbar.update(1)
             pbar.set_postfix_str(
-                f"mean1: {np.mean(rec_losses0):.3f}, mean2: {np.mean(rec_losses1):.3f}, cyc_loss: {np.mean(cyc_losses):.3f}")
+                f"mean1: {np.mean(rec_losses0):.7f}, mean2: {np.mean(rec_losses1):.7f}, cyc_loss: {np.mean(ltc_losses):.7f}, {rec_loss[0]:.3f}, {rec_loss[1]:.3f}")
                # fk_loss: {np.mean(fk_losses):.3f}, 
 
         torch.cuda.empty_cache()
-        del source_motions, gt_motions, output_motions, latent_feature,\
-            denorm_gt_motions, denorm_gt_motions_, source_enc_output, input_ltc, target_motion, target_enc_output, output_ltc, recon_motion
+        del source_motions, gt_motions, output_motions, latent_feature, denorm_gt_motions, denorm_gt_motions_ 
+        #, source_enc_output, input_ltc, target_motion, target_enc_output, output_ltc, recon_motion
 
-    return np.mean(rec_losses0), np.mean(rec_losses1), np.mean(cyc_losses)
+    return np.mean(rec_losses0), np.mean(rec_losses1), np.mean(ltc_losses)
             # np.mean(G_losses), np.mean(D_real_losses), np.mean(D_fake_losses)
         # np.mean(fk_losses),

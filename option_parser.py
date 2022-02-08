@@ -12,7 +12,7 @@ def get_parser():
     parser.add_argument('--render', type=int, default=0)
 
     # learning parameter
-    parser.add_argument('--learning_rate', type=float, default= 1e-4 , help='lr')  # 2e-4 # 5e-5
+    parser.add_argument('--learning_rate', type=float, default= 5e-5, help='lr')  # 2e-4 # 5e-5
     parser.add_argument('--weight_decay', type=float, default=1)
     parser.add_argument('--alpha', type=float, default=0, help='penalty of sparsity')
     parser.add_argument('--activation', type=str, default='LeakyReLU', help='activation: ReLU, LeakyReLU, tanh')
@@ -20,7 +20,7 @@ def get_parser():
     parser.add_argument('--epoch_begin', type=int, default=0)
 
     # Dataset representation
-    parser.add_argument('--batch_size', type=int,default=16, help='batch_size') # 32 
+    parser.add_argument('--batch_size', type=int,default=32, help='batch_size') # 32 
     parser.add_argument('--rotation', type=str, default='quaternion', help='representatio0 of rotation:xyz, quaternion')
     parser.add_argument('--window_size', type=int, default=128, help='length of time axis per window')
     parser.add_argument('--num_motions', type=int, default=1)    
