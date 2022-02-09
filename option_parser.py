@@ -7,7 +7,7 @@ def get_parser():
     # env
     parser.add_argument('--save_dir', type=str, default='./output/', help='directory for all savings')
     parser.add_argument('--cuda_device', type=str, default='cuda:0', help='cuda device number, eg:[cuda:0]')
-    parser.add_argument('--is_train', type=int, default=1)
+    parser.add_argument('--is_train', type=bool, default=True)
     parser.add_argument('--is_valid', type=int, default=0)
     parser.add_argument('--render', type=int, default=0)
 

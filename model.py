@@ -183,7 +183,7 @@ def get_sinusoid_encoding_table(n_seq, d_hidn):
 
 """ Encoder & Decoder """
 class Encoder(nn.Module):
-    def __init__(self, args, offset):
+    def __init__(self, args, offset, i):
         super().__init__()
         self.args = args
         self.offset = offset
@@ -204,7 +204,8 @@ class Encoder(nn.Module):
         """ Layer """
         self.fc1 = nn.Linear(self.embedding_dim, self.embedding_dim)
         self.layers = nn.ModuleList([EncoderLayer(self.args) for _ in range(self.args.n_layer)])
-        self.projection = nn.Linear(self.embedding_dim, self.embedding_dim)
+        self.fc2 = nn.Linear(self.embedding_dim, self.embedding_dim)
+        self.projection_net = ProjectionNet(args, i)
 
     def forward(self, input_character, inputs, data_encoding):
         """ Get Position and Embedding """
@@ -223,13 +224,15 @@ class Encoder(nn.Module):
             outputs, attn_prob, context = layer(outputs)
             attn_probs.append(attn_prob)
 
-        outputs = self.projection(outputs)
+        outputs = self.fc2(outputs)
 
-        return outputs, attn_probs, context
+        latent_feature = self.projection_net(outputs)
+ 
+        return latent_feature, attn_probs, context
 
 
 class Decoder(nn.Module):
-    def __init__(self, args, offset):
+    def __init__(self, args, offset, i):
         super().__init__()
         self.args = args
         self.offset = offset
@@ -243,7 +246,9 @@ class Decoder(nn.Module):
         """ layers """
         self.fc1 = nn.Linear(self.embedding_dim, self.embedding_dim)
         self.layers = nn.ModuleList([DecoderLayer(self.args) for _ in range(self.args.n_layer)])
+        self.fc2 = nn.Linear(self.embedding_dim, self.embedding_dim)
         self.de_embedding = nn.Linear(self.embedding_dim, self.output_size)
+        self.deprojection_net = DeprojectionNet(args, i)
 
         """ Embedding networks """
         # input embedding
@@ -254,25 +259,29 @@ class Decoder(nn.Module):
             
     def forward(self, output_character, inputs, enc_outputs, data_encoding): # inputs = dec_inputs 
 
-        """ Get Position and Embedding """
-        if data_encoding:
-            positions = torch.arange(inputs.size(1), device=inputs.device, dtype=torch.long)\
-                .unsqueeze(0).expand(inputs.size(0), inputs.size(1)).contiguous() + 1
-            position_encoding = self.pos_emb(positions)
-            input_embedding = self.input_embedding(inputs)
-            inputs = input_embedding + position_encoding
+        # """ Get Position and Embedding """
+        # if data_encoding: # data_encoding for "inputs"
+        #     positions = torch.arange(inputs.size(1), device=inputs.device, dtype=torch.long)\
+        #         .unsqueeze(0).expand(inputs.size(0), inputs.size(1)).contiguous() + 1
+        #     position_encoding = self.pos_emb(positions)
+        #     input_embedding = self.input_embedding(inputs)
+        #     inputs = input_embedding + position_encoding
 
         # 1. enc output
-        outputs = enc_outputs
+        outputs = self.deprojection_net(enc_outputs)
+        
+        outputs = self.fc1(outputs)
 
         # 2. dec input
-        dec_inputs = self.fc1(inputs)
+        # dec_inputs = self.fc1(inputs)
 
         self_attn_probs, dec_enc_attn_probs = [], []
         for layer in self.layers:
-            outputs, self_attn_prob, dec_enc_attn_prob = layer(dec_inputs, outputs)
+            outputs, self_attn_prob, dec_enc_attn_prob = layer(outputs, outputs)
             self_attn_probs.append(self_attn_prob)
             dec_enc_attn_probs.append(dec_enc_attn_prob)
+ 
+        outputs = self.fc1(outputs)
 
         outputs = self.de_embedding(outputs)
 
@@ -294,6 +303,7 @@ class ProjectionNet(nn.Module):
 
     def forward(self, enc_output):
         enc_output = torch.transpose(enc_output, 1, 2)
+        # (bs, dimenedding, input DoF) -> (bs, dimenedding, hidn) 
         latent_img = self.fc1(enc_output)
 
         return latent_img
@@ -314,6 +324,7 @@ class DeprojectionNet(nn.Module):
         self.fc2 = nn.Linear(self.d_hidn, self.output_dim)
 
     def forward(self, latent_img):
+        # (bs, dimenedding, input DoF) -> (bs, dimenedding, hidn) 
         dec_input = self.fc2(latent_img)
 
         dec_input = torch.transpose(dec_input, 1, 2)
@@ -327,26 +338,17 @@ class Transformer(nn.Module):
         self.args = args
 
         # layers 
-        self.encoder = Encoder(args, offsets[i])
-        self.projection_net = ProjectionNet(args, i)
-        self.deprojection_net = DeprojectionNet(args, i)
-        self.decoder = Decoder(args, offsets[i])
+        self.encoder = Encoder(args, offsets[i], i)
+        self.decoder = Decoder(args, offsets[i], i)
 
     def forward(self, input_character, output_character, inputs):        
         # Encoder
-        enc_outputs, enc_self_attn_probs, context = self.encoder(input_character, inputs, data_encoding = 1)
+        latent_feature, enc_self_attn_probs, context = self.encoder(input_character, inputs, data_encoding = 1)
 
-        # Dimension change (Projection)
-        if self.args.swap_dim == 1:
-            latent_feature = self.projection_net(enc_outputs)
-            enc_outputs    = self.deprojection_net(latent_feature)
-        
-        # Decoder
-        inputs = self.deprojection_net(self.projection_net(inputs))
+        outputs, dec_self_attn_probs, dec_enc_attn_probs = self.decoder(output_character, \
+            latent_feature, latent_feature, data_encoding = 1)
 
-        dec_outputs, dec_self_attn_probs, dec_enc_attn_probs = self.decoder(output_character, inputs, enc_outputs, data_encoding = 1)
-
-        return dec_outputs, latent_feature, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
+        return outputs, latent_feature, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
 
 
 class MotionGenerator(nn.Module):
@@ -362,14 +364,11 @@ class MotionGenerator(nn.Module):
         """ Transformer """
         # layers
         self.transformer = Transformer(args, offsets, i)
-        self.projection = nn.Linear(self.output_size, self.output_size)
 
     """ Transofrmer """
     def forward(self, input_character, output_character, enc_inputs):
         output, latent_feature, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = self.transformer(
             input_character, output_character, enc_inputs)
-
-        output = self.projection(output)
 
         return output, latent_feature, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
 
@@ -382,13 +381,13 @@ class Discriminator(nn.Module):
 
         """ layers """
         self.transformer = Transformer(args, offsets, i)
-        self.projection = nn.Linear(self.input_dim, self.input_dim)
+        # self.projection = nn.Linear(self.input_dim, self.input_dim)
 
     def forward(self, input_character, output_character, enc_inputs):
         output, _, _, _, _ = self.transformer(
             input_character, output_character, enc_inputs)
 
-        output = self.projection(output)
+        # output = self.projection(output)
 
         output = output.reshape(output.shape[0], -1)
 

@@ -56,7 +56,7 @@ args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args.n_topology = 2
 para_path = "./parameters/"
 print("cuda availiable: {}".format(torch.cuda.is_available()))
-save_name = "220208_2_rec_/" # ltc_ # rec_ltc_cycle
+save_name = "220209_3_rec_ltc/" # ltc_ # rec_ltc_cycle
 log_dir = './run/' + save_name
 writer = SummaryWriter(log_dir, flush_secs=1)
 
@@ -107,13 +107,14 @@ for i in range(len(characters)):
     BVHWriters.append(bvh_writers)
 
 """ Load model if load mode """
-# args.epoch_begin = 500
+# args.epoch_begin = 400
+# args.is_train = False
 if args.epoch_begin:
     for i in range(args.n_topology):
         load(generator_models[i],     optimizerGs[i], para_path+save_name, "Gen", args.epoch_begin, i)
         load(discriminator_models[i], optimizerDs[i], para_path+save_name, "Dis", args.epoch_begin, i)
 
-if args.is_train == 1:
+if args.is_train == True:
     # for every epoch
     for epoch in range(args.epoch_begin, args.n_epoch):
         # Train network and get loss for each epoch
@@ -135,11 +136,6 @@ if args.is_train == 1:
                 save(discriminator_models[i], optimizerDs[i], para_path + save_name, "Dis", epoch, i)
 
 else:
-    epoch = 1500
-    for i in range(args.n_topology):
-        load(generator_models[i],     optimizerGs[i], para_path+save_name, "Gen"+str(i), args.epoch_begin)
-        load(discriminator_models[i], optimizerDs[i], para_path+save_name, "Dis"+str(i), args.epoch_begin)
-
     # only test losses 
-    eval_epoch(args, generator_model, discriminator_model, dataset, loader,
-        characters, save_name, Files)
+    eval_epoch(args, args.epoch_begin, generator_models, discriminator_models, optimizerGs, optimizerDs,
+            loader, dataset, characters, save_name, Files)

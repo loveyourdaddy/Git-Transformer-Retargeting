@@ -155,19 +155,16 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
                     else:
                         rec_losses1.append(loss.item()) 
 
-            """ loss2. latent consistency Loss bw (source a, output b) """
-            # if args.ltc_loss == 1:
-            #     _, fake_latent, _, _, _ = modelGs[1](character_idx, character_idx, output_motions[1]) # detach? 
-            #     # get ltc loss for both path
-            #     loss = ltc_criterion(latent_feature[0], fake_latent)
-            #     for j in range(args.n_topology):
-            #         ltc_loss[j] = loss.clone().detach().requires_grad_(True)
-            #     ltc_losses.append(loss.item())
+            """ loss2. latent consistency(ltc) Loss bw (source a, output b) """
+            if args.ltc_loss == 1:
+                # _, fake_latent, _, _, _ = modelGs[1](character_idx, character_idx, output_motions[1]) # detach? 
+                loss = ltc_criterion(latent_feature[0], latent_feature[1])
+                for j in range(args.n_topology):
+                    ltc_loss[j] = loss.clone().detach().requires_grad_(True)
+                ltc_losses.append(loss.item())
 
-            """ loss3. cycle loss"""
+            """ loss3. cycle loss """ 
             # if args.cyc_loss == 1:
-            #     fake_latent = 
-
                 # source motion -> ltc -> target motion
                 # source_enc_output, _, _ = modelGs[0].transformer.encoder(character_idx, input_motions[0], data_encoding=1)
                 # input_ltc = modelGs[0].transformer.projection_net(source_enc_output)
@@ -191,12 +188,12 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
             for j in range(args.n_topology):
                 if j == 0:
                     # requires_grad_(modelGs[0], True)
-                    generator_loss = 128 * (rec_loss[j]) # + (ltc_loss[j])
+                    generator_loss = 128 * (rec_loss[j]) + 128 * (ltc_loss[j])
                     generator_loss.backward()
                     optimizerGs[j].step()
                 else:
                     # requires_grad_(modelGs[0], False)
-                    generator_loss = 128 * (rec_loss[j]) # + ltc_loss[j] # + 100 * cyc_loss
+                    generator_loss = 128 * (rec_loss[j]) + 128 * ltc_loss[j] # + 100 * cyc_loss
                     generator_loss.backward()
                     optimizerGs[j].step()
             
