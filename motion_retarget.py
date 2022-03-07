@@ -7,7 +7,6 @@ from model import MotionGenerator
 from model import Discriminator
 from datasets.bvh_parser import BVH_file
 from datasets.bvh_writer import BVH_writer
-# import wandb
 from train import *
 from test import *
 from torch.utils.tensorboard import SummaryWriter
@@ -56,7 +55,7 @@ args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args.n_topology = 2
 para_path = "./parameters/"
 print("cuda availiable: {}".format(torch.cuda.is_available()))
-save_name = "220209_3_rec_ltc/" # ltc_ # rec_ltc_cycle
+save_name = "220304_linear/"
 log_dir = './run/' + save_name
 writer = SummaryWriter(log_dir, flush_secs=1)
 
@@ -77,7 +76,7 @@ optimizerDs = []
 for i in range(args.n_topology):
     # model 
     generator_model     = MotionGenerator(args, offsets, i)
-    discriminator_model = Discriminator(args, offsets, i)    
+    discriminator_model = Discriminator(args, offsets, i)
     generator_model.to(args.cuda_device)
     discriminator_model.to(args.cuda_device)
 
