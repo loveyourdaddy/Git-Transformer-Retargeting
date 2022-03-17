@@ -88,7 +88,7 @@ def train_epoch(args, epoch, modelGs, optimizerGs, train_loader, train_dataset, 
 
     args.epoch = epoch
     character_idx = 0
-    rec_criterion = torch.nn.MSELoss()
+    rec_criterion = torch.nn.MSELoss(reduction='sum')
     ltc_criterion = torch.nn.MSELoss()
     gan_criterion = GAN_loss(args.gan_mode).to(args.cuda_device)
     
@@ -129,8 +129,8 @@ def train_epoch(args, epoch, modelGs, optimizerGs, train_loader, train_dataset, 
             for j in range(args.n_topology):
                 optimizerGs[j].zero_grad()
                 output_motions[j], latent_feature[j] = modelGs[j](character_idx, character_idx, input_motions[j])
-                            
-            """ loss1. loss on each element """
+
+            """ loss1. loss on each element """ 
             if args.rec_loss == 1:
                 # get rec loss 
                 for j in range(args.n_topology):

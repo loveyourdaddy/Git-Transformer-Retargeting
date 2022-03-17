@@ -9,6 +9,7 @@ import os
 # from wandb import set_trace
 from datasets import get_character_names, create_dataset
 from model import *
+import math
 
 SAVE_ATTENTION_DIR = "attention_vis/test"
 
@@ -458,21 +459,21 @@ class SkeletonConv(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        # for i, neighbour in enumerate(self.expanded_neighbour_list):
-        #     """ Use temporary variable to avoid assign to copy of slice, which might lead to un expected result """
-            # tmp = torch.zeros_like(self.weight[self.out_channels_per_joint * i: self.out_channels_per_joint * (i + 1),
-            #                        neighbour, ...])
-            # nn.init.kaiming_uniform_(tmp, a=math.sqrt(5))
-            # self.weight[self.out_channels_per_joint * i: self.out_channels_per_joint * (i + 1),
-            #             neighbour, ...] = tmp
-            # if self.bias is not None:
-            #     fan_in, _ = nn.init._calculate_fan_in_and_fan_out(
-            #         self.weight[self.out_channels_per_joint * i: self.out_channels_per_joint * (i + 1), neighbour, ...])
-            #     bound = 1 / math.sqrt(fan_in)
-            #     tmp = torch.zeros_like(
-            #         self.bias[self.out_channels_per_joint * i: self.out_channels_per_joint * (i + 1)])
-            #     nn.init.uniform_(tmp, -bound, bound)
-            #     self.bias[self.out_channels_per_joint * i: self.out_channels_per_joint * (i + 1)] = tmp
+        for i, neighbour in enumerate(self.expanded_neighbour_list):
+            """ Use temporary variable to avoid assign to copy of slice, which might lead to un expected result """
+            tmp = torch.zeros_like(self.weight[self.out_channels_per_joint * i: self.out_channels_per_joint * (i + 1),
+                                   neighbour, ...])
+            nn.init.kaiming_uniform_(tmp, a=math.sqrt(5))
+            self.weight[self.out_channels_per_joint * i: self.out_channels_per_joint * (i + 1),
+                        neighbour, ...] = tmp
+            if self.bias is not None:
+                fan_in, _ = nn.init._calculate_fan_in_and_fan_out(
+                    self.weight[self.out_channels_per_joint * i: self.out_channels_per_joint * (i + 1), neighbour, ...])
+                bound = 1 / math.sqrt(fan_in)
+                tmp = torch.zeros_like(
+                    self.bias[self.out_channels_per_joint * i: self.out_channels_per_joint * (i + 1)])
+                nn.init.uniform_(tmp, -bound, bound)
+                self.bias[self.out_channels_per_joint * i: self.out_channels_per_joint * (i + 1)] = tmp
 
         self.weight = nn.Parameter(self.weight)
         if self.bias is not None:
@@ -604,7 +605,7 @@ def calc_edge_mat(edges):
             if link:
                 edge_mat[i][j] = 1 # distance = 1 
 
-    # calculate all the pairs distance
+    # edge_mat: distance of all verteics pair 
     for k in range(edge_num):
         for i in range(edge_num):
             for j in range(edge_num):
@@ -623,7 +624,8 @@ def find_neighbor(edges, d):
         neighbor_list.append(neighbor)
 
     # add neighbor for global part
-    # why this ?
+    # why this ? 
+    # meaning of 22 ? make a new root ? 
     global_part_neighbor = neighbor_list[0].copy()
     for i in global_part_neighbor:
         neighbor_list[i].append(edge_num)
