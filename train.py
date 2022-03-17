@@ -88,7 +88,7 @@ def train_epoch(args, epoch, modelGs, optimizerGs, train_loader, train_dataset, 
 
     args.epoch = epoch
     character_idx = 0
-    rec_criterion = torch.nn.MSELoss(reduction='sum')
+    rec_criterion = torch.nn.MSELoss() # reduction='sum'
     ltc_criterion = torch.nn.MSELoss()
     gan_criterion = GAN_loss(args.gan_mode).to(args.cuda_device)
     
@@ -127,7 +127,6 @@ def train_epoch(args, epoch, modelGs, optimizerGs, train_loader, train_dataset, 
             """ Get LOSS (orienation & FK & regularization) """
             """ feed to NETWORK """
             for j in range(args.n_topology):
-                optimizerGs[j].zero_grad()
                 output_motions[j], latent_feature[j] = modelGs[j](character_idx, character_idx, input_motions[j])
 
             """ loss1. loss on each element """ 
@@ -145,10 +144,12 @@ def train_epoch(args, epoch, modelGs, optimizerGs, train_loader, train_dataset, 
             for j in range(args.n_topology):
                 if j == 0:
                     generator_loss = (rec_loss[j]) #  + 128 * (ltc_loss)
+                    optimizerGs[j].zero_grad()
                     generator_loss.backward()
                     optimizerGs[j].step()
                 else:
-                    generator_loss = 128 * (rec_loss[j]) # + 128 * ltc_loss[j] # + 100 * cyc_loss
+                    generator_loss = 10 * (rec_loss[j]) # + 128 * ltc_loss[j] # + 100 * cyc_loss
+                    optimizerGs[j].zero_grad()
                     generator_loss.backward()
                     optimizerGs[j].step()
             
@@ -178,7 +179,7 @@ def train_epoch(args, epoch, modelGs, optimizerGs, train_loader, train_dataset, 
                     
                     """ BVH Writing """ 
                     if epoch == 0:
-                        write_bvh(save_dir, "gt",                denorm_gt_motions_[j], characters, character_idx, motion_idx, args, j)
+                        write_bvh(save_dir, "gt", denorm_gt_motions_[j], characters, character_idx, motion_idx, args, j)
                     if epoch != 0:
                         write_bvh(save_dir, "output"+str(epoch), denorm_output_motions_[j], characters, character_idx, motion_idx, args, j)
 

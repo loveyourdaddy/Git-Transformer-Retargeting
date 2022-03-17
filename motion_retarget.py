@@ -55,7 +55,7 @@ args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args.n_topology = 2
 para_path = "./parameters/"
 print("cuda availiable: {}".format(torch.cuda.is_available()))
-save_name = "220316_SAN_structure/"
+save_name = "220317_SAN_structure/"
 log_dir = './run/' + save_name
 writer = SummaryWriter(log_dir, flush_secs=1)
 
@@ -81,7 +81,7 @@ for i in range(args.n_topology):
     # discriminator_model.to(args.cuda_device)
 
     # optimizer
-    optimizerG = torch.optim.Adam(generator_model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+    optimizerG = torch.optim.Adam(generator_model.parameters(), lr=args.learning_rate) # weight_decay=args.weight_decay
     # optimizerD = torch.optim.Adam(discriminator_model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 
     # add to list 
