@@ -30,13 +30,6 @@ corps_name_three_arms_split = ['Three_Arms_split_Hips', 'LeftUpLeg', 'LeftLeg', 
 # corps_name_Prisoner = ['HipsPrisoner', 'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToeBase', 'LeftToe_End', 'RightUpLeg', 'RightLeg', 'RightFoot', 'RightToeBase', 'RightToe_End', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head', 'HeadTop_End', 'LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand', 'RightShoulder', 'RightArm', 'RightForeArm']
 corps_name_mixamo2_m = ['Hips', 'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToeBase', 'LeftToe_End', 'RightUpLeg', 'RightLeg', 'RightFoot', 'RightToeBase', 'RightToe_End', 'Spine', 'Spine1', 'Spine1_split', 'Spine2', 'Neck', 'Head', 'HeadTop_End', 'LeftShoulder', 'LeftShoulder_split', 'LeftArm', 'LeftForeArm', 'LeftHand', 'RightShoulder', 'RightShoulder_split', 'RightArm', 'RightForeArm', 'RightHand'] # 10 
 
-#corps_name_SMPL = ['m_avg_Pelvis', 'm_avg_L_Hip', 'm_avg_L_Knee', 'm_avg_L_Ankle', 'm_avg_L_Foot', 'm_avg_R_Hip', 'm_avg_R_Knee', 'm_avg_R_Ankle', 'm_avg_R_Foot', 'm_avg_Spine1', 'm_avg_Spine2', 'm_avg_Spine3', 'm_avg_Neck', 'm_avg_Head', 'm_avg_L_Collar', 'm_avg_L_Shoulder', 'm_avg_L_Elbow', 'm_avg_L_Wrist', 'm_avg_L_Hand', 'm_avg_R_Collar', 'm_avg_R_Shoulder', 'm_avg_R_Elbow', 'm_avg_R_Wrist', 'm_avg_R_Hand']
-# corps_name_SMPL = ['m_avg_Pelvis', 'm_avg_L_Hip', 'm_avg_L_Knee', 'm_avg_L_Ankle', 'm_avg_R_Hip', 'm_avg_R_Knee', 'm_avg_R_Ankle', 'm_avg_Spine1', 'm_avg_Spine2', 'm_avg_Spine3', 'm_avg_Neck', 'm_avg_Head', 'm_avg_L_Collar', 'm_avg_L_Shoulder', 'm_avg_L_Elbow', 'm_avg_L_Wrist', 'm_avg_L_Hand', 'm_avg_R_Collar', 'm_avg_R_Shoulder', 'm_avg_R_Elbow', 'm_avg_R_Wrist', 'm_avg_R_Hand']
-# corps_name_example = ['Root', 'LeftUpLeg', ..., 'LeftToe', 'RightUpLeg', ..., 'RightToe', 'Spine', ..., 'Head', 'LeftShoulder', ..., 'LeftHand', 'RightShoulder', ..., 'RightHand']
-# 1. 순서가 맞는지 확인. 
-# 2. 하나 없어보고 시도.
-# 데이터와 network의 크기를 맞추기 위해서라도 모든 joint가 다 들어가야한다.  
-
 """
 2.
 Specify five end effectors' name.
@@ -51,9 +44,6 @@ ee_name_cmu = ['LeftToeBase', 'RightToeBase', 'Head', 'LeftHand', 'RightHand'] #
 ee_name_monkey = ['LeftToeBase', 'RightToeBase', 'Head', 'LeftHand', 'RightHand'] #5
 ee_name_three_arms_split = ['LeftToeBase', 'RightToeBase', 'Head', 'LeftHand_split', 'RightHand_split'] #9
 ee_name_mixamo2_m = ['LeftToe_End', 'RightToe_End', 'HeadTop_End', 'LeftHand', 'RightForeArm'] #10
-# ee_name_SMPL = ['m_avg_L_Foot', 'm_avg_R_Foot', 'm_avg_Head', 'm_avg_L_Hand', 'm_avg_R_Hand']
-# ee_name_SMPL = ['m_avg_L_Ankle', 'm_avg_R_Ankle', 'm_avg_Head', 'm_avg_L_Hand', 'm_avg_R_Hand']
-# ee_name_example = ['LeftToe', 'RightToe', 'Head', 'LeftHand', 'RightHand']
 
 # corps_names = [corps_name_1, corps_name_2, corps_name_3, corps_name_cmu, corps_name_monkey, corps_name_boss,
 #                corps_name_boss, corps_name_three_arms, corps_name_three_arms_split, corps_name_Prisoner, corps_name_mixamo2_m]
@@ -68,9 +58,6 @@ ee_names = [ee_name_1, ee_name_2, ee_name_3, ee_name_4, ee_name_cmu, ee_name_mon
 3.
 Add previously added corps_name and ee_name at the end of the two above lists.
 """
-# corps_names.append(corps_name_SMPL)
-# ee_names.append(ee_name_SMPL)
-
 
 class BVH_file:
     def __init__(self, file_path=None, args=None, dataset=None, new_root=None):
@@ -83,8 +70,8 @@ class BVH_file:
             self.set_new_root(new_root)
         self.skeleton_type = -1
         self.edges = []
-        # self.edge_mat = []
-        # self.edge_num = 0
+        self.edge_mat = []
+        self.edge_num = 0
         self._topology = None
         self.ee_length = []
         
@@ -100,7 +87,6 @@ class BVH_file:
                     full_fill[i] = 0
                     break
 
-        # 특별히 인덱스 3 (4번째 corps)에 해당된다면 skeleton_type = 3
         if full_fill[3]:
             self.skeleton_type = 3
         else:
@@ -135,17 +121,15 @@ class BVH_file:
         Here, you need to assign self.skeleton_type the corresponding index of your own dataset in corps_names or ee_names list.
         You can use self._names, which contains the joints name in original bvh file, to write your own if statement.
         """
-        # if 'm_avg_root' in self._names:
-        #     self.skeleton_type = 11
         
         if self.skeleton_type == -1:
             raise Exception('Unknown skeleton')
         
+        # why use this ??? 
         if self.skeleton_type == 0:
             self.set_new_root(1)
 
         self.details = [i for i, name in enumerate(self._names) if name not in corps_names[self.skeleton_type]]
-        
         self.joint_num = self.anim.shape[1]
         self.corps = []
         self.simplified_name = []
@@ -178,8 +162,6 @@ class BVH_file:
             if i in self.details:
                 self.simplify_map[i] = -1
 
-        # topology : parent을 corps 의 index로 표현한 것
-        # edges : (parent idx, index, offset)
         self.edges = build_edge_topology(self.topology, self.offset)
 
     def scale(self, alpha):

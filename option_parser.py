@@ -12,7 +12,7 @@ def get_parser():
     parser.add_argument('--render', type=int, default=0)
 
     # learning parameter
-    parser.add_argument('--learning_rate', type=float, default= 5e-5, help='lr')  # 2e-4 # 5e-5
+    parser.add_argument('--learning_rate', type=float, default= 5e-4, help='lr')  # 2e-4 # 5e-5
     parser.add_argument('--weight_decay', type=float, default=1)
     parser.add_argument('--alpha', type=float, default=0, help='penalty of sparsity')
     parser.add_argument('--activation', type=str, default='LeakyReLU', help='activation: ReLU, LeakyReLU, tanh')
@@ -22,8 +22,8 @@ def get_parser():
     # Dataset representation
     parser.add_argument('--batch_size', type=int,default=32, help='batch_size') # 32 
     parser.add_argument('--rotation', type=str, default='quaternion', help='representatio0 of rotation:xyz, quaternion')
-    parser.add_argument('--window_size', type=int, default=128, help='length of time axis per window')
-    parser.add_argument('--num_motions', type=int, default=1)    
+    parser.add_argument('--window_size', type=int, default=64, help='length of time axis per window')
+    parser.add_argument('--num_motions', type=int, default=1)
 
     # Dataset representation (flag)
     parser.add_argument('--normalization', type=int, default=1)
@@ -39,12 +39,19 @@ def get_parser():
     parser.add_argument('--n_layer', type=int, default=6)
     parser.add_argument('--n_head', type=int, default=4)
     parser.add_argument('--d_head', type=int, default=64)
-    # joint 을 얼마나 줄일지에 대한 hidden dimension
-    parser.add_argument('--d_hidn', type=int, default=91)
-    # xyz embedding dimenstion: 69 -> (64) -> 32
-    # quaternion embedding dimenstion: 91 -> 91 -> 111
-    parser.add_argument('--embedding_dim', type=int, default=256,help='embedding dimension')  # window을 얼마나 줄일지에 대한 embedding
+    parser.add_argument('--d_hidn', type=int, default=91) # joint 을 얼마나 줄일지에 대한 hidden dimension
+    parser.add_argument('--embedding_dim', type=int, default=256,help='embedding dimension')  # window을 얼마나 줄일지에 대한 embedding  # quaternion embedding dimenstion: 91 -> 91 -> 111
     parser.add_argument('--gan_mode', type=str, default='lsgan') # vanilla 
+
+    # SAN Structure
+    parser.add_argument('--kernel_size', type=int, default='15') 
+    parser.add_argument('--num_layers', type=int, default='2') 
+    parser.add_argument('--skeleton_dist', type=int, default='2') 
+    parser.add_argument('--padding_mode', type=str, default='reflect')
+    parser.add_argument('--skeleton_pool', type=str, default='mean')
+    parser.add_argument('--skeleton_info', type=str, default='concat') # ?
+    parser.add_argument('--upsampling', type=str, default='linear', help="'stride2' or 'nearest', 'linear'")
+    parser.add_argument('--pos_repr', type=str, default='3d')
 
     # loss 
     parser.add_argument('--rec_loss', type=int, default=1, help='1. rec loss')

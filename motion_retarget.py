@@ -55,7 +55,7 @@ args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args.n_topology = 2
 para_path = "./parameters/"
 print("cuda availiable: {}".format(torch.cuda.is_available()))
-save_name = "220304_linear/"
+save_name = "220316_SAN_structure/"
 log_dir = './run/' + save_name
 writer = SummaryWriter(log_dir, flush_secs=1)
 
@@ -71,32 +71,32 @@ print("characters:{}".format(characters))
 generator_models = []
 discriminator_models = []
 optimizerGs = []
-optimizerDs = []
+# optimizerDs = []
 # Get models
 for i in range(args.n_topology):
     # model 
-    generator_model     = MotionGenerator(args, offsets, i)
-    discriminator_model = Discriminator(args, offsets, i)
+    generator_model     = MotionGenerator(args, offsets[i], dataset.joint_topologies[i])
+    # discriminator_model = Discriminator(args, offsets[i])
     generator_model.to(args.cuda_device)
-    discriminator_model.to(args.cuda_device)
+    # discriminator_model.to(args.cuda_device)
 
     # optimizer
     optimizerG = torch.optim.Adam(generator_model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-    optimizerD = torch.optim.Adam(discriminator_model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+    # optimizerD = torch.optim.Adam(discriminator_model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 
     # add to list 
     generator_models.append(generator_model)
-    discriminator_models.append(discriminator_model)
+    # discriminator_models.append(discriminator_model)
 
     optimizerGs.append(optimizerG)
-    optimizerDs.append(optimizerD)
+    # optimizerDs.append(optimizerD)
 
 """ Set BVH writers """ 
 BVHWriters = []
 Files = []
 for i in range(len(characters)):
     bvh_writers = []
-    files = []
+    files = [] 
     for j in range(len(characters[0])):
         file = BVH_file(option_parser.get_std_bvh(dataset=characters[i][j]))
         files.append(file)
@@ -111,28 +111,22 @@ for i in range(len(characters)):
 if args.epoch_begin:
     for i in range(args.n_topology):
         load(generator_models[i],     optimizerGs[i], para_path+save_name, "Gen", args.epoch_begin, i)
-        load(discriminator_models[i], optimizerDs[i], para_path+save_name, "Dis", args.epoch_begin, i)
+        # load(discriminator_models[i], optimizerDs[i], para_path+save_name, "Dis", args.epoch_begin, i)
 
 if args.is_train == True:
     # for every epoch
     for epoch in range(args.epoch_begin, args.n_epoch):
         # Train network and get loss for each epoch
-        rec_loss0, rec_loss1, ltc_losses = train_epoch(  
-            args, epoch, generator_models, discriminator_models, optimizerGs, optimizerDs,
+        rec_loss0, rec_loss1 = train_epoch(  
+            args, epoch, generator_models, optimizerGs,
             loader, dataset, characters, save_name, Files)
-        # , G_losses, D_real_loss, D_fake_loss
 
         writer.add_scalar("Loss/rec_loss0", rec_loss0, epoch)
         writer.add_scalar("Loss/rec_loss1", rec_loss1, epoch)
-        writer.add_scalar("Loss/ltc_losses", ltc_losses, epoch)
-        # writer.add_scalar("Loss/G_losses", G_losses, epoch)
-        # writer.add_scalar("Loss/D_real_loss", D_real_loss, epoch)
-        # writer.add_scalar("Loss/D_fake_loss", D_fake_loss, epoch)
-        
         if epoch % 100 == 0:
             for i in range(args.n_topology):
                 save(generator_models[i],     optimizerGs[i], para_path + save_name, "Gen", epoch, i)
-                save(discriminator_models[i], optimizerDs[i], para_path + save_name, "Dis", epoch, i)
+                # save(discriminator_models[i], optimizerDs[i], para_path + save_name, "Dis", epoch, i)
 
 else:
     # only test losses 

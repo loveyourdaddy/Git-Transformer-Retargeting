@@ -60,7 +60,7 @@ def requires_grad_(model, requires_grad):
     for para in model.parameters():
         para.requires_grad = requires_grad
             
-def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_loader, train_dataset, characters, save_name, Files):
+def train_epoch(args, epoch, modelGs, optimizerGs, train_loader, train_dataset, characters, save_name, Files):
 
     # Set return list 
     n_topology = len(modelGs)
@@ -85,7 +85,6 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
 
     for i in range(n_topology):
         modelGs[i].train()
-        modelDs[i].train()
 
     args.epoch = epoch
     character_idx = 0
@@ -95,7 +94,7 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
     
     save_dir = args.save_dir + save_name
     try_mkdir(save_dir)
-    
+
     with tqdm(total=len(train_loader), desc=f"TrainEpoch {epoch}") as pbar:
         for i, value in enumerate(train_loader):
 
@@ -128,10 +127,8 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
             """ Get LOSS (orienation & FK & regularization) """
             """ feed to NETWORK """
             for j in range(args.n_topology):
-                optimizerDs[j].zero_grad()
                 optimizerGs[j].zero_grad()
                 output_motions[j], latent_feature[j] = modelGs[j](character_idx, character_idx, input_motions[j])
-                # output_motions[j], latent_feature[j],  _, _, _ = modelGs[j](character_idx, character_idx, input_motions[j])
                             
             """ loss1. loss on each element """
             if args.rec_loss == 1:
@@ -144,83 +141,46 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
                     else:
                         rec_losses1.append(loss.item()) 
 
-            """ loss2. latent consistency(ltc) Loss bw (source a, output b) """
-            if args.ltc_loss == 1:
-                # _, fake_latent, _, _, _ = modelGs[1](character_idx, character_idx, output_motions[1]) # detach? 
-                loss = ltc_criterion(latent_feature[0], latent_feature[1].detach())
-                ltc_loss = loss #.clone().detach().requires_grad_(True)
-                ltc_losses.append(loss.item())
-
-            """ loss3. cycle loss """ 
-            # if args.cyc_loss == 1:
-                # source motion -> ltc -> target motion
-                # source_enc_output, _, _ = modelGs[0].transformer.encoder(character_idx, input_motions[0], data_encoding=1)
-                # input_ltc = modelGs[0].transformer.projection_net(source_enc_output)
-
-                # input_ltc = modelGs[1].transformer.deprojection_net(input_ltc)
-                # target_motion, _, _ = modelGs[1].transformer.decoder(character_idx, input_ltc, source_enc_output, data_encoding=0)
-
-                # # target motion -> ltc -> source motion 
-                # target_enc_output, _, _ = modelGs[1].transformer.encoder(character_idx, target_motion, data_encoding=1)
-                # output_ltc = modelGs[1].transformer.projection_net(target_enc_output)
-
-                # output_ltc = modelGs[0].transformer.deprojection_net(output_ltc)
-                # recon_motion, _, _ =  modelGs[0].transformer.decoder(character_idx, output_ltc, target_enc_output, data_encoding=0)
-
-                # cycle loss 
-                # loss = rec_criterion(input_motions[0], recon_motion)
-                # cyc_loss = loss.clone().detach().requires_grad_(True)
-                # cyc_losses.append(loss.item())
-
             """ backward and optimize """
             for j in range(args.n_topology):
                 if j == 0:
-                    # requires_grad_(modelGs[0], True)
-                    generator_loss = 128 * (rec_loss[j]) + 128 * (ltc_loss)
+                    generator_loss = (rec_loss[j]) #  + 128 * (ltc_loss)
                     generator_loss.backward()
                     optimizerGs[j].step()
                 else:
-                    # requires_grad_(modelGs[0], False)
                     generator_loss = 128 * (rec_loss[j]) # + 128 * ltc_loss[j] # + 100 * cyc_loss
                     generator_loss.backward()
                     optimizerGs[j].step()
             
             """  remake root & BVH Writing """ 
-            for j in range(args.n_topology):
-                """ 1) denorm """
-                if args.normalization == 1:
-                    denorm_gt_motions[j]     = denormalize(train_dataset, character_idx, gt_motions[j], j)
-                    denorm_output_motions[j] = denormalize(train_dataset, character_idx, output_motions[j], j)
-                    latent_feature[j] = denormalize(train_dataset, character_idx, latent_feature[j], j)
-                else:
-                    denorm_gt_motions[j]     = gt_motions[j]
-                    denorm_output_motions[j] = output_motions[j]
-                
-                """ 2) swap dim """
-                if args.swap_dim == 1:
-                    denorm_gt_motions_[j]     = torch.transpose(denorm_gt_motions[j], 1, 2)
-                    denorm_output_motions_[j] = torch.transpose(denorm_output_motions[j], 1, 2)
-                    latent_feature[j] = torch.transpose(latent_feature[j], 1, 2)
-                else:
-                    denorm_gt_motions_[j]     = denorm_gt_motions[j]
-                    denorm_output_motions_[j] = denorm_output_motions[j]
-                
-                """ 3) remake root position from displacement """
-                if args.root_pos_disp == 1:
-                    denorm_gt_motions[j] = remake_root_position_from_displacement(
-                        args, denorm_gt_motions_[j], num_bs, num_frame, num_DoF)
-                    denorm_output_motions[j] = remake_root_position_from_displacement(
-                        args, denorm_output_motions_[j], num_bs, num_frame, num_DoF)
-                
-                """ BVH Writing """ 
-                if epoch == 0:
-                    write_bvh(save_dir, "gt", denorm_gt_motions_[j],
-                            characters, character_idx, motion_idx, args, j)
-                if epoch % 50 == 0 and epoch != 0:
-                    write_bvh(save_dir, "output"+str(epoch), denorm_output_motions_[j],
-                            characters, character_idx, motion_idx, args, j)
-                    write_bvh(save_dir, "latent"+str(epoch), latent_feature[j],
-                            characters, character_idx, motion_idx, args, j)
+            if epoch % 50 == 0 :
+                for j in range(args.n_topology):
+                    """ 1) denorm """
+                    if args.normalization == 1:
+                        denorm_gt_motions[j]     = denormalize(train_dataset, character_idx, gt_motions[j], j)
+                        denorm_output_motions[j] = denormalize(train_dataset, character_idx, output_motions[j], j)
+                    else:
+                        denorm_gt_motions[j]     = gt_motions[j]
+                        denorm_output_motions[j] = output_motions[j]
+                    
+                    """ 2) swap dim """
+                    if args.swap_dim == 1:
+                        denorm_gt_motions_[j]     = torch.transpose(denorm_gt_motions[j], 1, 2)
+                        denorm_output_motions_[j] = torch.transpose(denorm_output_motions[j], 1, 2)
+                    else:
+                        denorm_gt_motions_[j]     = denorm_gt_motions[j]
+                        denorm_output_motions_[j] = denorm_output_motions[j]
+                    
+                    """ 3) remake root position from displacement """
+                    if args.root_pos_disp == 1:
+                        denorm_gt_motions[j]     = remake_root_position_from_displacement(args, denorm_gt_motions_[j], num_bs, num_frame, num_DoF)
+                        denorm_output_motions[j] = remake_root_position_from_displacement(args, denorm_output_motions_[j], num_bs, num_frame, num_DoF)
+                    
+                    """ BVH Writing """ 
+                    if epoch == 0:
+                        write_bvh(save_dir, "gt",                denorm_gt_motions_[j], characters, character_idx, motion_idx, args, j)
+                    if epoch != 0:
+                        write_bvh(save_dir, "output"+str(epoch), denorm_output_motions_[j], characters, character_idx, motion_idx, args, j)
 
             # """Check """
             # loss = rec_criterion(gt_motions[1], output_motions[1])            
@@ -229,13 +189,11 @@ def train_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_l
             """ show info """
             pbar.update(1)
             pbar.set_postfix_str(
-                f"mean1: {np.mean(rec_losses0):.7f}, mean2: {np.mean(rec_losses1):.7f}, cyc_loss: {np.mean(ltc_losses):.7f}, {rec_loss[0]:.3f}, {rec_loss[1]:.3f}")
-               # fk_loss: {np.mean(fk_losses):.3f}, 
+                f"mean1: {np.mean(rec_losses0):.7f}, mean2: {np.mean(rec_losses1):.7f}, {rec_loss[0]:.3f}, {rec_loss[1]:.3f}")
 
         torch.cuda.empty_cache()
         del source_motions, gt_motions, output_motions, latent_feature, denorm_gt_motions, denorm_gt_motions_ 
-        #, source_enc_output, input_ltc, target_motion, target_enc_output, output_ltc, recon_motion
 
-    return np.mean(rec_losses0), np.mean(rec_losses1), np.mean(ltc_losses)
+    return np.mean(rec_losses0), np.mean(rec_losses1)
             # np.mean(G_losses), np.mean(D_real_losses), np.mean(D_fake_losses)
         # np.mean(fk_losses),
