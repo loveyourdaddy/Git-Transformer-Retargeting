@@ -9,6 +9,8 @@ import option_parser
 
 def collect_bvh(args, data_path, character, files):
     print('begin {}'.format(character))
+
+    # save motion as .npy file 
     motions = []
     
     for i, motion in enumerate(files):
@@ -27,14 +29,23 @@ def collect_bvh(args, data_path, character, files):
         motions.append(new_motion)
 
     if args.is_train == 1:
-        save_file = data_path + character + '.npy'
+        save_name = data_path + character + '.npy'
     elif args.is_train == 0:
-        save_file = data_path + character + '_test.npy'
+        save_name = data_path + character + '_test.npy'
     else:
         print("error")
+    np.save(save_name, motions)
 
-    np.save(save_file, motions)
-    print('Npy file saved at {}'.format(save_file))
+    # Get body part index  
+    path = data_path + character + '/' + motion
+    file = BVH_file(path)
+    body_part_index = file.get_body_part_index()
+    
+    # Get body part index and save it 
+    save_name = data_path + '/body_part_index/' + character + '.npy'
+    np.save(save_name, body_part_index)
+
+    print('Npy file saved at {}'.format(save_name))
 
 def copy_std_bvh(args, data_path, character, files):
     """
@@ -79,6 +90,7 @@ if __name__ == '__main__':
     characters = [f for f in os.listdir(prefix) if os.path.isdir(os.path.join(prefix, f))]
     if 'std_bvhs' in characters: characters.remove('std_bvhs')
     if 'mean_var' in characters: characters.remove('mean_var')
+    if 'body_part_index' in characters: characters.remove('body_part_index')
 
     try_mkdir(os.path.join(prefix, 'std_bvhs'))
     try_mkdir(os.path.join(prefix, 'mean_var'))

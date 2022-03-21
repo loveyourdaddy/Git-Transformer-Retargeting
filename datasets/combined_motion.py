@@ -43,6 +43,7 @@ class MixedData(Dataset):
         self.args = args
         device = torch.device(args.cuda_device if (torch.cuda.is_available()) else 'cpu')
         self.final_data = []
+        self.skeleton_type = []
         self.enc_inputs = []
         self.dec_inputs = []
         self.gt = []
@@ -60,6 +61,7 @@ class MixedData(Dataset):
         # self.position_encoding = args.position_encoding
         self.offsets_group = []
         # self.split_index = []
+        self.body_part_index = []
 
         # all_datas : (2 groups, 4 characters, 106 motions, 913 frames, rot and pos of 91 joints)
         for group, characters in enumerate(character_groups): # names 
@@ -69,6 +71,8 @@ class MixedData(Dataset):
             dataset_num += len(characters)
             motion_data = []
 
+
+            """ motion data """
             for i, character in enumerate(characters):
                 args.dataset = character
                 motion = MotionData(args, 0)
@@ -107,8 +111,21 @@ class MixedData(Dataset):
             vars_group = torch.cat(vars_group, dim=0).to(device)
             self.means.append(means_group)
             self.vars.append(vars_group)
-        
-        """ Get final """
+
+            # """ Get skeleton index """
+            # skeleton_type = []
+            # for i, character in enumerate(characters):
+            #     file_path = './datasets/Mixamo/{}_type.npy'.format(character)
+            #     skeleton_idx = np.load(file_path)
+            #     skeleton_type.append(skeleton_idx)
+            # self.skeleton_type.append(skeleton_type)
+
+            """ body part index """
+            for i, character in enumerate(characters):
+                body_part_index = np.load('./datasets/Mixamo/body_part_index/{}.npy'.format(character))
+                self.body_part_index.append(body_part_index)
+
+        """ Process motion: Get final_data """
         for group_idx, datasets in enumerate(all_datas): # final_data: (2, 424, 913, 91) for 2 groups
             motions = []
             # 총 모션의 갯수가  batch_size의 배수가 되게 하기 위한 Cropping
@@ -130,7 +147,7 @@ class MixedData(Dataset):
         # self.dec_inputs = self.final_data[1][:] 
         
         """ update input/output dimension of network: Set DoF  """
-        #swap_dim=0: (bs, Window, DoF) 
+        #swap_dim=0: (bs, Window, DoF)
         if args.swap_dim == 0:
             args.input_size = self.source_motions.size(2)
             args.output_size = self.target_motions.size(2)
@@ -138,6 +155,9 @@ class MixedData(Dataset):
         else: 
             args.input_size = self.source_motions.size(1)
             args.output_size = self.target_motions.size(1)
+
+        # for i in enumerate
+        
 
     def denorm(self, gid, pid, data):
         means = self.means[gid][pid, ...]

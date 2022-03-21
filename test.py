@@ -16,7 +16,7 @@ SAVE_ATTENTION_DIR = "attention_vis/test"
 os.makedirs(SAVE_ATTENTION_DIR, exist_ok=True)
 
 """ eval """
-def eval_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_loader, train_dataset, characters, save_name, Files):
+def eval_epoch(args, epoch, modelGs, train_loader, train_dataset, characters, save_name, Files):
     
     n_topology = len(modelGs)
     # losses = []  # losses for test epoch # 매 스텝마다 초기화 되는 loss들
@@ -29,18 +29,17 @@ def eval_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_lo
 
     rec_losses0 = [] 
     rec_losses1 = [] 
-    cyc_losses  = [] 
+    # cyc_losses  = [] 
 
     for i in range(n_topology):
         modelGs[i].eval()
-        modelDs[i].eval()
 
     save_dir = args.save_dir + save_name
     try_mkdir(save_dir)
     
     rec_criterion = torch.nn.MSELoss()
 
-    with tqdm(total=len(train_loader), desc=f"TrainEpoch {epoch}") as pbar:
+    with tqdm(total=len(train_loader), desc=f"TestEpoch {epoch}") as pbar:
         for i, value in enumerate(train_loader):
 
             source_motions, target_motions = map(lambda v: v.to(args.cuda_device), value)
@@ -66,14 +65,14 @@ def eval_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_lo
 
             motion_idx = get_curr_motion(i, args.batch_size)
             character_idx = get_curr_character(motion_idx, args.num_motions)
-            file = Files[1][character_idx]
 
             # topology 1 
-            output_motions[0], ltc, _, _, _ = modelGs[0](character_idx, character_idx, input_motions[0])
+            output_motions[0], _ = modelGs[0](character_idx, character_idx, input_motions[0])
+            output_motions[1], _ = modelGs[1](character_idx, character_idx, input_motions[1])
 
-            # topology1 -> topology 2
-            latent_feature, _, _ = modelGs[0].transformer.encoder(character_idx, input_motions[0], data_encoding=1)
-            output_motions[1], _, _ = modelGs[1].transformer.decoder(character_idx, latent_feature, latent_feature, data_encoding=1)
+            # # topology1 -> topology 2
+            # latent_feature, _, _ = modelGs[0].transformer.encoder(character_idx, input_motions[0], data_encoding=1)
+            # output_motions[1], _, _ = modelGs[1].transformer.decoder(character_idx, latent_feature, latent_feature, data_encoding=1)
 
             for j in range(args.n_topology):
                 loss = rec_criterion(gt_motions[j], output_motions[j])
@@ -83,9 +82,8 @@ def eval_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_lo
                 else:
                     rec_losses1.append(loss.item()) 
 
-            loss = rec_criterion(ltc, latent_feature)
-            cyc_losses.append(loss.item()) 
-
+            # loss = rec_criterion(ltc, latent_feature)
+            
             """  remake root & BVH Writing """ 
             for j in range(args.n_topology):
                 """ 1) denorm """
@@ -109,5 +107,5 @@ def eval_epoch(args, epoch, modelGs, modelDs, optimizerGs, optimizerDs, train_lo
                         characters, character_idx, motion_idx, args, j)
 
             pbar.update(1)
-            pbar.set_postfix_str(f"mean1: {np.mean(rec_losses0):.7f}, mean2: {np.mean(rec_losses1):.7f}, cyc_losses: {np.mean(cyc_losses):.7f}")
-    return np.mean(rec_losses0), np.mean(rec_losses1)
+            pbar.set_postfix_str(f"mean1: {np.mean(rec_losses0):.7f}, mean2: {np.mean(rec_losses1):.7f}")
+    # return np.mean(rec_losses0), np.mean(rec_losses1)

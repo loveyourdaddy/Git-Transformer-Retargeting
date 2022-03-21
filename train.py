@@ -88,9 +88,9 @@ def train_epoch(args, epoch, modelGs, optimizerGs, train_loader, train_dataset, 
 
     args.epoch = epoch
     character_idx = 0
-    rec_criterion = torch.nn.MSELoss() # reduction='sum'
-    ltc_criterion = torch.nn.MSELoss()
-    gan_criterion = GAN_loss(args.gan_mode).to(args.cuda_device)
+    rec_criterion = torch.nn.MSELoss() 
+    # ltc_criterion = torch.nn.MSELoss()
+    # gan_criterion = GAN_loss(args.gan_mode).to(args.cuda_device)
     
     save_dir = args.save_dir + save_name
     try_mkdir(save_dir)

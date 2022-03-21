@@ -74,7 +74,8 @@ class BVH_file:
         self.edge_num = 0
         self._topology = None
         self.ee_length = []
-        
+        self.body_part_index = []
+
         for i, name in enumerate(self._names):
             if ':' in name:
                 name = name[name.find(':') + 1:]
@@ -87,6 +88,7 @@ class BVH_file:
                     full_fill[i] = 0
                     break
 
+        # Get skeleton type 
         if full_fill[3]:
             self.skeleton_type = 3
         else:
@@ -164,6 +166,31 @@ class BVH_file:
 
         self.edges = build_edge_topology(self.topology, self.offset)
 
+        # Get body part index :
+        if self.skeleton_type == 3: # Aj 
+
+            #  order (left leg, right leg, spine, left arm, right arm)            
+            left_leg    = ['Pelvis','LeftUpLeg','LeftLeg','LeftFoot','LeftToeBase']
+            right_leg   = ['Pelvis','RightUpLeg','RightLeg','RightFoot','RightToeBase']
+            spine       = ['Spine', 'Spine1', 'Spine2', 'Neck', 'Head']
+            left_arm    = ['Spine2', 'LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand']
+            right_arm   = ['Spine2','RightShoulder', 'RightArm', 'RightForeArm', 'RightHand']
+
+            body_parts_name = []
+            body_parts_name.append(left_leg)
+            body_parts_name.append(right_leg)
+            body_parts_name.append(spine)
+            body_parts_name.append(left_arm)
+            body_parts_name.append(right_arm)
+
+            # body_part_index = []
+            for body_part_name in body_parts_name: #5
+                part_index = [] 
+                for joint_name in body_part_name:
+                    joint_index = corps_names[self.skeleton_type].index(joint_name)
+                    part_index.append(joint_index)
+                self.body_part_index.append(part_index)
+                
     def scale(self, alpha):
         self.anim.offsets *= alpha
         global_position = self.anim.positions[:, 0, :]
@@ -199,7 +226,7 @@ class BVH_file:
         return self.ee_id
 
     def to_numpy(self, quater=False, edge=True):
-        rotations = self.anim.rotations[:, self.corps, :] # (221 : , 28, 3)
+        rotations = self.anim.rotations[:, self.corps, :]
         if quater:
             rotations = Quaternions.from_euler(np.radians(rotations)).qs
             positions = self.anim.positions[:, 0, :]
@@ -329,3 +356,9 @@ class BVH_file:
         for i, j in enumerate(new_seq):
             self._names[i] = names[j]
         self.anim.parents = np.array(new_parent, dtype=np.int)
+
+    # def get_skeleton_type(self):
+    #     return self.skeleton_type
+
+    def get_body_part_index(self):
+        return self.body_part_index
