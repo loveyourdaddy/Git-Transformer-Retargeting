@@ -91,8 +91,9 @@ class SkeletonConv(nn.Module):
         return res
 
 class SkeletonPool(nn.Module):
-    def __init__(self, edges, pooling_mode, channels_per_edge, last_pool=False):
+    def __init__(self, args, edges, pooling_mode, channels_per_edge, last_pool=False):
         super(SkeletonPool, self).__init__()
+        self.args = args 
 
         # check here 
         if pooling_mode != 'mean':
@@ -285,7 +286,7 @@ class Encoder(nn.Module):
                                     in_offset_channel=3 * self.channel_base[i] // self.channel_base[0]))
             self.convs.append(seq[-1])
             last_pool = True if i == args.num_layers - 1 else False
-            pool = SkeletonPool(edges=self.topologies[i], pooling_mode=args.skeleton_pool,
+            pool = SkeletonPool(args, edges=self.topologies[i], pooling_mode=args.skeleton_pool,
                                 channels_per_edge=out_channels // len(neighbor_list), last_pool=last_pool)
             seq.append(pool)
             seq.append(nn.LeakyReLU(negative_slope=0.2))
@@ -373,7 +374,7 @@ def build_edge_topology(topology, offset):
         edges.append((topology[i], i, offset[i]))
     return edges
 
-class MotionGenerator(nn.Module):
+class BodyPartGenerator(nn.Module):
     def __init__(self, args, offsets, joint_topology):
         super().__init__()
         self.input_dim = args.window_size
@@ -391,6 +392,30 @@ class MotionGenerator(nn.Module):
         lat = self.encoder(inputs, self.offsets)
         outputs = self.decoder(lat, self.offsets)
         return outputs, lat
+
+class MotionGenerator(nn.Module):
+    def __init__(self, args, offsets, joint_topology):
+        super().__init__()
+        self.body_part_generator = []
+        for i in range(6):
+            body_part_generator = BodyPartGenerator(args, offsets, joint_topology).to(args.cuda_device)
+            self.body_part_generator.append(body_part_generator)
+
+    def forward(self, i, input_character, output_character, inputs):
+        outputs, lat = self.body_part_generator[i](input_character, output_character, inputs)
+        return outputs, lat
+
+    def G_parameters(self):
+        # ret = [] 
+        # for i in range(6):
+        #     [] += list(self.body_part_generator[i])
+        # return ret
+        return list(self.body_part_generator[0].parameters())\
+            +list(self.body_part_generator[1].parameters())\
+                +list(self.body_part_generator[2].parameters())\
+                    +list(self.body_part_generator[3].parameters())\
+                        +list(self.body_part_generator[4].parameters())\
+                            +list(self.body_part_generator[5].parameters())
 
 class Discriminator(nn.Module):
     def __init__(self, args, offsets):

@@ -64,24 +64,31 @@ def train_epoch(args, epoch, modelGs, optimizerGs, train_loader, train_dataset, 
 
     # Set return list 
     n_topology = len(modelGs)
-    input_motions           = [0] * n_topology
-    output_motions          = [0] * n_topology
-    gt_motions              = [0] * n_topology
-    denorm_gt_motions       = [0] * n_topology
-    denorm_output_motions   = [0] * n_topology
-    denorm_gt_motions_      = [0] * n_topology
-    denorm_output_motions_  = [0] * n_topology
-    latent_feature          = [0] * n_topology
+
+    input_motions          = [0] * n_topology
+    output_motions         = [0] * n_topology
+    gt_motions             = [0] * n_topology
+    
+    bp_input_motions       = [0] * n_topology
+    bp_output_motions      = [0] * n_topology
+    bp_gt_motions          = [0] * n_topology
+
+    denorm_gt_motions      = [0] * n_topology
+    denorm_output_motions  = [0] * n_topology
+    denorm_gt_motions_     = [0] * n_topology
+    denorm_output_motions_ = [0] * n_topology
+
+    latent_feature         = [0] * n_topology
 
     # loss to backward (assign value)
     rec_loss = [0] * n_topology
-    ltc_loss = [0] * n_topology
+    # ltc_loss = [0] * n_topology
 
     # set loss list to mean (append)
     rec_losses0 = [] 
     rec_losses1 = [] 
-    ltc_losses  = [] 
-    cyc_losses  = [] 
+    # ltc_losses  = [] 
+    # cyc_losses  = [] 
 
     for i in range(n_topology):
         modelGs[i].train()
@@ -98,42 +105,49 @@ def train_epoch(args, epoch, modelGs, optimizerGs, train_loader, train_dataset, 
     with tqdm(total=len(train_loader), desc=f"TrainEpoch {epoch}") as pbar:
         for i, value in enumerate(train_loader):
 
-            """ Get Data and Set value to model and Get output """
-            source_motions, target_motions = map(lambda v: v.to(args.cuda_device), value)
+            motion_idx = get_curr_motion(i, args.batch_size)
+            character_idx = get_curr_character(motion_idx, args.num_motions) # 0~3 ? 
 
+            """ Get Data and Set value to model and Get output """
+            # ToDo: current, motion of source characters and target characters
+            bp_source_motions, bp_target_motions = map(lambda v: v.to(args.cuda_device), value) 
+
+            """ Divide motion to source and gt and input """
             for j in range(args.n_topology):
-                if j == 0 : 
-                    input_motions[j] = source_motions
-                    gt_motions[j] = source_motions
+                if j == 0:
+                    bp_input_motions[j] = bp_source_motions
+                    bp_gt_motions[j]    = bp_source_motions
                 else:
-                    input_motions[j] = target_motions
-                    gt_motions[j] = target_motions
+                    bp_input_motions[j] = bp_target_motions
+                    bp_gt_motions[j]    = bp_target_motions
 
             # """ Get Data numbers: (bs, DoF, window) """
-            if j == 0 : 
-                num_bs, Dim1, Dim2 = source_motions.size(0), source_motions.size(1), source_motions.size(2)
-            else:
-                num_bs, Dim1, Dim2 = target_motions.size(0), target_motions.size(1), target_motions.size(2)
+            # if j == 0:
+            #     num_bs, Dim1, Dim2 = source_motions.size(0), source_motions.size(1), source_motions.size(2)
+            # else:
+            #     num_bs, Dim1, Dim2 = target_motions.size(0), target_motions.size(1), target_motions.size(2)
 
-            if args.swap_dim == 0:
-                num_frame, num_DoF = Dim1, Dim2
-            else:
-                num_DoF, num_frame = Dim1, Dim2
-
-            motion_idx = get_curr_motion(i, args.batch_size)
-            character_idx = get_curr_character(motion_idx, args.num_motions)
-
+            # if args.swap_dim == 0:
+            #     num_frame, num_DoF = Dim1, Dim2
+            # else:
+            #     num_DoF, num_frame = Dim1, Dim2
+ 
+            for j in range(args.n_topology):
+                bp_output_motions[j] = torch.zeros(bp_gt_motions[j].size()).to(args.cuda_device) # body part output 
+                output_motions[j] = torch.zeros(bp_gt_motions[j].size(0), bp_gt_motions[j].size(2), bp_gt_motions[j].size(3)).to(args.cuda_device) # combined motion 
+                gt_motions[j] = torch.zeros(bp_gt_motions[j].size(0), bp_gt_motions[j].size(2), bp_gt_motions[j].size(3)).to(args.cuda_device) # combined motion 
 
             """ Get LOSS (orienation & FK & regularization) """
             """ feed to NETWORK """
             for j in range(args.n_topology):
-                output_motions[j], latent_feature[j] = modelGs[j](character_idx, character_idx, input_motions[j])
-
+                for b in range(6):
+                    bp_output_motions[j][:,b,:,:], _ = modelGs[j].body_part_generator[b](character_idx, character_idx, bp_input_motions[j][:, b, :, :])
+          
             """ loss1. loss on each element """ 
             if args.rec_loss == 1:
-                # get rec loss 
+                # get rec loss
                 for j in range(args.n_topology):
-                    loss = rec_criterion(gt_motions[j], output_motions[j])
+                    loss = rec_criterion(bp_gt_motions[j], bp_output_motions[j])
                     rec_loss[j] = loss
                     if j == 0:
                         rec_losses0.append(loss.item())
@@ -143,18 +157,45 @@ def train_epoch(args, epoch, modelGs, optimizerGs, train_loader, train_dataset, 
             """ backward and optimize """
             for j in range(args.n_topology):
                 if j == 0:
-                    generator_loss = (rec_loss[j]) #  + 128 * (ltc_loss)
+                    generator_loss = (rec_loss[j])
                     optimizerGs[j].zero_grad()
                     generator_loss.backward()
                     optimizerGs[j].step()
                 else:
-                    generator_loss = 10 * (rec_loss[j]) # + 128 * ltc_loss[j] # + 100 * cyc_loss
+                    generator_loss = (rec_loss[j])
                     optimizerGs[j].zero_grad()
                     generator_loss.backward()
                     optimizerGs[j].step()
+
+            """ Combine part by motion back """  
+            """ gt motion """
+            index = train_dataset.groups_body_parts_index # index of joint for each body part
+            length = bp_input_motions[j].size(2) # 91 
+            for j in range(args.n_topology):
+                # root rotation
+                for k in range(4): # root rotation 0~3
+                    gt_motions[j][:, k, :] = bp_gt_motions[j][:, 0, k, :]
+                # root position
+                for k in range(3): # position len-3 ~ -1
+                    gt_motions[j][:, length - 3 + k, :] = bp_gt_motions[j][:, 0, length - 3 + k, :]
+                # body parts
+                for b in range(5):
+                    gt_motions[j][:, index[1][character_idx][b], :] = bp_gt_motions[j][:, b+1, index[1][character_idx][b], :]
+
+            """ output motion """
+            for j in range(args.n_topology):
+                # root rotation
+                for k in range(4): # root rotation 0~3
+                    output_motions[j][:, k, :] = bp_output_motions[j][:, 0, k, :]
+                # root position
+                for k in range(3): # position len-3 ~ -1
+                    output_motions[j][:, length - 3 + k, :] = bp_output_motions[j][:, 0, length - 3 + k, :]
+                # body parts
+                for b in range(5):
+                    output_motions[j][:, index[1][character_idx][b], :] = bp_output_motions[j][:, b+1, index[1][character_idx][b], :]
             
-            """  remake root & BVH Writing """ 
-            if epoch % 50 == 0 :
+            """ Remake root & BVH Writing """
+            if epoch % 50 == 0:
                 for j in range(args.n_topology):
                     """ 1) denorm """
                     if args.normalization == 1:
@@ -173,9 +214,9 @@ def train_epoch(args, epoch, modelGs, optimizerGs, train_loader, train_dataset, 
                         denorm_output_motions_[j] = denorm_output_motions[j]
                     
                     """ 3) remake root position from displacement """
-                    if args.root_pos_disp == 1:
-                        denorm_gt_motions[j]     = remake_root_position_from_displacement(args, denorm_gt_motions_[j], num_bs, num_frame, num_DoF)
-                        denorm_output_motions[j] = remake_root_position_from_displacement(args, denorm_output_motions_[j], num_bs, num_frame, num_DoF)
+                    # if args.root_pos_disp == 1:
+                    #     denorm_gt_motions[j]     = remake_root_position_from_displacement(args, denorm_gt_motions_[j], num_bs, num_frame, num_DoF)
+                    #     denorm_output_motions[j] = remake_root_position_from_displacement(args, denorm_output_motions_[j], num_bs, num_frame, num_DoF)
                     
                     """ BVH Writing """ 
                     if epoch == 0:
@@ -193,8 +234,6 @@ def train_epoch(args, epoch, modelGs, optimizerGs, train_loader, train_dataset, 
                 f"mean1: {np.mean(rec_losses0):.7f}, mean2: {np.mean(rec_losses1):.7f}, {rec_loss[0]:.3f}, {rec_loss[1]:.3f}")
 
         torch.cuda.empty_cache()
-        del source_motions, gt_motions, output_motions, latent_feature, denorm_gt_motions, denorm_gt_motions_ 
+        del bp_source_motions, bp_gt_motions, output_motions, bp_output_motions, latent_feature, denorm_gt_motions, denorm_gt_motions_ 
 
     return np.mean(rec_losses0), np.mean(rec_losses1)
-            # np.mean(G_losses), np.mean(D_real_losses), np.mean(D_fake_losses)
-        # np.mean(fk_losses),

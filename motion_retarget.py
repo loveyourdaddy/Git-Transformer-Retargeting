@@ -55,7 +55,7 @@ args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args.n_topology = 2
 para_path = "./parameters/"
 print("cuda availiable: {}".format(torch.cuda.is_available()))
-save_name = "220320_Changed_Dimension/"
+save_name = "220323_Body_part/"
 # args.epoch_begin = 2300
 # args.is_train = False
 log_dir = './run/' + save_name
@@ -64,8 +64,7 @@ writer = SummaryWriter(log_dir, flush_secs=1)
 """ load Motion Dataset """
 characters = get_character_names(args)
 dataset = create_dataset(args, characters)
-loader = torch.utils.data.DataLoader(
-    dataset, batch_size=args.batch_size, shuffle=False, collate_fn=motion_collate_fn)
+loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=motion_collate_fn)
 offsets = dataset.get_offsets()
 print("characters:{}".format(characters))
 
@@ -77,13 +76,11 @@ optimizerGs = []
 # Get models
 for i in range(args.n_topology):
     # model 
-    generator_model     = MotionGenerator(args, offsets[i], dataset.joint_topologies[i])
-    # discriminator_model = Discriminator(args, offsets[i])
-    generator_model.to(args.cuda_device)
-    # discriminator_model.to(args.cuda_device)
+    generator_model     = MotionGenerator(args, offsets[i], dataset.joint_topologies[i]).to(args.cuda_device)
+    # discriminator_model = Discriminator(args, offsets[i]).to(args.cuda_device)
 
     # optimizer
-    optimizerG = torch.optim.Adam(generator_model.parameters(), lr=args.learning_rate) # weight_decay=args.weight_decay
+    optimizerG = torch.optim.Adam(generator_model.G_parameters(), lr=args.learning_rate) # weight_decay=args.weight_decay
     # optimizerD = torch.optim.Adam(discriminator_model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 
     # add to list 

@@ -16,7 +16,7 @@ def collect_bvh(args, data_path, character, files):
     for i, motion in enumerate(files):
         if args.is_train == 1:
             path = data_path + character + '/' + motion
-        elif args.is_train == 0:
+        elif args.is_train == 0: 
             path = data_path + character + '/test/' + motion
         else:
             print("error")
@@ -36,12 +36,13 @@ def collect_bvh(args, data_path, character, files):
         print("error")
     np.save(save_name, motions)
 
-    # Get body part index  
+    """ Get body part index and save it"""
+    # Get body part index
     path = data_path + character + '/' + motion
     file = BVH_file(path)
     body_part_index = file.get_body_part_index()
     
-    # Get body part index and save it 
+    # Save it 
     save_name = data_path + '/body_part_index/' + character + '.npy'
     np.save(save_name, body_part_index)
 

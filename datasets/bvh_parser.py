@@ -168,13 +168,12 @@ class BVH_file:
 
         # Get body part index :
         if self.skeleton_type == 3: # Aj 
-
-            #  order (left leg, right leg, spine, left arm, right arm)            
-            left_leg    = ['Pelvis','LeftUpLeg','LeftLeg','LeftFoot','LeftToeBase']
-            right_leg   = ['Pelvis','RightUpLeg','RightLeg','RightFoot','RightToeBase']
-            spine       = ['Spine', 'Spine1', 'Spine2', 'Neck', 'Head']
-            left_arm    = ['Spine2', 'LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand']
-            right_arm   = ['Spine2','RightShoulder', 'RightArm', 'RightForeArm', 'RightHand']
+            #  order (left leg, right leg, spine, left arm, right arm)
+            left_leg    = ['LeftUpLeg','LeftLeg','LeftFoot','LeftToeBase'] # 'Pelvis'
+            right_leg   = ['RightUpLeg','RightLeg','RightFoot','RightToeBase'] # 'Pelvis'
+            spine       = ['Pelvis','Spine', 'Spine1', 'Spine2', 'Neck', 'Head'] # 6
+            left_arm    = ['LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand']  # 'Spine2'
+            right_arm   = ['RightShoulder', 'RightArm', 'RightForeArm', 'RightHand']  # 'Spine2'
 
             body_parts_name = []
             body_parts_name.append(left_leg)
@@ -188,9 +187,10 @@ class BVH_file:
                 part_index = [] 
                 for joint_name in body_part_name:
                     joint_index = corps_names[self.skeleton_type].index(joint_name)
-                    part_index.append(joint_index)
+                    parent_index = self.topology[joint_index] # parent index 
+                    part_index.append(parent_index)
                 self.body_part_index.append(part_index)
-                
+
     def scale(self, alpha):
         self.anim.offsets *= alpha
         global_position = self.anim.positions[:, 0, :]
@@ -242,8 +242,7 @@ class BVH_file:
         # (221,27,3) -> (221, 81), (313,22,3)->(313,66)
         rotations = rotations.reshape(rotations.shape[0], -1)
         
-        # (221, 81+3), (313,66+3)->(313,69)
-        # position은 가장 마지막에 존재함
+        # (221, 81+3), (313,66+3) -> (313,69)
         return np.concatenate((rotations, positions), axis=1)
 
     def to_tensor(self, quater=False, edge=True):

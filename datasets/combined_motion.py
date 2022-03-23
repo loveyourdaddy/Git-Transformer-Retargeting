@@ -35,6 +35,17 @@ class MixedData0(Dataset):
             print("reversed MixedData0")
             return self.motions_reverse[item]
 
+# class BodyPartData(Dataset):
+#     def __init__(self, args, motions, body_part_index):
+#         super(BodyPartData, self).__init__()
+#         self.motions = motions 
+#         self.args = args 
+#         self.body_part_index = body_part_index  # for all characters. 
+
+#         # make motion by body part : ()
+
+#     def __getitem__(self, item):
+#         return 
 
 """ MixedData:  """
 class MixedData(Dataset):
@@ -43,6 +54,9 @@ class MixedData(Dataset):
         self.args = args
         device = torch.device(args.cuda_device if (torch.cuda.is_available()) else 'cpu')
         self.final_data = []
+        self.groups_body_parts_index = []
+        self.body_parts_index = []
+
         self.skeleton_type = []
         self.enc_inputs = []
         self.dec_inputs = []
@@ -61,8 +75,6 @@ class MixedData(Dataset):
         # self.position_encoding = args.position_encoding
         self.offsets_group = []
         # self.split_index = []
-        self.body_part_index = []
-
         # all_datas : (2 groups, 4 characters, 106 motions, 913 frames, rot and pos of 91 joints)
         for group, characters in enumerate(character_groups): # names 
             offsets_group = []
@@ -70,7 +82,6 @@ class MixedData(Dataset):
             vars_group = []
             dataset_num += len(characters)
             motion_data = []
-
 
             """ motion data """
             for i, character in enumerate(characters):
@@ -112,18 +123,24 @@ class MixedData(Dataset):
             self.means.append(means_group)
             self.vars.append(vars_group)
 
-            # """ Get skeleton index """
-            # skeleton_type = []
-            # for i, character in enumerate(characters):
-            #     file_path = './datasets/Mixamo/{}_type.npy'.format(character)
-            #     skeleton_idx = np.load(file_path)
-            #     skeleton_type.append(skeleton_idx)
-            # self.skeleton_type.append(skeleton_type)
-
             """ body part index """
+            # change index by quaternion form 
+            # [group 2, characters 4, indces]
+            groups_body_parts_index = [] 
             for i, character in enumerate(characters):
-                body_part_index = np.load('./datasets/Mixamo/body_part_index/{}.npy'.format(character))
-                self.body_part_index.append(body_part_index)
+                body_parts_index = np.load('./datasets/Mixamo/body_part_index/{}.npy'.format(character), allow_pickle=True)
+                character_body_parts_index = []
+                # for body parts 
+                for _, body_part_index in enumerate(body_parts_index): # for 1 body part 
+                    part_index = []
+                    # for joints 
+                    for _, joint_index in enumerate(body_part_index): # for 1 joint 
+                        for j in range(4):
+                            part_index.append(4*joint_index + j)
+                    character_body_parts_index.append(part_index)
+                groups_body_parts_index.append(character_body_parts_index)
+                
+            self.groups_body_parts_index.append(groups_body_parts_index)
 
         """ Process motion: Get final_data """
         for group_idx, datasets in enumerate(all_datas): # final_data: (2, 424, 913, 91) for 2 groups
@@ -143,8 +160,7 @@ class MixedData(Dataset):
         
         """ Get enc / dec input motions """
         self.source_motions = self.final_data[0][:] 
-        self.target_motions = self.final_data[1][:]  
-        # self.dec_inputs = self.final_data[1][:] 
+        self.target_motions = self.final_data[1][:]
         
         """ update input/output dimension of network: Set DoF  """
         #swap_dim=0: (bs, Window, DoF)
@@ -156,20 +172,47 @@ class MixedData(Dataset):
             args.input_size = self.source_motions.size(1)
             args.output_size = self.target_motions.size(1)
 
-        # for i in enumerate
+        """ body part motions """
+        """ source motoin """
+        # (bs, 6 body_part, 91, window_size)
+        self.source_motions_by_parts = torch.zeros(self.source_motions.size(0), 6, 91, self.source_motions.size(2))
         
+        # root rotation (:, 0, 0~91, :)
+        for quat_idx in range(4):
+            # root rotation : 0~3
+            self.source_motions_by_parts[:, 0, quat_idx, :] = self.source_motions[:, quat_idx, :]
+
+        # root position : 4~7
+        length = self.source_motions.size(1) # 91 
+        for quat_idx in range(3):
+            self.source_motions_by_parts[:, 0, length - 3 + quat_idx, :] = self.source_motions[:, length - 3 + quat_idx, :]
+
+        # body part: (:, 1~4, 0~90, :)
+        for part_idx, body_part_index in enumerate(self.groups_body_parts_index[0][character_idx]): # source motoin 
+            self.source_motions_by_parts[:, part_idx+1, body_part_index, :] = self.source_motions[:, body_part_index, :]
+
+        """ target motion """
+        self.target_motions_by_parts = torch.zeros(self.target_motions.size(0), 6, 91, self.target_motions.size(2))
+        
+        # root rotation (:, 0, 0~91, :)
+        for quat_idx in range(4):
+            self.target_motions_by_parts[:, 0, quat_idx, :] = self.target_motions[:, quat_idx, :]
+
+        # root position : 4~7
+        length = self.target_motions.size(1) # 91 
+        for quat_idx in range(3):
+            self.target_motions_by_parts[:, 0, length - 3 + quat_idx, :] = self.target_motions[:, length - 3 + quat_idx, :]
+
+        # body part: (:, 1~4, 0~90, :)
+        for part_idx, body_part_index in enumerate(self.groups_body_parts_index[0][character_idx]): # source motoin 
+            self.target_motions_by_parts[:, part_idx+1, body_part_index, :] = self.source_motions[:, body_part_index, :]
+        # ToDo: So many zeros. remove this and make "motions by part" as clean 
 
     def denorm(self, gid, pid, data):
         means = self.means[gid][pid, ...]
         var = self.vars[gid][pid, ...]
-        # data_tmp = data 
         data = data * var + means
 
-        # if self.args.root_pos_disp == 1: 
-        #     if self.args.swap_dim == 0: #(bs, frame, DoF)
-        #         data[:,:,-3:] = data_tmp[:,:,-3:]
-        #     else:  #(bs, DoF, frame)
-        #         data[:,-3:,:] = data_tmp[:,-3:,:]
         return data
 
     def get_offsets(self):
@@ -179,9 +222,8 @@ class MixedData(Dataset):
         return self.length
 
     def __getitem__(self, item):
-        return (torch.as_tensor(self.source_motions[item].data),    # source motion
-                torch.as_tensor(self.target_motions[item].data)) # gt target motion
-                # torch.as_tensor(self.dec_inputs[item].data),    # decoder source motion
+        return (torch.as_tensor(self.source_motions_by_parts[item].data), # source motion
+                torch.as_tensor(self.target_motions_by_parts[item].data)) # gt target motion
 
 
 class TestData(Dataset):
