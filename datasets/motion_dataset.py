@@ -54,7 +54,7 @@ class MotionData(Dataset):
 
         """ Modify data  """
         # root position -> displacement
-        if args.root_pos_disp == 1:
+        if args.root_pos_as_velocity == 1:
             for bs in range(num_bs):  # 0차원(motions)에 대해
                 for frame in range(num_frames - 1):  # 2차원(frames)에 대해
                     self.data[bs][frame][num_DoF - 3] = self.data[bs][frame + 1][num_DoF - 3] - self.data[bs][frame][num_DoF - 3]
@@ -88,7 +88,7 @@ class MotionData(Dataset):
             self.data = (self.data - self.mean) / self.var
 
             # pos은 normalization에서 제거
-            # if args.root_pos_disp == 1:
+            # if args.root_pos_as_velocity == 1:
             #     if args.swap_dim == 0:
             #         self.data[:,:,-3:] = data_tmp[:,:,-3:]
             #     else:

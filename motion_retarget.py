@@ -12,20 +12,20 @@ from test import *
 from torch.utils.tensorboard import SummaryWriter
 
 """ motion data collate function """
-def motion_collate_fn(inputs):
-    source_motions, target_motions = list(zip(*inputs)) 
+# def motion_collate_fn(inputs):
+#     source_motions, target_motions = list(zip(*inputs)) 
 
-    source_motions = torch.nn.utils.rnn.pad_sequence(
-        source_motions, batch_first=True, padding_value=0)
-    target_motions = torch.nn.utils.rnn.pad_sequence(
-        target_motions, batch_first=True, padding_value=0)
+#     source_motions = torch.nn.utils.rnn.pad_sequence(
+#         source_motions, batch_first=True, padding_value=0)
+#     target_motions = torch.nn.utils.rnn.pad_sequence(
+#         target_motions, batch_first=True, padding_value=0)
 
-    batch = [
-        source_motions,
-        target_motions 
-    ]
+#     batch = [
+#         source_motions,
+#         target_motions 
+#     ]
 
-    return batch
+#     return batch
 
 def save(model, optimizer, path, name, epoch, i):
     try_mkdir(path)
@@ -55,7 +55,7 @@ args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args.n_topology = 2
 para_path = "./parameters/"
 print("cuda availiable: {}".format(torch.cuda.is_available()))
-save_name = "220323_Body_part/"
+save_name = "220323_Body_part_cross/"
 # args.epoch_begin = 2300
 # args.is_train = False
 log_dir = './run/' + save_name
@@ -64,7 +64,7 @@ writer = SummaryWriter(log_dir, flush_secs=1)
 """ load Motion Dataset """
 characters = get_character_names(args)
 dataset = create_dataset(args, characters)
-loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=motion_collate_fn)
+loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffle=False) # , collate_fn=motion_collate_fn
 offsets = dataset.get_offsets()
 print("characters:{}".format(characters))
 
@@ -113,15 +113,15 @@ if args.is_train == True:
     # for every epoch
     for epoch in range(args.epoch_begin, args.n_epoch):
         # Train network and get loss for each epoch
-        rec_loss0, rec_loss1 = train_epoch(  
+        rec_loss = train_epoch(  
             args, epoch, generator_models, optimizerGs,
             loader, dataset, characters, save_name, Files)
 
-        writer.add_scalar("Loss/rec_loss0", rec_loss0, epoch)
-        writer.add_scalar("Loss/rec_loss1", rec_loss1, epoch)
+        writer.add_scalar("Loss/rec_loss0", rec_loss, epoch)
+        # writer.add_scalar("Loss/rec_loss1", rec_loss1, epoch)
         if epoch % 100 == 0:
             for i in range(args.n_topology):
-                save(generator_models[i],     optimizerGs[i], para_path + save_name, "Gen", epoch, i)
+                save(generator_models[i], optimizerGs[i], para_path + save_name, "Gen", epoch, i)
 else:
     # only test losses 
     eval_epoch(args, args.epoch_begin, generator_models, loader, dataset, characters, save_name, Files)

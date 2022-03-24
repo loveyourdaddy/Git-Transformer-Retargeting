@@ -10,6 +10,7 @@ import os
 from datasets import get_character_names, create_dataset
 from model import *
 import math
+from models.Kinematics import ForwardKinematics
 
 """ Conv / Pooling """
 class SkeletonConv(nn.Module):
@@ -375,13 +376,11 @@ def build_edge_topology(topology, offset):
     return edges
 
 class BodyPartGenerator(nn.Module):
-    def __init__(self, args, offsets, joint_topology):
+    def __init__(self, args, offsets, edges):
         super().__init__()
         self.input_dim = args.window_size
-        self.joint_topology = joint_topology
-        self.edges = build_edge_topology(joint_topology, torch.zeros((len(joint_topology), 3)))
+        self.edges = edges
         self.offsets = offsets
-        # self.layers = nn.ModuleList([nn.Linear(self.input_dim, self.input_dim) for _ in range(args.n_layer)])
 
         # layers 
         self.encoder = Encoder(args, self.edges)
@@ -396,9 +395,11 @@ class BodyPartGenerator(nn.Module):
 class MotionGenerator(nn.Module):
     def __init__(self, args, offsets, joint_topology):
         super().__init__()
+        self.edges = build_edge_topology(joint_topology, torch.zeros((len(joint_topology), 3)))
+        self.fk = ForwardKinematics(args, self.edges)
         self.body_part_generator = []
         for i in range(6):
-            body_part_generator = BodyPartGenerator(args, offsets, joint_topology).to(args.cuda_device)
+            body_part_generator = BodyPartGenerator(args, offsets, self.edges).to(args.cuda_device)
             self.body_part_generator.append(body_part_generator)
 
     def forward(self, i, input_character, output_character, inputs):
@@ -406,10 +407,6 @@ class MotionGenerator(nn.Module):
         return outputs, lat
 
     def G_parameters(self):
-        # ret = [] 
-        # for i in range(6):
-        #     [] += list(self.body_part_generator[i])
-        # return ret
         return list(self.body_part_generator[0].parameters())\
             +list(self.body_part_generator[1].parameters())\
                 +list(self.body_part_generator[2].parameters())\

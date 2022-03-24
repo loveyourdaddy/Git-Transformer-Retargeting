@@ -18,6 +18,8 @@ def get_parser():
     parser.add_argument('--activation', type=str, default='LeakyReLU', help='activation: ReLU, LeakyReLU, tanh')
     parser.add_argument('--n_epoch', type=int, default=10001)
     parser.add_argument('--epoch_begin', type=int, default=0)
+    parser.add_argument('--lambda1', type=int, default=1)
+    parser.add_argument('--lambda2', type=int, default=1)
 
     # Dataset representation
     parser.add_argument('--batch_size', type=int,default=32, help='batch_size') # 32 
@@ -27,7 +29,7 @@ def get_parser():
 
     # Dataset representation (flag)
     parser.add_argument('--normalization', type=int, default=1)
-    parser.add_argument('--root_pos_disp', type=int, default=0, help='represent root pos as displacement')
+    parser.add_argument('--root_pos_as_velocity', type=int, default=0, help='represent root pos as displacement')
     parser.add_argument('--swap_dim', type=int, default=1,help='Data swap: 1 or 0')
     parser.add_argument('--add_offset', type=int, default=0, help='concat offset in dataset')
     parser.add_argument('--data_encoding', type=int, default=1, help='positional encoding')

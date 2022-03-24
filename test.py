@@ -99,7 +99,7 @@ def eval_epoch(args, epoch, modelGs, train_loader, train_dataset, characters, sa
                     denorm_output_motions_[j] = denorm_output_motions[j]
                 
                 """ 3) remake root position from displacement """
-                if args.root_pos_disp == 1:
+                if args.root_pos_as_velocity == 1:
                     denorm_output_motions[j] = remake_root_position_from_displacement(
                         args, denorm_output_motions_[j], num_bs, num_frame, num_DoF)
 

@@ -17,11 +17,11 @@ from Quaternions import Quaternions
 
 class MixedData0(Dataset):
     """ Mixed data for many skeletons but one topologies """
-    def __init__(self, args, motions):
+    def __init__(self, args, motions, skeleton_idx):
         super(MixedData0, self).__init__()
         self.motions = motions
         self.motions_reverse = torch.tensor(self.motions.numpy()[..., ::-1].copy())
-        # self.skeleton_idx = skeleton_idx
+        self.skeleton_idx = skeleton_idx
         self.length = motions.shape[0]
         self.args = args
 
@@ -30,10 +30,9 @@ class MixedData0(Dataset):
 
     def __getitem__(self, item):
         if self.args.data_augment == 0: # or torch.rand(1) < 0.5:
-            return self.motions[item]
+            return [self.motions[item], self.skeleton_idx[item]]
         else:
-            print("reversed MixedData0")
-            return self.motions_reverse[item]
+            return [self.motions_reverse[item], self.skeleton_idx[item]]
 
 # class BodyPartData(Dataset):
 #     def __init__(self, args, motions, body_part_index):
@@ -110,7 +109,7 @@ class MixedData(Dataset):
                 new_offset = torch.tensor(new_offset, dtype=torch.float)
                 new_offset = new_offset.reshape((1,) + new_offset.shape)
                 offsets_group.append(new_offset)
-            all_datas.append(motion_data)
+            all_datas.append(motion_data) # (2 groups, 4 characters, 1, 91, 128)
 
             offsets_group = torch.cat(offsets_group, dim=0)
             offsets_group = offsets_group.to(device)
@@ -141,72 +140,84 @@ class MixedData(Dataset):
                 groups_body_parts_index.append(character_body_parts_index)
                 
             self.groups_body_parts_index.append(groups_body_parts_index)
+        
+        for datasets in all_datas:
+            pt = 0
+            motions = []
+            skeleton_idx = []
+            for dataset in datasets:
+                motions.append(dataset[:])
+                skeleton_idx += [pt] * len(dataset)
+                pt += 1
+            motions = torch.cat(motions, dim=0)
+            if self.length != 0 and self.length != len(skeleton_idx):
+                self.length = min(self.length, len(skeleton_idx))
+            else:
+                self.length = len(skeleton_idx)
+            self.final_data.append(MixedData0(args, motions, skeleton_idx))
 
         """ Process motion: Get final_data """
-        for group_idx, datasets in enumerate(all_datas): # final_data: (2, 424, 913, 91) for 2 groups
+        # Cropping: num_motions = batch_size * n
+        num_motions = int(len(all_datas[0][0]) / args.batch_size) * args.batch_size
+        print("max_length: ", num_motions)
+        args.num_motions = num_motions
+
+        """ final_data: (2, 424, 913, 91) for 2 groups """
+        for group_idx, datasets in enumerate(all_datas): 
+            pt = 0
             motions = []
-            # 총 모션의 갯수가  batch_size의 배수가 되게 하기 위한 Cropping
-            num_motions = int(len(datasets[0]) / args.batch_size) * args.batch_size
-            print("max_length: ", num_motions)
-            args.num_motions = num_motions
-            
+            skeleton_idx = []
             for character_idx, dataset in enumerate(datasets): # for each character in a group
                 motions.append(dataset[:num_motions])
-
-            # (4,106, 91, 913) -> (424, 91, 913),  (4,51,138,128) -> (204,138,128)
-            motions = torch.cat(motions, dim=0)
+                skeleton_idx += [pt] * len(dataset)
+                pt += 1
+            motions = torch.cat(motions, dim=0) # (4,106, 91, 913) -> (424, 91, 913), (4,51,138,128) -> (204,138,128)
             self.length = motions.size(0)
-            self.final_data.append(MixedData0(args, motions))
+            self.final_data.append(MixedData0(args, motions, skeleton_idx))
+
+        # """ Get enc / dec input motions """
+        # # final_data: (2 character groups, motions 768(4characters*192), 2(motion, offset), 91, 128)
+        # self.source_motions = self.final_data[0][:][0]
+        # self.target_motions = self.final_data[1][:][0]
         
-        """ Get enc / dec input motions """
-        self.source_motions = self.final_data[0][:] 
-        self.target_motions = self.final_data[1][:]
-        
-        """ update input/output dimension of network: Set DoF  """
-        #swap_dim=0: (bs, Window, DoF)
-        if args.swap_dim == 0:
-            args.input_size = self.source_motions.size(2)
-            args.output_size = self.target_motions.size(2)
-        #swap_dim=1: (bs, DoF, Window)
-        else: 
-            args.input_size = self.source_motions.size(1)
-            args.output_size = self.target_motions.size(1)
+        # """ update input/output dimension of network: Set DoF  """
+        # #swap_dim=0: (bs, Window, DoF)
+        # if args.swap_dim == 0:
+        #     args.input_size = self.source_motions.size(2)
+        #     args.output_size = self.target_motions.size(2)
+        # #swap_dim=1: (bs, DoF, Window)
+        # else: 
+        #     args.input_size = self.source_motions.size(1)
+        #     args.output_size = self.target_motions.size(1)
 
-        """ body part motions """
-        """ source motoin """
-        # (bs, 6 body_part, 91, window_size)
-        self.source_motions_by_parts = torch.zeros(self.source_motions.size(0), 6, 91, self.source_motions.size(2))
-        
-        # root rotation (:, 0, 0~91, :)
-        for quat_idx in range(4):
-            # root rotation : 0~3
-            self.source_motions_by_parts[:, 0, quat_idx, :] = self.source_motions[:, quat_idx, :]
+        # """ body part motions """
+        # """ source motoin """
+        # # (bs, 6 body_part, 91, window_size)
+        # self.source_motions_by_parts = torch.zeros(self.source_motions.size(0), 6, self.source_motions.size(1), self.source_motions.size(2))
+        # # root rotation (:, 0, 0~91, :)
+        # for quat_idx in range(4):
+        #     self.source_motions_by_parts[:, 0, quat_idx, :] = self.source_motions[:, quat_idx, :]
+        # # root position : 4~7
+        # length = self.source_motions.size(1) # 91 
+        # for quat_idx in range(3):
+        #     self.source_motions_by_parts[:, 0, length - 3 + quat_idx, :] = self.source_motions[:, length - 3 + quat_idx, :]
+        # # body part: (:, 1~4, 0~90, :)
+        # for part_idx, body_part_index in enumerate(self.groups_body_parts_index[0][character_idx]): # source motoin 
+        #     self.source_motions_by_parts[:, part_idx+1, body_part_index, :] = self.source_motions[:, body_part_index, :]
 
-        # root position : 4~7
-        length = self.source_motions.size(1) # 91 
-        for quat_idx in range(3):
-            self.source_motions_by_parts[:, 0, length - 3 + quat_idx, :] = self.source_motions[:, length - 3 + quat_idx, :]
-
-        # body part: (:, 1~4, 0~90, :)
-        for part_idx, body_part_index in enumerate(self.groups_body_parts_index[0][character_idx]): # source motoin 
-            self.source_motions_by_parts[:, part_idx+1, body_part_index, :] = self.source_motions[:, body_part_index, :]
-
-        """ target motion """
-        self.target_motions_by_parts = torch.zeros(self.target_motions.size(0), 6, 91, self.target_motions.size(2))
-        
-        # root rotation (:, 0, 0~91, :)
-        for quat_idx in range(4):
-            self.target_motions_by_parts[:, 0, quat_idx, :] = self.target_motions[:, quat_idx, :]
-
-        # root position : 4~7
-        length = self.target_motions.size(1) # 91 
-        for quat_idx in range(3):
-            self.target_motions_by_parts[:, 0, length - 3 + quat_idx, :] = self.target_motions[:, length - 3 + quat_idx, :]
-
-        # body part: (:, 1~4, 0~90, :)
-        for part_idx, body_part_index in enumerate(self.groups_body_parts_index[0][character_idx]): # source motoin 
-            self.target_motions_by_parts[:, part_idx+1, body_part_index, :] = self.source_motions[:, body_part_index, :]
-        # ToDo: So many zeros. remove this and make "motions by part" as clean 
+        # """ target motion """
+        # self.target_motions_by_parts = torch.zeros(self.target_motions.size(0), 6, self.target_motions.size(1), self.target_motions.size(2))
+        # # root rotation (:, 0, 0~91, :)
+        # for quat_idx in range(4):
+        #     self.target_motions_by_parts[:, 0, quat_idx, :] = self.target_motions[:, quat_idx, :]
+        # # root position : 4~7
+        # length = self.target_motions.size(1) # 9, 108 
+        # for quat_idx in range(3):
+        #     self.target_motions_by_parts[:, 0, length - 3 + quat_idx, :] = self.target_motions[:, length - 3 + quat_idx, :]
+        # # body part: (:, 1~4, 0~90, :)
+        # for part_idx, body_part_index in enumerate(self.groups_body_parts_index[0][character_idx]): # source motoin 
+        #     self.target_motions_by_parts[:, part_idx+1, body_part_index, :] = self.target_motions[:, body_part_index, :]
+        # # ToDo: So many zeros. remove this and make "motions by part" as clean 
 
     def denorm(self, gid, pid, data):
         means = self.means[gid][pid, ...]
@@ -222,8 +233,14 @@ class MixedData(Dataset):
         return self.length
 
     def __getitem__(self, item):
-        return (torch.as_tensor(self.source_motions_by_parts[item].data), # source motion
-                torch.as_tensor(self.target_motions_by_parts[item].data)) # gt target motion
+        res = []
+        for data in self.final_data:
+            res.append(data[item])
+        return res
+        
+    # def __getitem__(self, item):
+    #     return (torch.as_tensor(self.source_motions_by_parts[item].data), # source motion
+    #             torch.as_tensor(self.target_motions_by_parts[item].data)) # gt target motion
 
 
 class TestData(Dataset):
@@ -310,7 +327,7 @@ class TestData(Dataset):
         # data_tmp = data 
         data = data * var + means
 
-        # if self.args.root_pos_disp == 1: 
+        # if self.args.root_pos_as_velocity == 1: 
         #     if self.args.swap_dim == 0: #(bs, frame, DoF)
         #         data[:,:,-3:] = data_tmp[:,:,-3:]
         #     else:  #(bs, DoF, frame)
