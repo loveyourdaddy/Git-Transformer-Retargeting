@@ -126,7 +126,8 @@ class BVH_file:
         
         if self.skeleton_type == -1:
             raise Exception('Unknown skeleton')
-        print("skeleton type: {}".format(self.skeleton_type))
+        
+        # print("skeleton type: {}".format(self.skeleton_type))
         
         # why use this ??? 
         if self.skeleton_type == 0:

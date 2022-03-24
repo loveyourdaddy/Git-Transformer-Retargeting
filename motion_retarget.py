@@ -55,7 +55,7 @@ args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args.n_topology = 2
 para_path = "./parameters/"
 print("cuda availiable: {}".format(torch.cuda.is_available()))
-save_name = "220323_Body_part_cross/"
+save_name = "220324_Body_part_3ReconstructionLoss/"
 # args.epoch_begin = 2300
 # args.is_train = False
 log_dir = './run/' + save_name
@@ -113,12 +113,14 @@ if args.is_train == True:
     # for every epoch
     for epoch in range(args.epoch_begin, args.n_epoch):
         # Train network and get loss for each epoch
-        rec_loss = train_epoch(  
+        rec_loss1, rec_loss2, rec_loss3 = train_epoch(  
             args, epoch, generator_models, optimizerGs,
             loader, dataset, characters, save_name, Files)
 
-        writer.add_scalar("Loss/rec_loss0", rec_loss, epoch)
-        # writer.add_scalar("Loss/rec_loss1", rec_loss1, epoch)
+        writer.add_scalar("Loss/rec_loss1", rec_loss1, epoch)
+        writer.add_scalar("Loss/rec_loss2", rec_loss2, epoch)
+        writer.add_scalar("Loss/rec_loss3", rec_loss3, epoch)
+
         if epoch % 100 == 0:
             for i in range(args.n_topology):
                 save(generator_models[i], optimizerGs[i], para_path + save_name, "Gen", epoch, i)
