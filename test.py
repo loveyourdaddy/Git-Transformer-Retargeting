@@ -108,4 +108,3 @@ def eval_epoch(args, epoch, modelGs, train_loader, train_dataset, characters, sa
 
             pbar.update(1)
             pbar.set_postfix_str(f"mean1: {np.mean(rec_losses0):.7f}, mean2: {np.mean(rec_losses1):.7f}")
-    # return np.mean(rec_losses0), np.mean(rec_losses1)

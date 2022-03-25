@@ -108,13 +108,10 @@ class BVH_file:
             self.skeleton_type = 7
         if 'Three_Arms_Hips_split' in self._names:
             self.skeleton_type = 8
-
         if 'LHipJoint' in self._names:
             self.skeleton_type = 3
-
         if 'HipsPrisoner' in self._names:
             self.skeleton_type = 9
-
         if 'Spine1_split' in self._names:
             self.skeleton_type = 10
 

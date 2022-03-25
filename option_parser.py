@@ -18,7 +18,7 @@ def get_parser():
     parser.add_argument('--activation', type=str, default='LeakyReLU', help='activation: ReLU, LeakyReLU, tanh')
     parser.add_argument('--n_epoch', type=int, default=10001)
     parser.add_argument('--epoch_begin', type=int, default=0)
-    parser.add_argument('--lambda_global_pos', type=int, default=2.5)
+    parser.add_argument('--lambda_global_pos', type=int, default=1) # 2.5
     parser.add_argument('--lambda_position', type=int, default=1)
 
     # Dataset representation

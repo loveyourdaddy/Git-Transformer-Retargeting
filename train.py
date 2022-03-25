@@ -146,16 +146,6 @@ def train_epoch(args, epoch, modelGs, optimizerGs, train_loader, train_dataset, 
                 # root position : 4~7
                 for quat_idx in range(3):
                     bp_motions[j][:, 5, DoF[j] - 3 + quat_idx, :] = motions[:, DoF[j] - 3 + quat_idx, :]
-
-
-            # """ Divide motion to source and gt and input """
-            # for j in range(args.n_topology):
-            #     if j == 0:
-            #         bp_input_motions[j] = bp_source_motions
-            #         bp_gt_motions[j]    = bp_source_motions
-            #     else:
-            #         bp_input_motions[j] = bp_target_motions
-            #         bp_gt_motions[j]    = bp_target_motions
  
             # make output shape 
             for j in range(args.n_topology):
@@ -207,13 +197,13 @@ def train_epoch(args, epoch, modelGs, optimizerGs, train_loader, train_dataset, 
 
             """ loss1. reconstruction loss on each element """
             for j in range(args.n_topology):
-                # loss1-1. on each element
-                rec_loss1 = rec_criterion(gt_motions[j], output_motions[j])
-                rec_losses1.append(rec_loss1.item())
+                # # loss1-1. on each element
+                # rec_loss1 = rec_criterion(gt_motions[j], output_motions[j])
+                # rec_losses1.append(rec_loss1.item())
 
-                # loss 1-2. root position / height
-                rec_loss2 = rec_criterion(denorm_gt_motions[j][:, -3:, :], denorm_output_motions[j][:, -3:, :]) # / height
-                rec_losses2.append(rec_loss2.item())
+                # # loss 1-2. root position / height
+                # rec_loss2 = rec_criterion(denorm_gt_motions[j][:, -3:, :], denorm_output_motions[j][:, -3:, :]) # / height
+                # rec_losses2.append(rec_loss2.item())
 
                 # loss 1-3. global position
                 # get pos 
@@ -225,7 +215,7 @@ def train_epoch(args, epoch, modelGs, optimizerGs, train_loader, train_dataset, 
                 rec_loss3 = rec_criterion(output_pos_global[j], gt_pos_global[j])
                 rec_losses3.append(rec_loss3.item())
 
-                rec_loss[j] = rec_loss1 + (rec_loss2 * args.lambda_global_pos + rec_loss3 * args.lambda_position) * 100
+                rec_loss[j] = rec_loss3 * args.lambda_position # 1 * (rec_loss1) + 1 * (rec_loss2 * args.lambda_global_pos) +
                 rec_losses.append(rec_loss[j].item())
 
             """ backward and optimize """
@@ -262,5 +252,5 @@ def train_epoch(args, epoch, modelGs, optimizerGs, train_loader, train_dataset, 
         torch.cuda.empty_cache()
         del output_motions, bp_output_motions, latent_feature, denorm_gt_motions, denorm_gt_motions_ 
 
-    return np.mean(rec_losses1), np.mean(rec_losses2), np.mean(rec_losses3)
+    return np.mean(rec_losses), np.mean(rec_losses1), np.mean(rec_losses2), np.mean(rec_losses3)
     #, np.mean(rec_losses1)
