@@ -175,50 +175,6 @@ class MixedData(Dataset):
             self.length = motions.size(0)
             self.final_data.append(MixedData0(args, motions, skeleton_idx))
 
-        # """ Get enc / dec input motions """
-        # # final_data: (2 character groups, motions 768(4characters*192), 2(motion, offset), 91, 128)
-        # self.source_motions = self.final_data[0][:][0]
-        # self.target_motions = self.final_data[1][:][0]
-        
-        # """ update input/output dimension of network: Set DoF  """
-        # #swap_dim=0: (bs, Window, DoF)
-        # if args.swap_dim == 0:
-        #     args.input_size = self.source_motions.size(2)
-        #     args.output_size = self.target_motions.size(2)
-        # #swap_dim=1: (bs, DoF, Window)
-        # else: 
-        #     args.input_size = self.source_motions.size(1)
-        #     args.output_size = self.target_motions.size(1)
-
-        # """ body part motions """
-        # """ source motoin """
-        # # (bs, 6 body_part, 91, window_size)
-        # self.source_motions_by_parts = torch.zeros(self.source_motions.size(0), 6, self.source_motions.size(1), self.source_motions.size(2))
-        # # root rotation (:, 0, 0~91, :)
-        # for quat_idx in range(4):
-        #     self.source_motions_by_parts[:, 0, quat_idx, :] = self.source_motions[:, quat_idx, :]
-        # # root position : 4~7
-        # length = self.source_motions.size(1) # 91 
-        # for quat_idx in range(3):
-        #     self.source_motions_by_parts[:, 0, length - 3 + quat_idx, :] = self.source_motions[:, length - 3 + quat_idx, :]
-        # # body part: (:, 1~4, 0~90, :)
-        # for part_idx, body_part_index in enumerate(self.groups_body_parts_index[0][character_idx]): # source motoin 
-        #     self.source_motions_by_parts[:, part_idx+1, body_part_index, :] = self.source_motions[:, body_part_index, :]
-
-        # """ target motion """
-        # self.target_motions_by_parts = torch.zeros(self.target_motions.size(0), 6, self.target_motions.size(1), self.target_motions.size(2))
-        # # root rotation (:, 0, 0~91, :)
-        # for quat_idx in range(4):
-        #     self.target_motions_by_parts[:, 0, quat_idx, :] = self.target_motions[:, quat_idx, :]
-        # # root position : 4~7
-        # length = self.target_motions.size(1) # 9, 108 
-        # for quat_idx in range(3):
-        #     self.target_motions_by_parts[:, 0, length - 3 + quat_idx, :] = self.target_motions[:, length - 3 + quat_idx, :]
-        # # body part: (:, 1~4, 0~90, :)
-        # for part_idx, body_part_index in enumerate(self.groups_body_parts_index[0][character_idx]): # source motoin 
-        #     self.target_motions_by_parts[:, part_idx+1, body_part_index, :] = self.target_motions[:, body_part_index, :]
-        # # ToDo: So many zeros. remove this and make "motions by part" as clean 
-
     def denorm(self, gid, pid, data):
         means = self.means[gid][pid, ...]
         var = self.vars[gid][pid, ...]

@@ -130,6 +130,7 @@ venv/*
 __pycache__/*
 parameters/*
 output/*
+Result Video/*
 attention_vis/*
 attention_vis_intra/*
 attention_vis_cross/*
