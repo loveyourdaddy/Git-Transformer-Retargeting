@@ -107,14 +107,6 @@ class GeneralModel():
                 pbar.update(1)
                 pbar.set_postfix_str(f"Rec: {np.mean(self.rec_losses):.3f}, element: {np.mean(self.element_losses):.3f}, root: {np.mean(self.root_losses):.3f}, Cycle: {np.mean(self.cycle_losses):.3f}")
     
-    def remake_root_position_from_displacement(self, motions, num_bs, num_frame, num_DoF):
-        for bs in range(num_bs):  # dim 0
-            for frame in range(num_frame - 1):  # dim 2 # frame: 0~62. update 1 ~ 63
-                motions[bs][frame + 1][num_DoF - 3] += motions[bs][frame][num_DoF - 3]
-                motions[bs][frame + 1][num_DoF - 2] += motions[bs][frame][num_DoF - 2]
-                motions[bs][frame + 1][num_DoF - 1] += motions[bs][frame][num_DoF - 1]
-
-        return motions
             
     def iter_setting(self, i):
         self.motion_idx = self.get_curr_motion(i, self.args.batch_size)
@@ -192,7 +184,7 @@ class GeneralModel():
 
         """ Get fake output and fake latent code """ 
         for src in range(self.n_topology):
-            for dst in range(self.n_topology):                
+            for dst in range(self.n_topology):
                 for b in range(6):
                     bp_fake_motion = self.modelGs[dst].body_part_generator[b].decoder(self.bp_latents[src][:,b,:,:])
                     bp_fake_latent = self.modelGs[dst].body_part_generator[b].encoder(bp_fake_motion)
@@ -319,6 +311,7 @@ class GeneralModel():
         if self.epoch != 0: 
             for src in range(self.n_topology):
                 for dst in range(self.n_topology):
+                    # self.write_bvh(save_dir, "output"+str(self.epoch), self.denorm_output_motions[dst], self.character_idx, self.motion_idx, dst)
                     self.write_bvh(save_dir, "fake"+str(self.epoch)+"_"+str(src)+"_"+str(dst), self.denorm_fake_motions[2*src+dst], self.character_idx, self.motion_idx, dst)
 
     def save(self, path, epoch):
@@ -372,6 +365,15 @@ class GeneralModel():
 
     def denormalize(self, character_idx, motions, i):
         return self.dataset.denorm(i, character_idx, motions)
+
+    def remake_root_position_from_displacement(self, motions, num_bs, num_frame, num_DoF):
+        for bs in range(num_bs):  # dim 0
+            for frame in range(num_frame - 1):  # dim 2 # frame: 0~62. update 1 ~ 63
+                motions[bs][frame + 1][num_DoF - 3] += motions[bs][frame][num_DoF - 3]
+                motions[bs][frame + 1][num_DoF - 2] += motions[bs][frame][num_DoF - 2]
+                motions[bs][frame + 1][num_DoF - 1] += motions[bs][frame][num_DoF - 1]
+
+        return motions
 
 def try_mkdir(path):
     if not os.path.exists(path):

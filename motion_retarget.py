@@ -14,7 +14,7 @@ args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args.n_topology = 2
 para_path = "./parameters/"
 print("cuda availiable: {}".format(torch.cuda.is_available()))
-save_name = "220330_cycle_loss/"
+save_name = "220330_cycle_loss0/"
 # args.epoch_begin = 100
 # args.is_train = False
 log_dir = './run/' + save_name
