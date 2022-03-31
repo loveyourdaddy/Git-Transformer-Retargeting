@@ -388,8 +388,8 @@ class BodyPartGenerator(nn.Module):
 
     def forward(self, input_character, output_character, inputs):
         # Need to : change offset
-        lat = self.encoder(inputs, self.offsets)
-        outputs = self.decoder(lat, self.offsets)
+        lat = self.encoder(inputs) # , self.offsets
+        outputs = self.decoder(lat) # , self.offsets
         return outputs, lat
 
 class MotionGenerator(nn.Module):

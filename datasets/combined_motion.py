@@ -49,7 +49,7 @@ class MixedData0(Dataset):
 """ MixedData:  """
 class MixedData(Dataset):
     """ data_gruop_num * 2 * samples """
-    def __init__(self, args, character_groups): # characters
+    def __init__(self, args, character_groups):
         self.args = args
         device = torch.device(args.cuda_device if (torch.cuda.is_available()) else 'cpu')
         self.final_data = []

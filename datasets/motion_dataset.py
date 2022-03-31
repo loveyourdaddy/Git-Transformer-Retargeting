@@ -187,7 +187,7 @@ class MotionData(Dataset):
         # motions : (motions, frames, joint DoF)
         for motion in motions:
             self.total_frame += motion.shape[0]
-            motion = self.subsample(motion) # motion subsampling 
+            # motion = self.subsample(motion) # motion subsampling 
             self.motion_length.append(motion.shape[0])
             n_window = motion.shape[0] // step_size - \
                 1  # -1 : 마지막 window에 데이터가 전부 차지 않았다면 제거

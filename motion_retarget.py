@@ -14,7 +14,7 @@ args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args.n_topology = 2
 para_path = "./parameters/"
 print("cuda availiable: {}".format(torch.cuda.is_available()))
-save_name = "220326_classify/"
+save_name = "220330_cycle_loss/"
 # args.epoch_begin = 100
 # args.is_train = False
 log_dir = './run/' + save_name
@@ -32,16 +32,16 @@ general_model = GeneralModel(args, characters, dataset)
 """ Load model if load mode """
 if args.epoch_begin:
     general_model.load(para_path+save_name, args.epoch_begin)
+
 if args.is_train == True:
     # for every epoch
     for epoch in range(args.epoch_begin, args.n_epoch):
         general_model.train_epoch(epoch, loader, save_name)
-        # rec_losses, rec_loss1, rec_loss2, rec_loss3 = general_model.train_epoch(epoch, loader, save_name)
         
         writer.add_scalar("Loss/rec_loss",  np.mean(general_model.rec_losses),  epoch)
-        writer.add_scalar("Loss/rec_loss1", np.mean(general_model.rec_losses1), epoch)
-        writer.add_scalar("Loss/rec_loss2", np.mean(general_model.rec_losses2), epoch)
-        writer.add_scalar("Loss/rec_loss3", np.mean(general_model.rec_losses3), epoch)
+        writer.add_scalar("Loss/element_loss", np.mean(general_model.element_losses), epoch)
+        writer.add_scalar("Loss/root_loss", np.mean(general_model.root_losses), epoch)
+        writer.add_scalar("Loss/cycle_loss", np.mean(general_model.cycle_losses), epoch)
 
         if epoch % 100 == 0:
             general_model.save(para_path + save_name, epoch)
