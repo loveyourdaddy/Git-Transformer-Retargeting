@@ -106,18 +106,17 @@ class GeneralModel():
                 self.iter_setting(i)
                 self.forward(value)
                 
-                self.discriminator_requires_grad_(False)
+                # self.discriminator_requires_grad_(False)
                 self.backward_G()
-                self.discriminator_requires_grad_(True)
-                self.backward_D()
+                # self.discriminator_requires_grad_(True)
+                # self.backward_D()
 
-                if self.epoch % 100 == 0:
+                if self.epoch % 50 == 0:
                     self.bvh_writing(save_dir)
 
                 """ show info """
                 pbar.update(1)
-                pbar.set_postfix_str(f"element: {np.mean(self.element_losses):.3f}, root: {np.mean(self.root_losses):.3f}, Cycle: {np.mean(self.cycle_losses):.3f}")
-    # Rec: {np.mean(self.rec_losses):.3f}, 
+                pbar.set_postfix_str(f"element: {np.mean(self.element_losses):.3f}, cross: {np.mean(self.cross_losses):.3f}") 
             
     def iter_setting(self, i):
         self.motion_idx = self.get_curr_motion(i, self.args.batch_size)
@@ -143,11 +142,13 @@ class GeneralModel():
 
         # loss 1  
         self.element_losses = []
+        self.cross_losses = []
         self.root_losses = [] 
         self.rec_losses = [] 
         
         # loss 2 
         self.cycle_losses = [] 
+        self.latent_losses = []
 
         # loss 3
         # self.G_losses = []
@@ -278,6 +279,7 @@ class GeneralModel():
     def get_loss(self):
         self.G_loss = 0
         self.rec_loss = 0 
+        self.latent_loss = 0 
         self.cycle_loss = 0 
         self.gan_loss = 0
 
@@ -288,8 +290,8 @@ class GeneralModel():
             self.element_losses.append(element_loss.item())
 
             # loss1-2. root 
-            root_loss = self.rec_criterion(self.denorm_gt_motions[j][:, -3:, :], self.denorm_output_motions[j][:, -3:, :]) # / height
-            self.root_losses.append(root_loss.item())
+            # root_loss = self.rec_criterion(self.denorm_gt_motions[j][:, -3:, :], self.denorm_output_motions[j][:, -3:, :]) # / height
+            # self.root_losses.append(root_loss.item())
 
             # loss 1-3. global_pos_loss
 
@@ -300,11 +302,16 @@ class GeneralModel():
             self.rec_losses.append(rec_loss.item())
 
         """ 2. cycle loss for intra and cross strucuture retargeting  """ 
+        for b in range(6): 
+            latent_loss = self.cycle_criterion(self.bp_latents[0], self.bp_latents[1])
+            self.latent_loss += latent_loss
+            self.latent_losses.append(latent_loss.item())
+        
         p = 0 
         for src in range(self.n_topology):
             for dst in range(self.n_topology):
                 for b in range(6):
-                    cycle_loss = self.cycle_criterion(self.bp_latents[src][b], self.bp_fake_latents[2*src+dst][b])
+                    cycle_loss = self.cycle_criterion(self.bp_latents[dst][b], self.bp_fake_latents[2*src+dst][b])
                     self.cycle_loss += cycle_loss
                     self.cycle_losses.append(cycle_loss.item())
                 p += 1
@@ -321,7 +328,14 @@ class GeneralModel():
                     self.gan_loss += G_fake_loss
                     self.G_fake_losses.append(G_fake_loss.item())
 
-        self.G_loss = (self.rec_loss) + self.cycle_loss + self.gan_loss  # 5 * 
+        self.G_loss = (self.rec_loss) + self.latent_loss + self.cycle_loss # + self.gan_loss
+        # self.G_loss = (self.rec_loss) + self.cycle_loss # + self.latent_loss # + self.gan_loss  # 5 * 
+
+        # cross loss
+        cross_loss = self.rec_criterion(self.fake_motions[1], self.gt_motions[1]) # src 0->dst 1
+        self.cross_losses.append(cross_loss.item())
+        cross_loss = self.rec_criterion(self.fake_motions[2], self.gt_motions[0]) # src 1->dst 0
+        self.cross_losses.append(cross_loss.item())
 
     def backward_G(self):
         """ backward and optimize """

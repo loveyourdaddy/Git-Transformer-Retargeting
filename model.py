@@ -320,12 +320,9 @@ class SkeletonConv(nn.Module):
     def forward(self, input):
         weight_masked = self.weight * self.mask
 
-        res = F.conv1d(F.pad(input, self._padding_repeated_twice, mode='constant', value=0), # 
+        res = F.conv1d(F.pad(input, self._padding_repeated_twice, mode='reflect'), # 
                        weight_masked, self.bias, self.stride,
                        0, self.dilation, self.groups)
-        # res = F.conv1d(F.pad(input, self._padding_repeated_twice, mode=self.padding_mode),
-                #        weight_masked, self.bias, self.stride,
-                #        0, self.dilation, self.groups)
         return res
 
 class SkeletonPool(nn.Module):
