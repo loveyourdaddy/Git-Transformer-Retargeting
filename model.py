@@ -268,6 +268,7 @@ class SkeletonConv(nn.Module):
         self.stride = stride
         self.dilation = 1
         self.groups = 1
+        self.kernel_size = kernel_size
 
         # expanded_neighbour_list: element index in vector, including channel(rotation) of joint (quaternion 4)
         for neighbour in neighbour_list:
@@ -320,7 +321,7 @@ class SkeletonConv(nn.Module):
     def forward(self, input):
         weight_masked = self.weight * self.mask
 
-        res = F.conv1d(F.pad(input, self._padding_repeated_twice, mode='reflect'), # 
+        res = F.conv1d(F.pad(input, self._padding_repeated_twice, mode='reflect'),
                        weight_masked, self.bias, self.stride,
                        0, self.dilation, self.groups)
         return res
@@ -454,9 +455,9 @@ class BodyPartDiscriminator(nn.Module):
             if i < args.num_layers - 1: bias = False
             else: bias = True
 
-            if i == args.num_layers - 1:
-                kernel_size = 16
-                padding = 0
+            # if i == args.num_layers - 1:
+            #     kernel_size = 16
+            #     padding = 0
 
             seq.append(SkeletonConv(self.args, neighbor_list, in_channels=in_channels, out_channels=out_channels,
                                     joint_num=self.joint_num[i], kernel_size=kernel_size, stride=2, padding=padding,

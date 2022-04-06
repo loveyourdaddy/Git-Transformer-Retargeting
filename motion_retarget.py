@@ -2,24 +2,25 @@ import torch
 import os
 import option_parser
 from datasets import get_character_names, create_dataset
-from train import GeneralModel
-from train import *
+from general_model import GeneralModel
+from general_model import *
 from test import *
 from torch.utils.tensorboard import SummaryWriter
 
-
-""" Set Env Parameters """
+""" Set Parameters """
 args = option_parser.get_args()
+save_name = "220402_rec_cycle_lat2_weight10/"
+args.is_train = False
+args.epoch_begin = 10000
+
+""" Set Env """
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args.n_topology = 2
 para_path = "./parameters/"
 print("cuda availiable: {}".format(torch.cuda.is_available()))
-save_name = "220402_rec_cycle_lat2/" # 
-# args.epoch_begin = 100
-# args.is_train = False
-
 log_dir = './run/' + save_name
 writer = SummaryWriter(log_dir, flush_secs=1)
+
 """ load Motion Dataset """
 characters = get_character_names(args)
 dataset = create_dataset(args, characters)
@@ -51,4 +52,4 @@ if args.is_train == True:
             general_model.save(para_path + save_name, epoch)
 else:
     # only test losses 
-    general_model.eval_epoch(args.epoch_begin, loader, dataset, characters, save_name)
+    general_model.eval_epoch(args.epoch_begin, dataset, save_name)

@@ -140,3 +140,5 @@ datasets/BVH/*
 datasets/BVH_backup/*
 datasets/tmp/*
 datasets/__pycache/*
+datasets/Mixamo/*
+datasets/Mixamo_with_test/*

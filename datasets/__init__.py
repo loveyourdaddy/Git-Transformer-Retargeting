@@ -20,7 +20,7 @@ def create_dataset(args, character_names=None):
         return TestData(args, character_names)
 
 def get_test_set():
-    with open('./datasets/test_list.txt', 'r') as file:
+    with open('./datasets/Mixamo/test_list.txt', 'r') as file:
         list = file.readlines()
         list = [f[:-1] for f in list]
 
