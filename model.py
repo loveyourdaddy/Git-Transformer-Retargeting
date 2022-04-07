@@ -27,8 +27,8 @@ class MotionGenerator(nn.Module):
             body_part_discriminator = BodyPartDiscriminator(args, self.edges).to(args.cuda_device)
             self.body_part_discriminator.append(body_part_discriminator)
 
-    def forward(self, i, input_character, output_character, inputs):
-        outputs, lat = self.body_part_generator[i](input_character, output_character, inputs)
+    def forward(self, i, inputs):
+        outputs, lat = self.body_part_generator[i](inputs)
         return outputs, lat
 
     def G_parameters(self):
@@ -65,9 +65,8 @@ class BodyPartGenerator(nn.Module):
         self.encoder = Encoder(args, self.edges)
         self.decoder = Decoder(args, self.encoder)
 
-    def forward(self, input_character, output_character, inputs):
+    def forward(self, inputs):
         # Need to : change offset
-        # remove character index 
         lat = self.encoder(inputs)
         outputs = self.decoder(lat)
         return outputs, lat

@@ -36,7 +36,7 @@ class GeneralModel():
         self.characters = character_names
         offsets = dataset.get_offsets()
         self.n_topology = self.args.n_topology
-        # self.num_bp = 6
+        self.num_bp = 6
 
         """ Models """ 
         self.models = []
@@ -82,8 +82,8 @@ class GeneralModel():
         self.gan_criterion = GAN_loss(args.gan_mode).to(args.cuda_device)
 
         # index
-        # self.character_idx = 0 
-        # self.motion_idx = 0 
+        self.character_idx = 0 
+        self.motion_idx = 0 
 
         """ update input/output dimension of network: Set DoF """
         for j in range(self.n_topology):
@@ -105,11 +105,7 @@ class GeneralModel():
             for i, value in enumerate(data_loader):
 
                 self.iter_setting(i)
-                self.separate_bp_motion(value)
-                self.feed_to_network()
-                self.combine_full_motion()
-                self.denorm_motion()
-                self.get_loss()
+                self.forward(value)
                 
                 # self.discriminator_requires_grad_(False)
                 self.backward_G()
@@ -131,7 +127,6 @@ class GeneralModel():
             self.motion_idx = 0
             self.character_idx = 0
 
-        self.input_motions = [] 
         self.output_motions = []
         self.gt_motions = []
         self.fake_motions = []
@@ -166,12 +161,12 @@ class GeneralModel():
         self.D_real_losses = []
         self.D_fake_losses = []
 
-    # def forward(self, value):
-    #     self.separate_bp_motion(value)
-    #     self.feed_to_network()
-    #     self.combine_full_motion()
-    #     self.denorm_motion()
-    #     self.get_loss()
+    def forward(self, value):
+        self.separate_bp_motion(value)
+        self.feed_to_network()
+        self.combine_full_motion()
+        self.denorm_motion()
+        self.get_loss()
 
     def separate_bp_motion(self, value):
         for j in range(self.n_topology):
@@ -186,9 +181,8 @@ class GeneralModel():
 
             bp_motions = torch.zeros(first_index, 6, self.DoF[j], self.motion_length).to(self.args.cuda_device)
 
-            """ body part motions for source motion """ # body part: (:, 0~4, 0~90, :)
-            index = self.dataset.groups_body_parts_index
-            for b, body_part_index in enumerate(index[j]):
+            """ body part motions for source motion """ # body part: (:, 0~4, 0~90, :) 
+            for b, body_part_index in enumerate(self.dataset.groups_body_parts_index[0][self.character_idx]):
                 bp_motions[:, b, body_part_index, :] = motions[:, body_part_index, :]             
             for quat_idx in range(4): # root rotation (:, 0, 0~91, :)
                 bp_motions[:, 5, quat_idx, :] = motions[:, quat_idx, :]
@@ -201,7 +195,7 @@ class GeneralModel():
         for j in range(self.n_topology):
             bp_output_motions = torch.zeros(self.bp_motions[j].size()).to(self.args.cuda_device)
             for b in range(6):
-                bp_output_motions[:,b,:,:], bp_latent = self.models[j].body_part_generator[b](self.bp_motions[j][:,b,:,:])
+                bp_output_motions[:,b,:,:], bp_latent = self.models[j].body_part_generator[b](self.character_idx, self.character_idx, self.bp_motions[j][:, b, :, :])
                 bp_latent = torch.unsqueeze(bp_latent, 1)
 
                 if b == 0:
@@ -244,15 +238,15 @@ class GeneralModel():
             gt_motions     = torch.zeros(first_index, self.DoF[j], self.motion_length).to(self.args.cuda_device)
             output_motions = torch.zeros(first_index, self.DoF[j], self.motion_length).to(self.args.cuda_device)
 
-            for b in range(5): # body parts
-                gt_motions[:, index[j][b], :]     = self.bp_motions[j][:, b, index[j][b], :]
-                output_motions[:, index[j][b], :] = self.bp_output_motions[j][:, b, index[j][b], :]
+            for b in range(5): # bod0y parts
+                gt_motions[:, index[j][self.character_idx][b], :]     = self.bp_motions[j][:, b, index[j][self.character_idx][b], :]
+                output_motions[:, index[j][self.character_idx][b], :] = self.bp_output_motions[j][:, b, index[j][self.character_idx][b], :]
             for k in range(4): # root rotation (0~3)
                 gt_motions[:, k, :]      = self.bp_motions[j][:, 5, k, :]
                 output_motions[:, k, :]  = self.bp_output_motions[j][:, 5, k, :]
             for k in range(3): # position (len-3 ~ -1)
                 gt_motions[:, self.DoF[j] - 3 + k, :]     = self.bp_motions[j][:, 5, self.DoF[j] - 3 + k, :]
-                output_motions[:, self.DoF[j] - 3 + k, :] = self.bp_output_motions[j][:, 5, self.DoF[j] - 3 + k, :]
+                과[:, self.DoF[j] - 3 + k, :] = self.bp_output_motions[j][:, 5, self.DoF[j] - 3 + k, :]
 
             self.gt_motions.append(gt_motions)
             self.output_motions.append(output_motions)
@@ -262,7 +256,7 @@ class GeneralModel():
                 fake_motions = torch.zeros(first_index, self.DoF[dst], self.motion_length).to(self.args.cuda_device)
 
                 for b in range(5): # body parts
-                    fake_motions[:, index[dst][b], :] = self.bp_fake_motions[2*src+dst][:, b, index[dst][b], :]
+                    fake_motions[:, index[dst][self.character_idx][b], :] = self.bp_fake_motions[2*src+dst][:, b, index[dst][self.character_idx][b], :]
                 for k in range(4): # root rotation (0~3)
                     fake_motions[:, k, :]  = self.bp_fake_motions[2*src+dst][:, 5, k, :]
                 for k in range(3): # position (len-3 ~ -1)
@@ -419,6 +413,7 @@ class GeneralModel():
         if self.epoch != 0: 
             for src in range(self.n_topology):
                 for dst in range(self.n_topology):
+                    # self.write_bvh(save_dir, "output"+str(self.epoch), self.denorm_output_motions[dst], self.character_idx, self.motion_idx, dst)
                     self.write_bvh(save_dir, "fake"+str(self.epoch)+"_"+str(src)+"_"+str(dst), self.denorm_fake_motions[2*src+dst], self.character_idx, self.motion_idx, dst)
 
     def write_bvh(self, save_dir, gt_or_output_epoch, motion, character_idx, motion_idx, i):
@@ -472,21 +467,26 @@ class GeneralModel():
             for i, value in tqdm(enumerate(dataset)):
                 self.iter_setting(i)
 
-                self.separate_bp_motion(value)
-                self.feed_to_network()
-                self.combine_full_motion()
+                self.set_input(value)
+                self.forward(value)
                 self.compute_test_result(save_dir)
 
-                # get loss 
-
-                # Denorm & bvh writing
-
                 pbar.update(1)
-                # pbar.set_postfix_str(f"element: {np.mean(self.element_losses):.3f}, cross: {np.mean(self.cross_losses):.3f}") 
+                pbar.set_postfix_str(f"element: {np.mean(self.element_losses):.3f}, cross: {np.mean(self.cross_losses):.3f}") 
+
+    def set_input(self, motions):
+        self.motions_input = motions
+
+        self.motion_backup = []
+        for i in range(self.n_topology):
+            self.motion_backup.append(motions[i][0].clone())
+            self.motions_input[i][0][1:] = self.motions_input[i][0][0]
+            # self.motions_input[i][1] = [0] * len(self.motions_input[i][1])
 
     def compute_test_result(self, save_dir):
         for src in range(self.n_topology):
             gt = self.gt_motions[src]
+            # gt = self.motion_backup[src]
             idx = list(range(gt.shape[0]))
             gt = self.dataset.denorm(src, idx, gt)
             for i in idx: # i = [0,1,2,3]
@@ -494,15 +494,44 @@ class GeneralModel():
                 try_mkdir(new_path)
                 self.writers[src][i].write_raw(gt[i, ...], 'quaternion', 
                                             os.path.join(new_path, '{}_gt.bvh'.format(self.id_test)))
-        
+
+        for src in range(self.n_topology):
+            gt = self.denorm_gt_motions[src]
+            # gt = self.motion_backup[src]
+            idx = list(range(gt.shape[0]))
+            gt = self.dataset.denorm(src, idx, gt)
+            for i in idx: # i = [0,1,2,3]
+                new_path = os.path.join(save_dir, self.characters[src][i])
+                try_mkdir(new_path)
+                self.writers[src][i].write_raw(gt[i, ...], 'quaternion', 
+                                            os.path.join(new_path, '{}_denorm_gt.bvh'.format(self.id_test)))
+
         for src in range(self.n_topology):
             output = self.output_motions[src]
             idx = list(range(output.shape[0]))
             output = self.dataset.denorm(src, idx, output)
-            for i in idx: # i = [0,1,2,3]
+            for i in idx: 
                 new_path = os.path.join(save_dir, self.characters[src][i])
                 try_mkdir(new_path)
                 self.writers[src][i].write_raw(output[i, ...], 'quaternion', 
                                             os.path.join(new_path, '{}_output.bvh'.format(self.id_test)))
-
-        self.id_test += 1 
+        
+        for src in range(self.n_topology):
+            output = self.denorm_output_motions[src]
+            idx = list(range(output.shape[0]))
+            output = self.dataset.denorm(src, idx, output)
+            for i in idx: 
+                new_path = os.path.join(save_dir, self.characters[src][i])
+                try_mkdir(new_path)
+                self.writers[src][i].write_raw(output[i, ...], 'quaternion', 
+                                            os.path.join(new_path, '{}_denorm_output.bvh'.format(self.id_test)))
+        
+        p = 0 # topology index 
+        for src in range(self.n_topology):
+            for dst in range(self.n_topology):
+                for i in range(len(self.characters[dst])): # character index 
+                    dst_path = os.path.join(save_dir, self.characters[dst][i])
+                    self.writers[dst][i].write_raw(self.denorm_fake_motions[p][i, ...], 'quaternion',
+                                                os.path.join(dst_path, '{}_{}.bvh'.format(self.id_test, src)))
+                p += 1
+        self.id_test += 1 # motion index for writing last time 

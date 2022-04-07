@@ -20,13 +20,14 @@ class MotionData(Dataset):
 
     def __init__(self, args, preprocess):
         super(MotionData, self).__init__()
-        name = args.dataset  # character_name
+        name = args.dataset 
 
         # Load all motion files
-        if args.is_train == 1:
-            file_path = './datasets/Mixamo/{}.npy'.format(name)
-        else:
-            file_path = './datasets/Mixamo/{}_test.npy'.format(name)
+        file_path = './datasets/Mixamo/{}.npy'.format(name)
+        # if args.is_train == 1:
+        #     file_path = './datasets/Mixamo/{}.npy'.format(name)
+        # else:
+        #     file_path = './datasets/Mixamo/{}_test.npy'.format(name)
 
         print('load from file {}'.format(file_path))
         self.total_frame = 0

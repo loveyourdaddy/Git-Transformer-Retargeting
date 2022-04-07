@@ -122,22 +122,17 @@ class MixedData(Dataset):
             self.means.append(means_group)
             self.vars.append(vars_group)
 
-            """ body part index """
-            # change index by quaternion form 
-            # [group 2, characters 4, indces]
+        """ body part index """
+        for _, characters in enumerate(character_groups):
             groups_body_parts_index = [] 
-            for i, character in enumerate(characters):
-                body_parts_index = np.load('./datasets/Mixamo/body_part_index/{}.npy'.format(character), allow_pickle=True)
-                character_body_parts_index = []
-                # for body parts 
-                for _, body_part_index in enumerate(body_parts_index): # for 1 body part 
-                    part_index = []
-                    # for joints 
-                    for _, joint_index in enumerate(body_part_index): # for 1 joint 
-                        for j in range(4):
-                            part_index.append(4*joint_index + j)
-                    character_body_parts_index.append(part_index)
-                groups_body_parts_index.append(character_body_parts_index)
+            body_parts_index = np.load('./datasets/Mixamo/body_part_index/{}.npy'.format(characters[0]), allow_pickle=True)
+
+            for _, body_part_index in enumerate(body_parts_index): # for each body part 
+                part_index = []
+                for _, joint_index in enumerate(body_part_index): # for each joint 
+                    for j in range(4):
+                        part_index.append(4*joint_index + j)
+                groups_body_parts_index.append(part_index) # indices for 5 body 
                 
             self.groups_body_parts_index.append(groups_body_parts_index)
         
@@ -236,22 +231,18 @@ class TestData(Dataset):
             self.var.append(var_group)
             self.offsets.append(offsets_group)
 
-            """ body part index """
-            # change index by quaternion form 
-            # [group 2, characters 4, indces]
+
+        """ body part index """
+        for _, characters in enumerate(character_group):
             groups_body_parts_index = [] 
-            for i, character in enumerate(characters):
-                body_parts_index = np.load('./datasets/Mixamo/body_part_index/{}.npy'.format(character), allow_pickle=True)
-                character_body_parts_index = []
-                # for body parts 
-                for _, body_part_index in enumerate(body_parts_index): # for 1 body part 
-                    part_index = []
-                    # for joints 
-                    for _, joint_index in enumerate(body_part_index): # for 1 joint 
-                        for j in range(4):
-                            part_index.append(4*joint_index + j)
-                    character_body_parts_index.append(part_index)
-                groups_body_parts_index.append(character_body_parts_index)
+            body_parts_index = np.load('./datasets/Mixamo/body_part_index/{}.npy'.format(characters[0]), allow_pickle=True)
+
+            for _, body_part_index in enumerate(body_parts_index): # for each body part 
+                part_index = []
+                for _, joint_index in enumerate(body_part_index): # for each joint 
+                    for j in range(4):
+                        part_index.append(4*joint_index + j)
+                groups_body_parts_index.append(part_index) # indices for 5 body 
                 
             self.groups_body_parts_index.append(groups_body_parts_index)
 
@@ -266,6 +257,7 @@ class TestData(Dataset):
                 if new_motion is not None:
                     new_motion = new_motion.reshape((1, ) + new_motion.shape)
                     new_motion = (new_motion - self.mean[i][j]) / self.var[i][j]
+                    # new_motion = self.normalize(i, j, new_motion)
                     ref_shape = new_motion
                 res_group.append(new_motion)
 
