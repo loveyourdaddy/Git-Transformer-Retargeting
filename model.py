@@ -18,34 +18,36 @@ class MotionGenerator(nn.Module):
         super().__init__()
         self.edges = build_edge_topology(joint_topology, torch.zeros((len(joint_topology), 3)))
         self.fk = ForwardKinematics(args, self.edges)
-        self.body_part_generator = []
-        self.body_part_discriminator = []
-        for i in range(6):
-            body_part_generator = BodyPartGenerator(args, self.edges).to(args.cuda_device)
-            self.body_part_generator.append(body_part_generator)
-        for i in range(6):
-            body_part_discriminator = BodyPartDiscriminator(args, self.edges).to(args.cuda_device)
-            self.body_part_discriminator.append(body_part_discriminator)
+        self.bp_generators = []
+        # self.body_part_discriminator = []
+        for b in range(6):
+            bp_generator = BodyPartGenerator(args, self.edges)
+            bp_generator = bp_generator.to(args.cuda_device)
+            self.bp_generators.append(bp_generator)
+        # for b in range(6):
+        #     body_part_discriminator = BodyPartDiscriminator(args, self.edges)
+        #     body_part_discriminator = body_part_discriminator.to(args.cuda_device)
+        #     self.body_part_discriminator.append(body_part_discriminator)
 
     def forward(self, i, inputs):
-        outputs, lat = self.body_part_generator[i](inputs)
+        outputs, lat = self.bp_generators[i](inputs)
         return outputs, lat
 
-    def G_parameters(self):
-        return list(self.body_part_generator[0].parameters())\
-            +list(self.body_part_generator[1].parameters())\
-                +list(self.body_part_generator[2].parameters())\
-                    +list(self.body_part_generator[3].parameters())\
-                        +list(self.body_part_generator[4].parameters())\
-                            +list(self.body_part_generator[5].parameters())
+    def G_parameters(self): # 16 for each bp_gen
+        return list(self.bp_generators[0].parameters())\
+            +list(self.bp_generators[1].parameters())\
+                +list(self.bp_generators[2].parameters())\
+                    +list(self.bp_generators[3].parameters())\
+                        +list(self.bp_generators[4].parameters())\
+                            +list(self.bp_generators[5].parameters())
 
-    def D_parameters(self):
-        return list(self.body_part_discriminator[0].parameters())\
-            +list(self.body_part_discriminator[1].parameters())\
-                +list(self.body_part_discriminator[2].parameters())\
-                    +list(self.body_part_discriminator[3].parameters())\
-                        +list(self.body_part_discriminator[4].parameters())\
-                            +list(self.body_part_discriminator[5].parameters())
+    # def D_parameters(self):
+    #     return list(self.body_part_discriminator[0].parameters())\
+    #         +list(self.body_part_discriminator[1].parameters())\
+    #             +list(self.body_part_discriminator[2].parameters())\
+    #                 +list(self.body_part_discriminator[3].parameters())\
+    #                     +list(self.body_part_discriminator[4].parameters())\
+    #                         +list(self.body_part_discriminator[5].parameters())
 
 def build_edge_topology(topology, offset):
     # get all edges (pa, child, offset)
@@ -70,11 +72,11 @@ class BodyPartGenerator(nn.Module):
         lat = self.encoder(inputs)
         outputs = self.decoder(lat)
         return outputs, lat
-
+    
 """ Conv-based Encoder & Decoder """
 class Encoder(nn.Module):
     def __init__(self, args, topology):
-        super().__init__() # Encoder
+        super().__init__() 
         self.input_dim = args.window_size
         self.args = args 
 

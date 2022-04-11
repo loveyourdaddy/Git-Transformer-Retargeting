@@ -48,24 +48,23 @@ class MotionData(Dataset):
         """ Crop motion dimesnion """
         # self.data = self.data[:, :-1, :]
 
-        """ Get motion info """
-        num_bs = self.data.size(0)
-        num_frames = self.data.size(1)
-        num_DoF = self.data.size(2)
-
         """ Modify data  """
-        # root position -> displacement
-        if args.root_pos_as_velocity == 1:
-            for bs in range(num_bs):  # 0차원(motions)에 대해
-                for frame in range(num_frames - 1):  # 2차원(frames)에 대해
-                    self.data[bs][frame][num_DoF - 3] = self.data[bs][frame + 1][num_DoF - 3] - self.data[bs][frame][num_DoF - 3]
-                    self.data[bs][frame][num_DoF - 2] = self.data[bs][frame + 1][num_DoF - 2] - self.data[bs][frame][num_DoF - 2]
-                    self.data[bs][frame][num_DoF - 1] = self.data[bs][frame + 1][num_DoF - 1] - self.data[bs][frame][num_DoF - 1]
+        # num_bs = self.data.size(0)
+        # num_frames = self.data.size(1)
+        # num_DoF = self.data.size(2)
 
-                # 마지막 프레임의 disp는 0으로 셋팅해줍니다.
-                self.data[bs][num_frames - 1][num_DoF - 3] = 0
-                self.data[bs][num_frames - 1][num_DoF - 2] = 0
-                self.data[bs][num_frames - 1][num_DoF - 1] = 0
+        # # root position -> displacement
+        # if args.root_pos_as_velocity == 1:
+        #     for bs in range(num_bs):  # 0차원(motions)에 대해
+        #         for frame in range(num_frames - 1):  # 2차원(frames)에 대해
+        #             self.data[bs][frame][num_DoF - 3] = self.data[bs][frame + 1][num_DoF - 3] - self.data[bs][frame][num_DoF - 3]
+        #             self.data[bs][frame][num_DoF - 2] = self.data[bs][frame + 1][num_DoF - 2] - self.data[bs][frame][num_DoF - 2]
+        #             self.data[bs][frame][num_DoF - 1] = self.data[bs][frame + 1][num_DoF - 1] - self.data[bs][frame][num_DoF - 1]
+
+        #         # 마지막 프레임의 disp는 0으로 셋팅해줍니다.
+        #         self.data[bs][num_frames - 1][num_DoF - 3] = 0
+        #         self.data[bs][num_frames - 1][num_DoF - 2] = 0
+        #         self.data[bs][num_frames - 1][num_DoF - 1] = 0
 
         """ Swap dimension: (bs, Windows, Joint) -> (bs, joint, windows) """
         if args.swap_dim == 1:
@@ -73,28 +72,12 @@ class MotionData(Dataset):
 
         """ normalization data:  mean, var of data & normalization """
         if args.normalization:
-            if preprocess:  # preprocess의 경우
-                self.mean = torch.mean(
-                    self.data, (0, 2), keepdim=True)  # (1,69,1)
-                self.var = torch.var(self.data, (0, 2), keepdim=True)
-                self.var = self.var ** (1/2)
-                idx = self.var < 1e-5
-                self.var[idx] = 1
-            else:  # 일반적인 경우
-                self.mean = np.load(
-                    './datasets/Mixamo/mean_var/{}_mean.npy'.format(name))
-                self.var = np.load(
-                    './datasets/Mixamo/mean_var/{}_var.npy'.format(name))
-
+            self.mean = torch.mean(self.data, (0, 2), keepdim=True)  # (1,69,1)
+            self.var = torch.var(self.data, (0, 2), keepdim=True)
+            self.var = self.var ** (1/2)
+            idx = self.var < 1e-5
+            self.var[idx] = 1
             self.data = (self.data - self.mean) / self.var
-
-            # pos은 normalization에서 제거
-            # if args.root_pos_as_velocity == 1:
-            #     if args.swap_dim == 0:
-            #         self.data[:,:,-3:] = data_tmp[:,:,-3:]
-            #     else:
-            #         self.data[:,-3:,:] = data_tmp[:,-3:,:]
-
         else:
             self.mean = torch.mean(self.data, (0, 2), keepdim=True)
             self.mean.zero_()

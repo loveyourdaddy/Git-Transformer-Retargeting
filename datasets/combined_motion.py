@@ -136,37 +136,37 @@ class MixedData(Dataset):
                 
             self.groups_body_parts_index.append(groups_body_parts_index)
         
-        for datasets in all_datas:
-            pt = 0
-            motions = []
-            skeleton_idx = []
-            for dataset in datasets:
-                motions.append(dataset[:])
-                skeleton_idx += [pt] * len(dataset)
-                pt += 1
-            motions = torch.cat(motions, dim=0)
-            if self.length != 0 and self.length != len(skeleton_idx):
-                self.length = min(self.length, len(skeleton_idx))
-            else:
-                self.length = len(skeleton_idx)
-            self.final_data.append(MixedData0(args, motions, skeleton_idx))
+        """ final_data: (2, 424, 913, 91) for 2 groups """
+        # for datasets in all_datas:
+        #     pt = 0
+        #     motions = []
+        #     skeleton_idx = []
+        #     for dataset in datasets:
+        #         motions.append(dataset[:])
+        #         skeleton_idx += [pt] * len(dataset)
+        #         pt += 1
+        #     motions = torch.cat(motions, dim=0)
+        #     if self.length != 0 and self.length != len(skeleton_idx):
+        #         self.length = min(self.length, len(skeleton_idx))
+        #     else:
+        #         self.length = len(skeleton_idx)
+        #     self.final_data.append(MixedData0(args, motions, skeleton_idx))
 
         """ Process motion: Get final_data """
         # Cropping: num_motions = batch_size * n
         num_motions = int(len(all_datas[0][0]) / args.batch_size) * args.batch_size
-        print("max_length: ", num_motions)
+        print("num_motions for 1 epoch: ", num_motions)
         args.num_motions = num_motions
 
-        """ final_data: (2, 424, 913, 91) for 2 groups """
         for group_idx, datasets in enumerate(all_datas): 
             pt = 0
             motions = []
             skeleton_idx = []
-            for character_idx, dataset in enumerate(datasets): # for each character in a group
+            for character_idx, dataset in enumerate(datasets):
                 motions.append(dataset[:num_motions])
                 skeleton_idx += [pt] * len(dataset)
                 pt += 1
-            motions = torch.cat(motions, dim=0) # (4,106, 91, 913) -> (424, 91, 913), (4,51,138,128) -> (204,138,128)
+            motions = torch.cat(motions, dim=0) # (4,106, 91, 913) -> (424, 91, 913)
             self.length = motions.size(0)
             self.final_data.append(MixedData0(args, motions, skeleton_idx))
 
@@ -230,7 +230,6 @@ class TestData(Dataset):
             self.mean.append(mean_group)
             self.var.append(var_group)
             self.offsets.append(offsets_group)
-
 
         """ body part index """
         for _, characters in enumerate(character_group):
