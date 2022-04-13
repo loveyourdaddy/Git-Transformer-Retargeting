@@ -9,9 +9,9 @@ from torch.utils.tensorboard import SummaryWriter
 
 """ Set Parameters """
 args = option_parser.get_args()
-save_name = "220411_full_motion/" # 220404_remake_testcode# 220402_rec_cycle_lat2_weight10
-args.is_train = False
-args.epoch_begin = 100 # 10000
+save_name = "220412_wo_cycle_loss/"
+# args.is_train = False
+# args.epoch_begin = 100 # 10000
 
 """ Set Env """
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -41,9 +41,9 @@ if args.is_train == True:
         
         writer.add_scalar("Loss/element_loss", np.mean(general_model.element_losses), epoch)
         writer.add_scalar("Loss/cross_loss", np.mean(general_model.cross_losses), epoch)
-        # writer.add_scalar("Loss/root_loss", np.mean(general_model.root_losses), epoch)
         writer.add_scalar("Loss/latent_loss", np.mean(general_model.latent_losses), epoch)
-        writer.add_scalar("Loss/cycle_loss", np.mean(general_model.cycle_losses), epoch)
+        # writer.add_scalar("Loss/cycle_loss", np.mean(general_model.cycle_losses), epoch)
+        # writer.add_scalar("Loss/root_loss", np.mean(general_model.root_losses), epoch)
         # writer.add_scalar("Loss/GAN_G_fake_loss", np.mean(general_model.G_fake_losses), epoch)
         # writer.add_scalar("Loss/GAN_D_real_loss", np.mean(general_model.D_real_losses), epoch)
         # writer.add_scalar("Loss/GAN_D_fake_loss", np.mean(general_model.D_fake_losses), epoch)

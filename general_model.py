@@ -275,19 +275,16 @@ class GeneralModel():
 
             self.rec_losses.append(rec_loss.item())
 
-        """ 2. cycle loss for intra and cross strucuture retargeting  """ 
-        # for b in range(6): 
-        #     latent_loss = self.cycle_criterion(self.bp_latents[0], self.bp_latents[1])
-        #     self.latent_loss += latent_loss
-        #     self.latent_losses.append(latent_loss.item())
+        """ 2. latent consisteny and cycle loss for intra and cross strucuture retargeting  """ 
+        latent_loss = self.cycle_criterion(self.bp_latents[0], self.bp_latents[1])
+        self.latent_loss += latent_loss
+        self.latent_losses.append(latent_loss.item())
         
-        # p = 0 
-        # for src in range(self.n_topology):
-        #     for dst in range(self.n_topology):
-        #         cycle_loss = self.cycle_criterion(self.bp_latents[dst], self.bp_fake_latents[2*src+dst])
-        #         self.cycle_loss += cycle_loss
-        #         self.cycle_losses.append(cycle_loss.item())
-        #         p += 1
+        for src in range(self.n_topology):
+            for dst in range(self.n_topology):
+                cycle_loss = self.cycle_criterion(self.bp_latents[dst], self.bp_fake_latents[2*src+dst])
+                self.cycle_loss += cycle_loss
+                self.cycle_losses.append(cycle_loss.item())
         
         # """ 3. GAN loss for each body part """
         # p = 0 
@@ -301,7 +298,7 @@ class GeneralModel():
         #             self.gan_loss += G_fake_loss
         #             self.G_fake_losses.append(G_fake_loss.item())
 
-        self.G_loss = (self.rec_loss) # + (10*self.latent_loss) + self.cycle_loss # + self.gan_loss
+        self.G_loss = (self.rec_loss) + (self.latent_loss) # + self.cycle_loss # + self.gan_loss
 
         # cross loss
         cross_loss = self.rec_criterion(self.fake_motions[1], self.gt_motions[1]) # src 0->dst 1
