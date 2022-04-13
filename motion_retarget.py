@@ -9,7 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 """ Set Parameters """
 args = option_parser.get_args()
-save_name = "220412_wo_cycle_loss/"
+save_name = "220413_transformer/"
 # args.is_train = False
 # args.epoch_begin = 100 # 10000
 
