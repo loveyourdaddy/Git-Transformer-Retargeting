@@ -274,7 +274,7 @@ class GeneralModel():
 
             # loss1-2. root 
             # root_loss = self.rec_criterion(self.denorm_gt_motions[j][:, -3:, :], self.denorm_output_motions[j][:, -3:, :]) # / height
-            # self.root_losses.append(root_loss.item())
+            # self.root_losses.append(root_los s.item())
 
             # loss 1-3. global_pos_loss
 
@@ -307,7 +307,7 @@ class GeneralModel():
         #             self.gan_loss += G_fake_loss
         #             self.G_fake_losses.append(G_fake_loss.item())
 
-        self.G_loss = (self.rec_loss) + (self.latent_loss) # + self.cycle_loss # + self.gan_loss
+        self.G_loss = (self.rec_loss) + (self.latent_loss) + self.cycle_loss # + self.gan_loss
 
         # cross loss
         cross_loss = self.rec_criterion(self.fake_motions[1], self.gt_motions[1]) # src 0->dst 1
