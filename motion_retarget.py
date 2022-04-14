@@ -10,8 +10,8 @@ from torch.utils.tensorboard import SummaryWriter
 """ Set Parameters """
 args = option_parser.get_args()
 save_name = "220413_transformer/"
-# args.is_train = False
-# args.epoch_begin = 100 # 10000
+args.is_train = False
+args.epoch_begin = 2300 # 10000
 
 """ Set Env """
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

@@ -41,6 +41,9 @@ class GeneralModel():
 
         args.input_size = dataset[0][0][0].size(0)
         args.output_size = dataset[0][1][0].size(0)
+        if args.is_train == 0 :
+            args.input_size = dataset[0][0][0].size(1)
+            args.output_size = dataset[0][1][0].size(1)
 
         for i in range(self.n_topology):
             model = MotionGenerator(args, offsets, i)
@@ -448,40 +451,41 @@ class GeneralModel():
         for j in range(self.n_topology):
             motion, self.offset_idx[j] = motions[j]
             motion = motion.to(self.args.cuda_device)
+            self.motions.append(motion)
 
         for j in range(self.n_topology):
-            bp_output_motions = torch.zeros(self.bp_motions[j].size()).to(self.args.cuda_device)
-            for b in range(6):
-                bp_output_motions[:,b,:,:], bp_latent = self.models[j].bp_generators[b](self.bp_motions[j][:,b,:,:])
-                bp_latent = torch.unsqueeze(bp_latent, 1)
+            # output_motions = torch.zeros(self.motions[j].size()).to(self.args.cuda_device)
+            # for b in range(6):
+            output_motions, latents = self.models[j].transformer(self.motions[j])
+            latent = torch.unsqueeze(latent, 1)
 
-                if b == 0:
-                    bp_latents = bp_latent
-                else:
-                    bp_latents = torch.cat([bp_latents, bp_latent], dim=1)
+                # if b == 0:
+                #     bp_latents = bp_latent
+                # else:
+                #     bp_latents = torch.cat([bp_latents, bp_latent], dim=1)
 
-            self.bp_output_motions.append(bp_output_motions)
-            self.bp_latents.append(bp_latents)
+            self.output_motions.append(output_motions)
+            self.latents.append(latents)
 
         """ Get fake output and fake latent code """ 
         for src in range(self.n_topology):
             for dst in range(self.n_topology):
-                for b in range(6):
-                    bp_fake_motion = self.models[dst].bp_generators[b].decoder(self.bp_latents[src][:,b,:,:])
-                    bp_fake_latent = self.models[dst].bp_generators[b].encoder(bp_fake_motion)
+                # for b in range(6):
+                fake_motions = self.models[dst].transformer.decoder(self.latents[src])
+                fake_latents = self.models[dst].transformer.encoder(fake_motions)
+                
+                # fake_motion = torch.unsqueeze(fake_motion, 1)
+                # fake_latent = torch.unsqueeze(fake_latent, 1)
                     
-                    bp_fake_motion = torch.unsqueeze(bp_fake_motion, 1)
-                    bp_fake_latent = torch.unsqueeze(bp_fake_latent, 1)
-                    
-                    if b == 0:
-                        bp_fake_motions = bp_fake_motion
-                        bp_fake_latents = bp_fake_latent
-                    else: 
-                        bp_fake_motions = torch.cat([bp_fake_motions, bp_fake_motion], dim=1)
-                        bp_fake_latents = torch.cat([bp_fake_latents, bp_fake_latent], dim=1)
+                    # if b == 0:
+                    #     bp_fake_motions = bp_fake_motion
+                    #     bp_fake_latents = bp_fake_latent
+                    # else: 
+                    #     bp_fake_motions = torch.cat([bp_fake_motions, bp_fake_motion], dim=1)
+                    #     bp_fake_latents = torch.cat([bp_fake_latents, bp_fake_latent], dim=1)
 
-                self.bp_fake_motions.append(bp_fake_motions)
-                self.bp_fake_latents.append(bp_fake_latents)
+                self.fake_motions.append(fake_motions)
+                self.fake_latents.append(fake_latents)
 
     def compute_test_result(self, save_dir):
         for src in range(self.n_topology):
