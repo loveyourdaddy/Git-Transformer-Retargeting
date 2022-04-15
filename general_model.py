@@ -173,74 +173,20 @@ class GeneralModel():
             motions = motions.to(self.args.cuda_device)
             self.gt_motions.append(motions)
             
-            # self.motion_length = motions.size(2)
-            # if self.args.is_train == 1:
-            #     first_index = self.args.batch_size
-            # else:
-            #     first_index = len(self.characters[0])
-
-            # bp_motions = torch.zeros(first_index, 6, self.DoF[j], self.motion_length).to(self.args.cuda_device)
-
-            # """ body part motions for source motion """ # body part: (:, 0~4, 0~90, :)
-            # index = self.dataset.groups_body_parts_index
-            # for b, bp_index in enumerate(index[j]):
-            #     bp_motions[:, b, bp_index, :] = motions[:, bp_index, :]             
-            # for quat_idx in range(4): # root rotation (:, 0, 0~91, :)
-            #     bp_motions[:, 5, quat_idx, :] = motions[:, quat_idx, :]
-            # for quat_idx in range(3): # root position : 4~7 
-            #     bp_motions[:, 5, self.DoF[j] - 3 + quat_idx, :] = motions[:, self.DoF[j] - 3 + quat_idx, :]
-
-            # self.bp_motions.append(bp_motions)
-
     def feed_to_network(self):
         for j in range(self.n_topology):
-            _, gt_latent = self.models[j].transformer(self.gt_motions[j])
-            # bp_latent = torch.zeros(bp_latent.size(0), 6, bp_latent.size(1), bp_latent.size(2)).to(self.args.cuda_device)
-
-            # for b in range(6):
-            # _, gt_latent = self.models[j].transformer(self.gt_motions[j])
-
-            self.latents.append(gt_latent)
+            _, latent = self.models[j].transformer(self.gt_motions[j], self.gt_motions[j])
+            
+            self.latents.append(latent)
 
         """ Get fake output and fake latent code """ 
         for src in range(self.n_topology):
             for dst in range(self.n_topology):
-                # for b in range(6):
-                fake_motion, _, _ = self.models[dst].transformer.decoder(self.latents[src])
+                fake_motion, _ = self.models[dst].transformer.decoder(self.gt_motions[dst], self.latents[src])
                 fake_latent, _, _ = self.models[dst].transformer.encoder(fake_motion)
-
-                # fake_motion = torch.unsqueeze(fake_motion, 1)
-                # fake_latent = torch.unsqueeze(fake_latent, 1)
-                
-                # if b == 0:
-                #     bp_fake_motions = bp_fake_motion
-                #     bp_fake_latents = bp_fake_latent
-                # else: 
-                #     bp_fake_motions = torch.cat([bp_fake_motions, bp_fake_motion], dim=1)
-                #     bp_fake_latents = torch.cat([bp_fake_latents, bp_fake_latent], dim=1)
 
                 self.fake_motions.append(fake_motion)
                 self.fake_latents.append(fake_latent)
-        
-    # def combine_full_motion(self):
-    #     """ Combine part by motion back """              
-    #     index = self.dataset.groups_body_parts_index 
-    #     if self.args.is_train == 1:
-    #         first_index = self.args.batch_size
-    #     else:
-    #         first_index = len(self.characters[0])
-
-    #     for src in range(self.n_topology):
-    #         for dst in range(self.n_topology):
-    #             fake_motions = torch.zeros(first_index, self.DoF[dst], self.motion_length).to(self.args.cuda_device)
-
-    #             for b in range(5): # body parts
-    #                 fake_motions[:, index[dst][b], :] = self.bp_fake_motions[2*src+dst][:, b, index[dst][b], :]
-    #             for k in range(4): # root rotation (0~3)
-    #                 fake_motions[:, k, :]  = self.bp_fake_motions[2*src+dst][:, 5, k, :]
-    #             for k in range(3): # position (len-3 ~ -1)
-    #                 fake_motions[:, self.DoF[dst] - 3 + k, :] = self.bp_fake_motions[2*src+dst][:, 5, self.DoF[dst] - 3 + k, :]
-    #             self.fake_motions.append(fake_motions)
 
     def denorm_motion(self):
         """ Denorm and transpose & Remake root & Get global position """
@@ -278,8 +224,8 @@ class GeneralModel():
 
             # loss 1-3. global_pos_loss
 
-            # Total loss 
-            rec_loss = (1 * element_loss) #+ (2.5 * root_loss) # + 1* global_pos_loss
+            # Total loss: + (2.5 * root_loss) # + 1* global_pos_loss 
+            rec_loss = element_loss
             self.rec_loss += rec_loss
 
             self.rec_losses.append(rec_loss.item())

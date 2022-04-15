@@ -27,9 +27,8 @@ class MotionGenerator(nn.Module):
         self.transformer = Transformer(args, offsets, i)
 
     """ Transofrmer """
-    def forward(self, input_character, output_character, enc_inputs):
-        output, latent_feature, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = self.transformer(
-            input_character, output_character, enc_inputs)
+    def forward(self, enc_inputs, gt):
+        output, latent_feature, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs = self.transformer(enc_inputs, gt)
 
         return output, latent_feature #, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
 
@@ -46,13 +45,25 @@ class Transformer(nn.Module):
         self.encoder = Encoder(args, offsets[i], i)
         self.decoder = Decoder(args, offsets[i], i)
 
-    def forward(self, inputs):        
-        # Encoder
+    def forward(self, inputs, gt):
         latent_feature, enc_self_attn_probs, context = self.encoder(inputs)
-
-        outputs, dec_self_attn_probs, dec_enc_attn_probs = self.decoder(latent_feature)
+        outputs, dec_self_attn_probs, dec_enc_attn_probs = self.decoder(gt, latent_feature)
 
         return outputs, latent_feature #, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
+
+""" attention pad mask """
+# TODO: check here
+def get_attn_pad_mask(seq_q, seq_k, i_pad):
+    batch_size, len_q = seq_q.size()
+    batch_size, len_k = seq_k.size()
+    pad_attn_mask = seq_k.data.eq(i_pad).unsqueeze(1).expand(batch_size, len_q, len_k)  # <pad>
+    return pad_attn_mask
+
+""" attention decoder mask """
+def get_attn_decoder_mask(seq):
+    subsequent_mask = torch.ones_like(seq).unsqueeze(-1).expand(seq.size(0), seq.size(1), seq.size(1))
+    subsequent_mask = subsequent_mask.triu(diagonal=1) # upper triangular part of a matrix(2-D)
+    return subsequent_mask
 
 """ Encoder & Decoder """
 class Encoder(nn.Module):
@@ -96,10 +107,12 @@ class Encoder(nn.Module):
 
         outputs = self.fc1(inputs)
 
+        attn_mask = get_attn_pad_mask(outputs, outputs, 0)
+
         """ 연산 """
         attn_probs = []
         for layer in self.layers:
-            outputs, attn_prob, context = layer(outputs)
+            outputs, attn_prob, context = layer(outputs, attn_mask)
             attn_probs.append(attn_prob)
 
         outputs = self.fc2(outputs)
@@ -133,29 +146,34 @@ class Decoder(nn.Module):
         # Positional Embedding
         self.sinusoid_table = torch.FloatTensor(get_sinusoid_encoding_table(self.window_size + 1, self.embedding_dim))
         self.pos_emb = nn.Embedding.from_pretrained(self.sinusoid_table, freeze=True)
-            
-    def forward(self, enc_outputs):
-        # ToDo : dec_input is required 
-
-        # """ Get Position and Embedding """
-        # if data_encoding: # data_encoding for "inputs"
-        #     positions = torch.arange(inputs.size(1), device=inputs.device, dtype=torch.long)\
-        #         .unsqueeze(0).expand(inputs.size(0), inputs.size(1)).contiguous() + 1
-        #     position_encoding = self.pos_emb(positions)
-        #     input_embedding = self.input_embedding(inputs)
-        #     inputs = input_embedding + position_encoding
-
+           
+    def forward(self, dec_inputs, enc_outputs):
         # 1. enc output
-        outputs = self.deprojection_net(enc_outputs)
+        enc_outputs = self.deprojection_net(enc_outputs)
+        enc_outputs = self.fc1(enc_outputs)
         
-        outputs = self.fc1(outputs)
-
         # 2. dec input
-        # dec_inputs = self.fc1(inputs)
+        """ Get Position and Embedding """
+        data_encoding = 1
+        if data_encoding:
+            positions = torch.arange(dec_inputs.size(1), device=dec_inputs.device, dtype=torch.long)\
+                .unsqueeze(0).expand(dec_inputs.size(0), dec_inputs.size(1)).contiguous() + 1
+            position_encoding = self.pos_emb(positions)
+            input_embedding = self.input_embedding(dec_inputs)
+            dec_inputs = input_embedding + position_encoding
+
+        dec_inputs = self.fc1(dec_inputs)
+
+        """ Decoder mask """
+        dec_attn_pad_mask = get_attn_pad_mask(dec_inputs, dec_inputs, 0)
+        dec_attn_decoder_mask = get_attn_decoder_mask(dec_inputs) # To know the rule
+        dec_self_attn_mask = torch.gt((dec_attn_pad_mask + dec_attn_decoder_mask), 0)
+
+        dec_enc_attn_mask = get_attn_pad_mask(dec_inputs, enc_inputs, 0) # ? enc input? 
 
         self_attn_probs, dec_enc_attn_probs = [], []
         for layer in self.layers:
-            outputs, self_attn_prob, dec_enc_attn_prob = layer(outputs, outputs)
+            outputs, self_attn_prob, dec_enc_attn_prob = layer(dec_inputs, enc_outputs) # Q, (K,V)
             self_attn_probs.append(self_attn_prob)
             dec_enc_attn_probs.append(dec_enc_attn_prob)
  
@@ -175,17 +193,13 @@ class EncoderLayer(nn.Module):
         self.layer_norm_epsilon = args.layer_norm_epsilon
 
         # Layers
-        self.self_attn = MultiHeadAttention(
-            self.args, "Enc")  # Q,K,V: (bs, 128, 91)
-        self.layer_norm1 = nn.LayerNorm(
-            self.input_dim, eps=self.layer_norm_epsilon)
+        self.self_attn = MultiHeadAttention(self.args, "Enc")  # Q,K,V: (bs, 128, 91)
+        self.layer_norm1 = nn.LayerNorm(self.input_dim, eps=self.layer_norm_epsilon)
         self.pos_ffn = PositionFeedForwardNet(self.args, "Enc")
-        self.layer_norm2 = nn.LayerNorm(
-            self.input_dim, eps=self.layer_norm_epsilon)
+        self.layer_norm2 = nn.LayerNorm(self.input_dim, eps=self.layer_norm_epsilon)
 
-    def forward(self, inputs):
-        att_outputs, attn_prob, context = self.self_attn(
-            inputs, inputs, inputs)
+    def forward(self, inputs, mask):
+        att_outputs, attn_prob, context = self.self_attn(inputs, inputs, inputs, mask)
         att_outputs = self.layer_norm1(inputs + att_outputs)
 
         ffn_outputs = self.pos_ffn(att_outputs)
@@ -200,28 +214,22 @@ class DecoderLayer(nn.Module):
         self.args = args
         self.input_dim = args.embedding_dim
 
-        self.self_attn = MultiHeadAttention(
-            self.args, "Dec")  # Q,K,V: (bs, 128, 111)
-        self.layer_norm1 = nn.LayerNorm(
-            self.input_dim, eps=self.args.layer_norm_epsilon)
-        # Q: (bs, 128, 111), K,V: (bs, 128, 91)
+        self.self_attn = MultiHeadAttention(self.args, "Dec")  # Q,K,V: (bs, 128, 111)
+        self.layer_norm1 = nn.LayerNorm(self.input_dim, eps=self.args.layer_norm_epsilon) # Q: (bs, 128, 111), K,V: (bs, 128, 91)
         self.dec_enc_attn = MultiHeadAttention(self.args, "Dec_enc")
-        self.layer_norm2 = nn.LayerNorm(
-            self.input_dim, eps=self.args.layer_norm_epsilon)
+        self.layer_norm2 = nn.LayerNorm(self.input_dim, eps=self.args.layer_norm_epsilon)
         self.pos_ffn = PositionFeedForwardNet(self.args, "Dec")
-        self.layer_norm3 = nn.LayerNorm(
-            self.input_dim, eps=self.args.layer_norm_epsilon)
+        self.layer_norm3 = nn.LayerNorm(self.input_dim, eps=self.args.layer_norm_epsilon)
 
     def forward(self, dec_inputs, enc_outputs):
 
-        self_att_outputs, self_attn_prob, _ = self.self_attn(
-            dec_inputs, dec_inputs, dec_inputs)  # Q, K, V, attn
+        # decoder self attention 
+        self_att_outputs, self_attn_prob, _ = self.self_attn(dec_inputs, dec_inputs, dec_inputs)  # Q, K, V, attn
         self_att_outputs = self.layer_norm1(dec_inputs + self_att_outputs)
 
-        dec_enc_att_outputs, dec_enc_attn_prob, _ = self.dec_enc_attn(
-            self_att_outputs, enc_outputs, enc_outputs)
-        dec_enc_att_outputs = self.layer_norm2(
-            self_att_outputs + dec_enc_att_outputs)
+        # source-target attentino  
+        dec_enc_att_outputs, dec_enc_attn_prob, _ = self.dec_enc_attn(self_att_outputs, enc_outputs, enc_outputs) # Q: output of decoder. K, V: output of encoder 
+        dec_enc_att_outputs = self.layer_norm2(self_att_outputs + dec_enc_att_outputs)
 
         ffn_outputs = self.pos_ffn(dec_enc_att_outputs)
         ffn_outputs = self.layer_norm3(dec_enc_att_outputs + ffn_outputs)
@@ -231,8 +239,7 @@ class DecoderLayer(nn.Module):
 """ sinusoial encoding of each sentence """
 # n_seq: num of total seq(Sentence), d_hidn: 단어를 표시하는 벡터의 크기
 def get_sinusoid_encoding_table(n_seq, d_hidn):
-    # 포지션을 angle로 나타냄
-    def cal_angle(position, i_hidn):
+    def cal_angle(position, i_hidn):     # 포지션을 angle로 나타냄
         return position / np.power(10000, 2 * (i_hidn // 2) / d_hidn)
 
     def get_posi_ang_vec(position):
@@ -266,7 +273,7 @@ class MultiHeadAttention(nn.Module):
         self.scaled_dot_attn = ScaledDotProductAttention(args)
         self.linear = nn.Linear(self.n_head * self.d_head, self.input_dim)
 
-    def forward(self, Q, K, V):
+    def forward(self, Q, K, V, mask):
         # Q,K,V:(bs, window, DoF)
         batch_size = Q.size(0)
 
@@ -275,8 +282,11 @@ class MultiHeadAttention(nn.Module):
         k_s = self.W_K(K).view(batch_size, -1, self.n_head, self.d_head).transpose(1, 2)
         v_s = self.W_V(V).view(batch_size, -1, self.n_head, self.d_head).transpose(1, 2)
 
+        # TODO: check dimension 
+        mask = mask.unsqueeze(1).repeat(1, self.n_head, 1, 1)
+
         # Attentinon 계산
-        context, attn_prob = self.scaled_dot_attn(q_s, k_s, v_s)
+        context, attn_prob = self.scaled_dot_attn(q_s, k_s, v_s, mask)
 
         context = context.transpose(1, 2).contiguous().view(batch_size, -1, self.n_head * self.d_head)
         

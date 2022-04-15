@@ -9,7 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 """ Set Parameters """
 args = option_parser.get_args()
-save_name = "220414_transformer/"
+save_name = "220414_transformer_fix_decoder/"
 # args.is_train = False
 # args.epoch_begin = 2300 # 10000
 
