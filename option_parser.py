@@ -41,7 +41,7 @@ def get_parser():
     parser.add_argument('--n_layer', type=int, default=6)
     parser.add_argument('--n_head', type=int, default=4)
     parser.add_argument('--d_head', type=int, default=64)
-    parser.add_argument('--d_hidn', type=int, default=91) # joint 을 얼마나 줄일지에 대한 hidden dimension
+    parser.add_argument('--d_hidn', type=int, default=512)
     parser.add_argument('--embedding_dim', type=int, default=256,help='embedding dimension')  # window을 얼마나 줄일지에 대한 embedding  # quaternion embedding dimenstion: 91 -> 91 -> 111
     parser.add_argument('--gan_mode', type=str, default='lsgan') # vanilla 
 

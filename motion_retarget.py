@@ -28,7 +28,7 @@ loader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size, shuffl
 print("characters:{}".format(characters))
 
 """ load model  """
-general_model = GeneralModel(args, characters, dataset) 
+general_model = GeneralModel(args, characters, dataset) #.to(args.cuda_device)
 
 """ Load model if load mode """
 if args.epoch_begin:
