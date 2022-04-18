@@ -25,19 +25,16 @@ def try_mkdir(path):
 
 class GeneralModel():
     def __init__(self, args, character_names, dataset):
-        # super(GeneralModel, self).__init__(args)
         self.args = args
         self.dataset = dataset
         self.characters = character_names
         offsets = dataset.get_offsets()
         self.n_topology = self.args.n_topology
-        # self.num_bp = 6
 
         """ Models """ 
         self.models = []
         self.G_para = []
         self.D_para = []
-        # self.optimizerDs = []
 
         args.input_size = dataset[0][0][0].size(0)
         args.output_size = dataset[0][1][0].size(0)
@@ -49,11 +46,11 @@ class GeneralModel():
             model = MotionGenerator(args, offsets, i)
             model = model.to(args.cuda_device)
             self.models.append(model)
-            self.G_para += self.models[i].G_parameters() # 96 for each model 
-            # self.D_para += self.models[i].D_parameters()
+            self.G_para += self.models[i].G_parameters()
+            self.D_para += self.models[i].D_parameters()
 
         self.optimizerGs = torch.optim.Adam(self.G_para, lr=args.learning_rate) 
-        # self.optimizerDs = torch.optim.Adam(self.D_para, lr=args.learning_rate) 
+        self.optimizerDs = torch.optim.Adam(self.D_para, lr=args.learning_rate) 
 
         """ Set BVH writers """ 
         self.files = []
@@ -84,14 +81,9 @@ class GeneralModel():
         self.cycle_criterion = torch.nn.MSELoss() 
         self.gan_criterion = GAN_loss(args.gan_mode).to(args.cuda_device)
 
-        # index
-        # self.character_idx = 0 
-        # self.motion_idx = 0 
-
         """ update input/output dimension of network: Set DoF """
         for j in range(self.n_topology):
             motion = self.dataset[0][j][0] # (256, 4, motion/offset 2, 91 or 111, 128)
-            # motion = self.dataset[0][j][0][0]
             self.DoF.append(motion.size(0))
 
     def train_epoch(self, epoch, data_loader, save_name):
@@ -109,17 +101,23 @@ class GeneralModel():
                 self.iter_setting(i)
                 self.separate_bp_motion(value)
                 self.feed_to_network()
-                # self.combine_full_motion()
                 self.denorm_motion()
                 self.get_loss()
                 
+                self.discriminator_requires_grad_(False)
                 self.backward_G()
+                
+                self.discriminator_requires_grad_(True)
+                # disable generator grad ?
+                self.optimizerDs.zero_grad()
+                self.backward_D()
+
                 if self.epoch % 100 == 0:
                     self.bvh_writing(save_dir)
 
                 """ show info """
                 pbar.update(1)
-                pbar.set_postfix_str(f"element: {np.mean(self.element_losses):.3f}, cross: {np.mean(self.cross_losses):.3f}") 
+                pbar.set_postfix_sr(f"element: {np.mean(self.element_losses):.3f}, cross: {np.mean(self.cross_losses):.3f}") 
 
     def iter_setting(self, i):
         if self.args.is_train == 1:
@@ -190,8 +188,6 @@ class GeneralModel():
                 self.fake_latents.append(fake_latent)
 
     def denorm_motion(self):
-
-            
         """ Denorm and transpose & Remake root & Get global position """
         for j in range(self.n_topology):
             gt_motions = torch.transpose(torch.transpose(self.gt_motions[j], 0, 1), 1, 2)
@@ -224,13 +220,13 @@ class GeneralModel():
             self.element_losses.append(element_loss.item())
 
             # loss1-2. root 
-            # root_loss = self.rec_criterion(self.denorm_gt_motions[j][:, -3:, :], self.denorm_output_motions[j][:, -3:, :]) # / height
-            # self.root_losses.append(root_los s.item())
+            root_loss = self.rec_criterion(self.denorm_gt_motions[src][:, -3:, :], self.denorm_fake_motions[3*src][:, -3:, :]) # / height
+            self.root_losses.append(root_loss.item())
 
             # loss 1-3. global_pos_loss
 
             # Total loss: + (2.5 * root_loss) # + 1* global_pos_loss 
-            rec_loss = element_loss
+            rec_loss = element_loss + (root_loss)
             self.rec_loss += rec_loss
 
             self.rec_losses.append(rec_loss.item())
@@ -246,17 +242,15 @@ class GeneralModel():
                 self.cycle_loss += cycle_loss
                 self.cycle_losses.append(cycle_loss.item())
         
-        # """ 3. GAN loss for each body part """
-        # p = 0 
-        # for src in range(self.n_topology):
-        #     for dst in range(self.n_topology):
-        #         for b in range(6):
-        #             netD = self.models[dst].body_part_discriminator[b]
+        """ 3. GAN loss for each body part """
+        for src in range(self.n_topology):
+            for dst in range(self.n_topology):
+                netD = self.models[dst].discriminator
 
-        #             fake_pred = netD(self.fake_motions[2*src+dst])
-        #             G_fake_loss = self.gan_criterion(fake_pred, True)
-        #             self.gan_loss += G_fake_loss
-        #             self.G_fake_losses.append(G_fake_loss.item())
+                fake_pred = netD(self.fake_motions[2*src+dst])
+                G_fake_loss = self.gan_criterion(fake_pred, True)
+                self.gan_loss += G_fake_loss
+                self.G_fake_losses.append(G_fake_loss.item())
 
         self.G_loss = (self.rec_loss) + (self.latent_loss) + self.cycle_loss # + self.gan_loss
 
@@ -276,25 +270,29 @@ class GeneralModel():
         self.D_loss = 0
         for src in range(self.args.n_topology):
             for dst in range(self.args.n_topology):
-                for b in range(6):
-                    netD = self.models[dst].body_part_discriminator[b]
+                netD = self.models[dst].discriminator
 
-                    # output of real motion
-                    real_pred = netD(self.gt_motions[dst])
-                    D_real_loss = self.gan_criterion(real_pred, True)
-                    self.D_real_losses.append(D_real_loss.item())
+                # output of real motion
+                real_pred = netD(self.gt_motions[dst])
+                D_real_loss = self.gan_criterion(real_pred, True)
+                self.D_real_losses.append(D_real_loss.item())
 
-                    # output of fake motion
-                    fake_pred = netD(self.fake_motions[2*src+dst].detach())
-                    D_fake_loss = self.gan_criterion(fake_pred, False)
-                    self.D_fake_losses.append(D_fake_loss.item())
+                # output of fake motion
+                fake_pred = netD(self.fake_motions[2*src+dst].detach())
+                D_fake_loss = self.gan_criterion(fake_pred, False)
+                self.D_fake_losses.append(D_fake_loss.item())
 
-                    D_loss = (D_real_loss + D_fake_loss) * 0.5
-                    self.D_loss += D_loss
+                D_loss = (D_real_loss + D_fake_loss) * 0.5
+                self.D_loss += D_loss
 
         self.D_loss.backward()
         self.optimizerDs.step()
 
+    def discriminator_requires_grad_(self, requires_grad):
+        for model in self.models:
+            for para in model.D_parameters():
+                para.requires_grad = requires_grad
+                    
     def save(self, path, epoch):
         for i, model in enumerate(self.models):
             file_name = os.path.join(path, 'topology{}'.format(i), 'epoch{}.pt'.format(epoch))

@@ -9,14 +9,14 @@ from torch.utils.tensorboard import SummaryWriter
 
 """ Set Parameters """
 args = option_parser.get_args()
-save_name = "220418_transformer_fix_decoder/"
+save_name = "220418_transformer_rec_root_latent_cycle/"
 # args.is_train = False
 # args.epoch_begin = 2300 # 10000
 
 """ Set Env """
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args.n_topology = 2
-para_path = "./parameters/"
+para_path = "./parameters/" 
 print("cuda availiable: {}".format(torch.cuda.is_available()))
 log_dir = './run/' + save_name
 writer = SummaryWriter(log_dir, flush_secs=1)
