@@ -104,20 +104,20 @@ class GeneralModel():
                 self.denorm_motion()
                 self.get_loss()
                 
-                self.discriminator_requires_grad_(False)
+                # self.discriminator_requires_grad_(False)
                 self.backward_G()
                 
-                self.discriminator_requires_grad_(True)
+                # self.discriminator_requires_grad_(True)
                 # disable generator grad ?
-                self.optimizerDs.zero_grad()
-                self.backward_D()
+                # self.optimizerDs.zero_grad()
+                # self.backward_D()
 
                 if self.epoch % 100 == 0:
                     self.bvh_writing(save_dir)
 
                 """ show info """
                 pbar.update(1)
-                pbar.set_postfix_sr(f"element: {np.mean(self.element_losses):.3f}, cross: {np.mean(self.cross_losses):.3f}") 
+                pbar.set_postfix_str(f"element: {np.mean(self.element_losses):.3f}, cross: {np.mean(self.cross_losses):.3f}") 
 
     def iter_setting(self, i):
         if self.args.is_train == 1:
@@ -207,13 +207,9 @@ class GeneralModel():
                 self.denorm_fake_motions.append(denorm_fake_motions)
 
     def get_loss(self):
-        self.G_loss = 0
-        self.rec_loss = 0 
-        self.latent_loss = 0 
-        self.cycle_loss = 0 
-        self.gan_loss = 0
 
         """ loss1. reconstruction loss for intra structure retargeting """
+        self.rec_loss = 0 
         for src in range(self.n_topology):
             # loss1-1. on each element
             element_loss = self.rec_criterion(self.gt_motions[src], self.fake_motions[3*src]) # forward: 0 / 3
@@ -231,28 +227,33 @@ class GeneralModel():
 
             self.rec_losses.append(rec_loss.item())
 
-        """ 2. latent consisteny and cycle loss for intra and cross strucuture retargeting  """ 
+        """ 2. latent consisteny and cycle loss for intra and cross strucuture retargeting  """         
+        self.latent_loss = 0 
+
+        # common latent loss 
         latent_loss = self.cycle_criterion(self.latents[0], self.latents[1])
         self.latent_loss += latent_loss
         self.latent_losses.append(latent_loss.item())
         
+        # cycle loss 
         for src in range(self.n_topology):
             for dst in range(self.n_topology):
                 cycle_loss = self.cycle_criterion(self.latents[dst], self.fake_latents[2*src+dst])
-                self.cycle_loss += cycle_loss
+                self.latent_loss += cycle_loss
                 self.cycle_losses.append(cycle_loss.item())
         
         """ 3. GAN loss for each body part """
+        self.gan_loss = 0
         for src in range(self.n_topology):
             for dst in range(self.n_topology):
                 netD = self.models[dst].discriminator
 
-                fake_pred = netD(self.fake_motions[2*src+dst])
+                fake_pred = netD(self.fake_motions[2*src+dst], self.gt_motions[dst])
                 G_fake_loss = self.gan_criterion(fake_pred, True)
                 self.gan_loss += G_fake_loss
                 self.G_fake_losses.append(G_fake_loss.item())
 
-        self.G_loss = (self.rec_loss) + (self.latent_loss) + self.cycle_loss # + self.gan_loss
+        self.G_loss = (self.rec_loss) + (self.latent_loss) # + self.gan_loss
 
         # cross loss
         cross_loss = self.rec_criterion(self.fake_motions[1], self.gt_motions[1]) # src 0->dst 1
@@ -273,12 +274,12 @@ class GeneralModel():
                 netD = self.models[dst].discriminator
 
                 # output of real motion
-                real_pred = netD(self.gt_motions[dst])
+                real_pred = netD(self.gt_motions[src], self.gt_motions[dst])
                 D_real_loss = self.gan_criterion(real_pred, True)
                 self.D_real_losses.append(D_real_loss.item())
 
                 # output of fake motion
-                fake_pred = netD(self.fake_motions[2*src+dst].detach())
+                fake_pred = netD(self.fake_motions[2*src+dst].detach(), self.gt_motions[dst])
                 D_fake_loss = self.gan_criterion(fake_pred, False)
                 self.D_fake_losses.append(D_fake_loss.item())
 

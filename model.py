@@ -20,23 +20,30 @@ class MotionGenerator(nn.Module):
 
         """ Transformer """
         self.transformer = Transformer(args, offsets, i).to(args.cuda_device)
-        self.discriminator = Transformer(args, offsets, i).to(args.cuda_device)
+        self.discriminator = Discriminator(args, offsets, i).to(args.cuda_device)
 
     """ Transofrmer """
     def forward(self, src, tgt):
 
         return 
 
-    def discriminator_forward(self, src, tgt): # 
-        output, _ = self.discriminator_forward(src, tgt)
-
-        return torch.sigmoid(output).squeeze()
-
     def G_parameters(self):
         return list(self.transformer.parameters())
 
     def D_parameters(self):
         return list(self.discriminator.parameters())
+
+class Discriminator(nn.Module):
+    def __init__(self, args, offsets, i):
+        super().__init__()
+        self.transformer = Transformer(args, offsets, i).to(args.cuda_device)
+
+    def forward(self, src, tgt):
+        encoder_output = self.transformer.enc_forward(src)
+        output = self.transformer.dec_forward(encoder_output, tgt, src)
+        
+        # TODO: one of sigmoid is enough??? no fc?  
+        return torch.sigmoid(output).squeeze()
 
 """ Transoformer Model """
 class Transformer(nn.Module):
@@ -59,8 +66,8 @@ class Transformer(nn.Module):
         self.pos_encoder = PositionalEncoding(self.hidden_dim, dropout)
         self.project = nn.Linear(self.hidden_dim, self.input_dim) 
 
-        self.transformer_encoder = Transformer_Encoder(self.input_dim, self.hidden_dim, self.num_heads, self.num_layers, dropout)
-        self.transformer_decoder = Transformer_Decoder(self.output_dim, self.hidden_dim, self.num_heads, self.num_layers, dropout)
+        self.transformer_encoder = Transformer_Encoder(self.hidden_dim, self.num_heads, self.num_layers, dropout)
+        self.transformer_decoder = Transformer_Decoder(self.hidden_dim, self.num_heads, self.num_layers, dropout)
 
     def _generate_square_subsequent_mask(self, sz):
         mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
@@ -100,9 +107,8 @@ class Transformer(nn.Module):
         return output, encoder_output #, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
 
 class Transformer_Encoder(nn.Module):
-    def __init__(self, input_dim, hidden_dim, num_heads, num_layers, dropout):
+    def __init__(self, hidden_dim, num_heads, num_layers, dropout):
         super().__init__()
-        # self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.num_heads = num_heads
         self.num_layers = num_layers
@@ -125,9 +131,8 @@ class Transformer_Encoder(nn.Module):
         return encoder_output
 
 class Transformer_Decoder(nn.Module):
-    def __init__(self, input_dim, hidden_dim, num_heads, num_layers, dropout):
+    def __init__(self, hidden_dim, num_heads, num_layers, dropout):
         super().__init__()
-        # self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.num_heads = num_heads
         self.num_layers = num_layers

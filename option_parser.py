@@ -22,7 +22,7 @@ def get_parser():
     # parser.add_argument('--lambda_position', type=int, default=1)
 
     # Dataset representation
-    parser.add_argument('--batch_size', type=int,default=8, help='batch_size') # 32 
+    parser.add_argument('--batch_size', type=int,default=4, help='batch_size') # 32 
     parser.add_argument('--rotation', type=str, default='quaternion', help='representatio0 of rotation:xyz, quaternion')
     parser.add_argument('--window_size', type=int, default=128, help='length of time axis per window')
     parser.add_argument('--num_motions', type=int, default=1)
