@@ -170,6 +170,7 @@ class GeneralModel():
     def separate_bp_motion(self, value):
         for j in range(self.n_topology):
             motions, self.offset_idx[j] = value[j]
+            motions = torch.transpose(torch.transpose(motions, 1, 2), 0, 1)
             motions = motions.to(self.args.cuda_device)
             self.gt_motions.append(motions)
             
@@ -182,27 +183,31 @@ class GeneralModel():
         """ Get fake output and fake latent code """ 
         for src in range(self.n_topology):
             for dst in range(self.n_topology):
-                fake_motion, _ = self.models[dst].transformer.decoder(self.gt_motions[dst], self.latents[src])
-                fake_latent, _, _ = self.models[dst].transformer.encoder(fake_motion)
+                fake_motion = self.models[dst].transformer.dec_forward(self.latents[src], self.gt_motions[dst], self.gt_motions[src]) # encoder_output, tgt, src
+                fake_latent = self.models[dst].transformer.enc_forward(fake_motion)
 
                 self.fake_motions.append(fake_motion)
                 self.fake_latents.append(fake_latent)
 
     def denorm_motion(self):
+
+            
         """ Denorm and transpose & Remake root & Get global position """
         for j in range(self.n_topology):
-            if self.args.normalization == 1:
-                denorm_gt_motions = self.denormalize(self.character_idx, self.gt_motions[j], j)
+            gt_motions = torch.transpose(torch.transpose(self.gt_motions[j], 0, 1), 1, 2)
+            if self.args.normalization == 1:                
+                denorm_gt_motions = self.denormalize(self.character_idx, gt_motions, j)
             else:
-                denorm_gt_motions = self.gt_motions[j]
+                denorm_gt_motions = gt_motions
             self.denorm_gt_motions.append(denorm_gt_motions)
 
         for src in range(self.n_topology):
             for dst in range(self.n_topology):
+                motion = torch.transpose(torch.transpose(self.fake_motions[2*src+dst], 0, 1), 1, 2)
                 if self.args.normalization == 1:
-                    denorm_fake_motions = self.denormalize(self.character_idx, self.fake_motions[2*src+dst], dst)
+                    denorm_fake_motions = self.denormalize(self.character_idx, motion, dst)
                 else:
-                    denorm_fake_motions = self.fake_motions[j]
+                    denorm_fake_motions = motion
                 self.denorm_fake_motions.append(denorm_fake_motions)
 
     def get_loss(self):

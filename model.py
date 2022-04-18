@@ -11,18 +11,15 @@ from datasets import get_character_names, create_dataset
 from model import *
 import math
 from models.Kinematics import ForwardKinematics
-# from torch.nn import TransformerEncoder, TransformerDecoder, TransformerEncoderLayer, TransformerDecoderLayer
-# from torch.nn import LayerNorm
+from torch.nn import TransformerEncoder, TransformerDecoder, TransformerEncoderLayer, TransformerDecoderLayer
+from torch.nn import LayerNorm
 
 class MotionGenerator(nn.Module):
     def __init__(self, args, offsets, i):
         super().__init__()
-        self.args = args
-        self.output_size = args.window_size
-        # if args.swap_dim == 0:
-        #     self.output_size = args.output_size
-        # else:
-        self.output_size = args.window_size
+        # self.args = args
+        # self.output_size = args.window_size
+        # self.output_size = args.window_size
 
         """ Transformer """
         # layers
@@ -42,79 +39,111 @@ class Transformer(nn.Module):
     def __init__(self, args, offsets, i):
         super().__init__()
         # self.args = args
-        self.input_dim = args.window_size
-        self.output_dim = args.window_size
+        if i == 0: 
+            self.input_dim = args.input_size
+            self.output_dim = args.input_size
+        else:
+            self.input_dim = args.output_size 
+            self.output_dim = args.output_size
+        
         self.hidden_dim = args.d_hidn # embedding dimension 
         self.num_heads = args.n_head
         self.num_layers = args.n_layer
-        # self.d_model = 512
-
         dropout = 0.5
 
-        self.encoder = nn.Linear(self.input_dim, self.hidden_dim).to(args.cuda_device) # ntoken, ninp
-        self.project = nn.Linear(self.hidden_dim, self.output_dim) # ninp, ntoken
+        self.encoder = nn.Linear(self.input_dim, self.hidden_dim)
+        self.pos_encoder = PositionalEncoding(self.hidden_dim, dropout)
+        self.project = nn.Linear(self.hidden_dim, self.input_dim) 
 
-        # self.pos_encoder = PositionalEncoding(self.hidden_dim, dropout)
+        self.transformer_encoder = Transformer_Encoder(self.input_dim, self.hidden_dim, self.num_heads, self.num_layers, dropout)
+        self.transformer_decoder = Transformer_Decoder(self.output_dim, self.hidden_dim, self.num_heads, self.num_layers, dropout)
 
-        # encoder_layer = TransformerEncoderLayer(
-        #     d_model = self.hidden_dim,
-        #     nhead = self.num_heads,
-        #     # dim_feedforward = self.hidden_dim,
-        #     dropout = dropout
-        # )
-        # self.transformer_encoder = TransformerEncoder(
-        #     encoder_layer=encoder_layer,
-        #     num_layers=self.num_layers,
-        #     norm=LayerNorm(self.input_dim),
-        # )
+    def _generate_square_subsequent_mask(self, sz):
+        mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
+        mask = (
+            mask.float()
+            .masked_fill(mask == 0, float("-inf"))
+            .masked_fill(mask == 1, float(0.0))
+        )
+        return mask
 
-        # decoder_layer = TransformerDecoderLayer(
-        #     d_model = self.hidden_dim,
-        #     nhead = self.num_heads,
-        #     # dim_feedforward = self.hidden_dim,
-        #     dropout = dropout
-        # )
-        # self.transformer_decoder = TransformerDecoder(
-        #     decoder_layer=decoder_layer,
-        #     num_layers=self.num_layers,
-        #     norm=LayerNorm(self.output_dim),
-        # )
-
-    # def _generate_square_subsequent_mask(self, sz):
-    #     mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
-    #     mask = (
-    #         mask.float()
-    #         .masked_fill(mask == 0, float("-inf"))
-    #         .masked_fill(mask == 1, float(0.0))
-    #     )
-    #     return mask
-        
-    def forward(self, src, tgt):
-        # enc 
-        # self.encoder = nn.Linear(self.input_dim, self.hidden_dim) # ntoken, ninp
-        tmp_net = nn.Linear(self.input_dim, self.hidden_dim).to('cuda:0') # ntoken, ninp
-        tmp = torch.rand(src.shape).to('cuda:0')
-        
+    def enc_forward(self, src):
         projected_src = self.encoder(src) * np.sqrt(self.input_dim)
         pos_encoded_src = self.pos_encoder(projected_src)
         encoder_output = self.transformer_encoder(pos_encoded_src)
-
-        # dec
+        return encoder_output
+        
+    def dec_forward(self, encoder_output, tgt, src):
+        # mask
         tgt_mask = self._generate_square_subsequent_mask(tgt.shape[0]).to(
             device=tgt.device,
         )
 
         # Use last source pose as first input to decoder
-        tgt = torch.cat((src[-1].unsqueeze(0), tgt[:-1]))
+        # tgt = torch.cat((src[-1].unsqueeze(0), tgt[:-1]))
         pos_encoder_tgt = self.pos_encoder(
-            self.encoder(tgt) * np.sqrt(self.ninp)
+            self.encoder(tgt) * np.sqrt(self.input_dim)
         )
+        output = self.transformer_decoder(encoder_output, pos_encoder_tgt, tgt_mask)
+        output = self.project(output)
+
+        return output
+
+    def forward(self, src, tgt):
+        encoder_output = self.enc_forward(src)
+        output = self.dec_forward(encoder_output, tgt, src)
+
+        return output, encoder_output #, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
+
+class Transformer_Encoder(nn.Module):
+    def __init__(self, input_dim, hidden_dim, num_heads, num_layers, dropout):
+        super().__init__()
+        # self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        self.num_heads = num_heads
+        self.num_layers = num_layers
+        self.dropout = dropout
+
+        encoder_layer = TransformerEncoderLayer(
+            d_model = self.hidden_dim,
+            nhead = self.num_heads,
+            dropout = dropout
+        )
+        self.transformer_encoder = TransformerEncoder(
+            encoder_layer=encoder_layer,
+            num_layers=self.num_layers,
+            norm=LayerNorm(self.hidden_dim),
+        )
+
+    def forward(self, pos_encoded_src):
+        encoder_output = self.transformer_encoder(pos_encoded_src)
+
+        return encoder_output
+
+class Transformer_Decoder(nn.Module):
+    def __init__(self, input_dim, hidden_dim, num_heads, num_layers, dropout):
+        super().__init__()
+        # self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        self.num_heads = num_heads
+        self.num_layers = num_layers
+        
+        decoder_layer = TransformerDecoderLayer(
+            d_model = self.hidden_dim,
+            nhead = self.num_heads,
+            dropout = dropout
+        )
+        self.transformer_decoder = TransformerDecoder(
+            decoder_layer=decoder_layer,
+            num_layers=self.num_layers,
+            norm=LayerNorm(self.hidden_dim),
+        )
+
+    def forward(self, encoder_output, pos_encoder_tgt, tgt_mask):
         output = self.transformer_decoder(
             pos_encoder_tgt, encoder_output, tgt_mask=tgt_mask,
         )
-        output = self.project(output)
-
-        return output #, enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
+        return output
 
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model, dropout=0.5, max_len=5000):
