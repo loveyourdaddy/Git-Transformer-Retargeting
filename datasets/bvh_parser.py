@@ -166,38 +166,6 @@ class BVH_file:
 
         self.edges = build_edge_topology(self.topology, self.offset)
 
-        # Get body part index :
-        if self.skeleton_type == 0: # group A
-            #  order (left leg, right leg, spine, left arm, right arm)
-            left_leg    = ['LeftUpLeg','LeftLeg','LeftFoot','LeftToeBase']          # 4
-            right_leg   = ['RightUpLeg','RightLeg','RightFoot','RightToeBase']      # 4
-            spine       = ['Pelvis', 'Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'Head']    # 7
-            left_arm    = ['LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand']    # 4
-            right_arm   = ['RightShoulder', 'RightArm', 'RightForeArm', 'RightHand']# 4
-        elif self.skeleton_type == 10:  # group B (_m)
-            #  order (left leg, right leg, spine, left arm, right arm)
-            left_leg    = ['LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToeBase', 'LeftToe_End']                    # 5
-            right_leg   = ['RightUpLeg', 'RightLeg', 'RightFoot', 'RightToeBase', 'RightToe_End']               # 5
-            spine       = ['Hips', 'Spine', 'Spine1', 'Spine1_split', 'Spine2', 'Neck', 'Head', 'HeadTop_End']  # 8
-            left_arm    = ['LeftShoulder', 'LeftShoulder_split', 'LeftArm', 'LeftForeArm', 'LeftHand']          # 5
-            right_arm   = ['RightShoulder', 'RightShoulder_split', 'RightArm', 'RightForeArm', 'RightHand']     # 5
-
-        body_parts_name = []
-        body_parts_name.append(left_leg)
-        body_parts_name.append(right_leg)
-        body_parts_name.append(spine)
-        body_parts_name.append(left_arm)
-        body_parts_name.append(right_arm)
-
-        # body_part_index = []
-        for body_part_name in body_parts_name: #5
-            part_index = [] 
-            for joint_name in body_part_name:
-                joint_index = corps_names[self.skeleton_type].index(joint_name)
-                parent_index = self.topology[joint_index] # parent index 
-                part_index.append(parent_index)
-            self.body_part_index.append(part_index)
-
     def scale(self, alpha):
         self.anim.offsets *= alpha
         global_position = self.anim.positions[:, 0, :]

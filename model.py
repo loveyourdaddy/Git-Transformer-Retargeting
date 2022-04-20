@@ -20,7 +20,7 @@ class MotionGenerator(nn.Module):
 
         """ Transformer """
         self.transformer = Transformer(args, offsets, i).to(args.cuda_device)
-        self.discriminator = Discriminator(args, offsets, i).to(args.cuda_device)
+        # self.discriminator = Discriminator(args, offsets, i).to(args.cuda_device)
 
     """ Transofrmer """
     def forward(self, src, tgt):
@@ -30,8 +30,8 @@ class MotionGenerator(nn.Module):
     def G_parameters(self):
         return list(self.transformer.parameters())
 
-    def D_parameters(self):
-        return list(self.discriminator.parameters())
+    # def D_parameters(self):
+    #     return list(self.discriminator.parameters())
 
 class Discriminator(nn.Module):
     def __init__(self, args, offsets, i):

@@ -36,16 +36,6 @@ def collect_bvh(args, data_path, character, files):
         print("error")
     np.save(save_name, motions)
 
-    """ Get body part index and save it"""
-    # Get body part index
-    path = data_path + character + '/' + motion
-    file = BVH_file(path)
-    body_part_index = file.get_body_part_index()
-    
-    # Save it 
-    save_name = data_path + '/body_part_index/' + character + '.npy'
-    np.save(save_name, body_part_index)
-
     print('Npy file saved at {}'.format(save_name))
 
 def copy_std_bvh(args, data_path, character, files):

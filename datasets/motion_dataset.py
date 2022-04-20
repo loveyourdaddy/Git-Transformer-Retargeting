@@ -49,22 +49,22 @@ class MotionData(Dataset):
         # self.data = self.data[:, :-1, :]
 
         """ Modify data  """
-        # num_bs = self.data.size(0)
-        # num_frames = self.data.size(1)
-        # num_DoF = self.data.size(2)
+        num_bs = self.data.size(0)
+        num_frames = self.data.size(1)
+        num_DoF = self.data.size(2)
 
-        # # root position -> displacement
-        # if args.root_pos_as_velocity == 1:
-        #     for bs in range(num_bs):  # 0차원(motions)에 대해
-        #         for frame in range(num_frames - 1):  # 2차원(frames)에 대해
-        #             self.data[bs][frame][num_DoF - 3] = self.data[bs][frame + 1][num_DoF - 3] - self.data[bs][frame][num_DoF - 3]
-        #             self.data[bs][frame][num_DoF - 2] = self.data[bs][frame + 1][num_DoF - 2] - self.data[bs][frame][num_DoF - 2]
-        #             self.data[bs][frame][num_DoF - 1] = self.data[bs][frame + 1][num_DoF - 1] - self.data[bs][frame][num_DoF - 1]
+        # root position -> displacement
+        if args.root_pos_as_disp == 1:
+            for bs in range(num_bs):  # 0차원(motions)에 대해
+                for frame in range(num_frames - 1):  # 2차원(frames)에 대해
+                    self.data[bs][frame][num_DoF - 3] = self.data[bs][frame + 1][num_DoF - 3] - self.data[bs][frame][num_DoF - 3]
+                    self.data[bs][frame][num_DoF - 2] = self.data[bs][frame + 1][num_DoF - 2] - self.data[bs][frame][num_DoF - 2]
+                    self.data[bs][frame][num_DoF - 1] = self.data[bs][frame + 1][num_DoF - 1] - self.data[bs][frame][num_DoF - 1]
 
-        #         # 마지막 프레임의 disp는 0으로 셋팅해줍니다.
-        #         self.data[bs][num_frames - 1][num_DoF - 3] = 0
-        #         self.data[bs][num_frames - 1][num_DoF - 2] = 0
-        #         self.data[bs][num_frames - 1][num_DoF - 1] = 0
+                # 마지막 프레임의 disp는 0으로 셋팅해줍니다.
+                self.data[bs][num_frames - 1][num_DoF - 3] = 0
+                self.data[bs][num_frames - 1][num_DoF - 2] = 0
+                self.data[bs][num_frames - 1][num_DoF - 1] = 0
 
         """ Swap dimension: (bs, Windows, Joint) -> (bs, joint, windows) """
         if args.swap_dim == 1:

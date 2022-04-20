@@ -10,6 +10,7 @@ def get_parser():
     parser.add_argument('--is_train', type=bool, default=True)
     parser.add_argument('--is_valid', type=int, default=0)
     parser.add_argument('--render', type=int, default=0)
+    parser.add_argument('--save_epoch', type=int, default=10)
 
     # learning parameter
     parser.add_argument('--learning_rate', type=float, default= 1e-5, help='lr')  # 2e-4
@@ -18,8 +19,6 @@ def get_parser():
     parser.add_argument('--activation', type=str, default='LeakyReLU', help='activation: ReLU, LeakyReLU, tanh')
     parser.add_argument('--n_epoch', type=int, default=10001)
     parser.add_argument('--epoch_begin', type=int, default=0)
-    # parser.add_argument('--lambda_global_pos', type=int, default=1) # 2.5
-    # parser.add_argument('--lambda_position', type=int, default=1)
 
     # Dataset representation
     parser.add_argument('--batch_size', type=int,default=4, help='batch_size') # 32 
@@ -29,7 +28,7 @@ def get_parser():
 
     # Dataset representation (flag)
     parser.add_argument('--normalization', type=int, default=1)
-    parser.add_argument('--root_pos_as_velocity', type=int, default=0, help='represent root pos as displacement')
+    parser.add_argument('--root_pos_as_disp', type=int, default=0, help='represent root pos as displacement')
     parser.add_argument('--swap_dim', type=int, default=1,help='Data swap: 1 or 0')
     parser.add_argument('--add_offset', type=int, default=0, help='concat offset in dataset')
     parser.add_argument('--data_encoding', type=int, default=1, help='positional encoding')

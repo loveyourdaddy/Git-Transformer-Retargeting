@@ -122,19 +122,19 @@ class MixedData(Dataset):
             self.means.append(means_group)
             self.vars.append(vars_group)
 
-        """ body part index """
-        for _, characters in enumerate(character_groups):
-            groups_body_parts_index = [] 
-            body_parts_index = np.load('./datasets/Mixamo/body_part_index/{}.npy'.format(characters[0]), allow_pickle=True)
+        # """ body part index """
+        # for _, characters in enumerate(character_groups):
+        #     groups_body_parts_index = [] 
+        #     body_parts_index = np.load('./datasets/Mixamo/body_part_index/{}.npy'.format(characters[0]), allow_pickle=True)
 
-            for _, body_part_index in enumerate(body_parts_index): # for each body part 
-                part_index = []
-                for _, joint_index in enumerate(body_part_index): # for each joint 
-                    for j in range(4):
-                        part_index.append(4*joint_index + j)
-                groups_body_parts_index.append(part_index) # indices for 5 body 
+        #     for _, body_part_index in enumerate(body_parts_index): # for each body part 
+        #         part_index = []
+        #         for _, joint_index in enumerate(body_part_index): # for each joint 
+        #             for j in range(4):
+        #                 part_index.append(4*joint_index + j)
+        #         groups_body_parts_index.append(part_index) # indices for 5 body 
                 
-            self.groups_body_parts_index.append(groups_body_parts_index)
+        #     self.groups_body_parts_index.append(groups_body_parts_index)
         
         """ final_data: (2, 424, 913, 91) for 2 groups """
         # for datasets in all_datas:
