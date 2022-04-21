@@ -20,7 +20,7 @@ class MotionData(Dataset):
 
     def __init__(self, args, preprocess):
         super(MotionData, self).__init__()
-        name = args.dataset 
+        name = args.dataset
 
         # Load all motion files
         file_path = './datasets/Mixamo/{}.npy'.format(name)
@@ -58,12 +58,13 @@ class MotionData(Dataset):
         # root position -> displacement
         if args.root_pos_as_disp == 1:
             for frame in range(num_frames - 1):
-                self.data[:, num_DoF-3:, frame] = self.data[:, num_DoF-3:, frame + 1] - self.data[:, num_DoF-3:, frame]
+                self.data[:, num_DoF-3:, frame] = self.data[:, num_DoF -
+                                                            3:, frame + 1] - self.data[:, num_DoF-3:, frame]
             self.data[:, num_DoF-3:, num_frames - 1] = 0
 
         """ normalization data:  mean, var of data & normalization """
         if args.normalization:
-            self.mean = torch.mean(self.data, (0, 2), keepdim=True)  # (1,69,1)
+            self.mean = torch.mean(self.data, (0, 2), keepdim=True)
             self.var = torch.var(self.data, (0, 2), keepdim=True)
             self.var = self.var ** (1/2)
             idx = self.var < 1e-5
@@ -73,9 +74,6 @@ class MotionData(Dataset):
             self.mean = torch.mean(self.data, (0, 2), keepdim=True)
             self.mean.zero_()
             self.var = torch.ones_like(self.mean)
-
-        """ save data """
-        # self.data_reverse = torch.tensor(self.data.numpy()[..., ::-1].copy())
 
         self.reset_length_flag = 0
         self.virtual_length = 0
@@ -157,7 +155,7 @@ class MotionData(Dataset):
         # motions : (motions, frames, joint DoF)
         for motion in motions:
             self.total_frame += motion.shape[0]
-            # motion = self.subsample(motion) # motion subsampling 
+            # motion = self.subsample(motion) # motion subsampling
             self.motion_length.append(motion.shape[0])
             n_window = motion.shape[0] // step_size - \
                 1  # -1 : 마지막 window에 데이터가 전부 차지 않았다면 제거

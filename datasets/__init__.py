@@ -1,11 +1,12 @@
 def get_character_names(args):
 
-    # intra strucutre retargeting    
+    # intra strucutre retargeting
     # characters = [['Aj', 'Aj', 'Aj', 'Aj'], ['Aj', 'Aj', 'Aj', 'Aj']]
-    # characters = [['Aj', 'Aj', 'Aj', 'Aj'], ['Aj', 'BigVegas', 'Kaya', 'SportyGranny']]    
+    # characters = [['Aj', 'Aj', 'Aj', 'Aj'], ['Aj', 'BigVegas', 'Kaya', 'SportyGranny']]
 
     # cross strucutre retargeting
-    characters = [['BigVegas', 'BigVegas', 'BigVegas', 'BigVegas'],  ['BigVegas', 'BigVegas', 'BigVegas', 'BigVegas']]
+    characters = [['BigVegas', 'BigVegas', 'BigVegas', 'BigVegas'],  [
+        'BigVegas', 'BigVegas', 'BigVegas', 'BigVegas']]
     # characters = [['BigVegas', 'BigVegas', 'BigVegas', 'BigVegas'],  ['Mousey_m', 'Goblin_m', 'Mremireh_m', 'Vampire_m']]
     # characters = [['Aj', 'BigVegas', 'Kaya', 'SportyGranny'], ['Mousey_m', 'Goblin_m', 'Mremireh_m', 'Vampire_m']]
 
@@ -19,6 +20,7 @@ def create_dataset(args, character_names=None):
         return MixedData(args, character_names)
     else:
         return TestData(args, character_names)
+
 
 def get_test_set():
     with open('./datasets/Mixamo/test_list.txt', 'r') as file:
