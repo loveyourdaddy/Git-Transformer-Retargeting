@@ -50,6 +50,9 @@ class Transformer(nn.Module):
     def __init__(self, args, offsets, i):
         super().__init__()
         # self.args = args
+        # self.input_dim = args.window_size
+        # self.output_dim = args.window_size
+
         if i == 0: 
             self.input_dim = args.input_size
             self.output_dim = args.input_size

@@ -5,19 +5,19 @@ def get_parser():
     parser = argparse.ArgumentParser()
 
     # env
+    parser.add_argument('--save_epoch', type=int, default=50)
     parser.add_argument('--save_dir', type=str, default='./output/', help='directory for all savings')
     parser.add_argument('--cuda_device', type=str, default='cuda:0', help='cuda device number, eg:[cuda:0]')
     parser.add_argument('--is_train', type=bool, default=True)
     parser.add_argument('--is_valid', type=int, default=0)
     parser.add_argument('--render', type=int, default=0)
-    parser.add_argument('--save_epoch', type=int, default=10)
 
     # learning parameter
-    parser.add_argument('--learning_rate', type=float, default= 1e-5, help='lr')  # 2e-4
+    parser.add_argument('--learning_rate', type=float, default=2e-4, help='lr')  # 1e-5
+    parser.add_argument('--n_epoch', type=int, default=10001)
     parser.add_argument('--weight_decay', type=float, default=1)
     parser.add_argument('--alpha', type=float, default=0, help='penalty of sparsity')
     parser.add_argument('--activation', type=str, default='LeakyReLU', help='activation: ReLU, LeakyReLU, tanh')
-    parser.add_argument('--n_epoch', type=int, default=10001)
     parser.add_argument('--epoch_begin', type=int, default=0)
 
     # Dataset representation
@@ -28,7 +28,7 @@ def get_parser():
 
     # Dataset representation (flag)
     parser.add_argument('--normalization', type=int, default=1)
-    parser.add_argument('--root_pos_as_disp', type=int, default=0, help='represent root pos as displacement')
+    parser.add_argument('--root_pos_as_disp', type=int, default=1, help='represent root pos as displacement')
     parser.add_argument('--swap_dim', type=int, default=1,help='Data swap: 1 or 0')
     parser.add_argument('--add_offset', type=int, default=0, help='concat offset in dataset')
     parser.add_argument('--data_encoding', type=int, default=1, help='positional encoding')
@@ -45,14 +45,14 @@ def get_parser():
     parser.add_argument('--gan_mode', type=str, default='lsgan') # vanilla 
 
     # SAN Structure
-    parser.add_argument('--kernel_size', type=int, default='15') 
-    parser.add_argument('--num_layers', type=int, default='2') 
-    parser.add_argument('--skeleton_dist', type=int, default='2') 
-    parser.add_argument('--padding_mode', type=str, default='reflect')
-    parser.add_argument('--skeleton_pool', type=str, default='mean')
-    parser.add_argument('--skeleton_info', type=str, default='concat') # ?
-    parser.add_argument('--upsampling', type=str, default='linear', help="'stride2' or 'nearest', 'linear'")
-    parser.add_argument('--pos_repr', type=str, default='3d')
+    # parser.add_argument('--kernel_size', type=int, default='15') 
+    # parser.add_argument('--num_layers', type=int, default='2') 
+    # parser.add_argument('--skeleton_dist', type=int, default='2') 
+    # parser.add_argument('--padding_mode', type=str, default='reflect')
+    # parser.add_argument('--skeleton_pool', type=str, default='mean')
+    # parser.add_argument('--skeleton_info', type=str, default='concat') # ?
+    # parser.add_argument('--upsampling', type=str, default='linear', help="'stride2' or 'nearest', 'linear'")
+    # parser.add_argument('--pos_repr', type=str, default='3d')
 
     # loss 
     parser.add_argument('--rec_loss', type=int, default=1, help='1. rec loss')

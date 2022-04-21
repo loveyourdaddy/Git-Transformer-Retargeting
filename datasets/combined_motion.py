@@ -1,4 +1,5 @@
 from json.encoder import py_encode_basestring
+from tracemalloc import start
 from torch.utils.data import Dataset
 import copy
 
@@ -68,17 +69,17 @@ class MixedData(Dataset):
         self.ee_ids = []
         self.means = []
         self.vars = []
+        self.start_pos = []
         dataset_num = 0
         total_length = 10000000
         all_datas = []
-        # self.position_encoding = args.position_encoding
         self.offsets_group = []
-        # self.split_index = []
         # all_datas : (2 groups, 4 characters, 106 motions, 913 frames, rot and pos of 91 joints)
         for group, characters in enumerate(character_groups): # names 
             offsets_group = []
             means_group = []
             vars_group = []
+            start_pos_group = []
             dataset_num += len(characters)
             motion_data = []
 
@@ -89,16 +90,20 @@ class MixedData(Dataset):
                 motion_data.append(motion)
                 total_length = min(total_length, len(motion_data[-1]))
 
-                # 4 character, 106 motions, 913 frames, 111 rot + pos
+                # 4 character, 106 motions, 913 frames, 91/111 rot + pos
                 mean = np.load('./datasets/Mixamo/mean_var/{}_mean.npy'.format(character))
                 var = np.load('./datasets/Mixamo/mean_var/{}_var.npy'.format(character))
+                
                 mean = torch.tensor(mean)
                 mean = mean.reshape((1,) + mean.shape)
                 var = torch.tensor(var)
                 var = var.reshape((1,) + var.shape)
+                start_pos = torch.tensor(motion.start_pos)
+                start_pos = start_pos.reshape((1,) + start_pos.shape)
 
                 means_group.append(mean)
                 vars_group.append(var)
+                start_pos_group.append(start_pos)
 
                 file = BVH_file(get_std_bvh(dataset=character))
                 if i == 0:
@@ -119,39 +124,11 @@ class MixedData(Dataset):
             # (4,1,91,1 -> 4,91,1)
             means_group = torch.cat(means_group, dim=0).to(device)
             vars_group = torch.cat(vars_group, dim=0).to(device)
+            start_pos_group = torch.cat(start_pos_group, dim=0).to(device)
             self.means.append(means_group)
             self.vars.append(vars_group)
-
-        # """ body part index """
-        # for _, characters in enumerate(character_groups):
-        #     groups_body_parts_index = [] 
-        #     body_parts_index = np.load('./datasets/Mixamo/body_part_index/{}.npy'.format(characters[0]), allow_pickle=True)
-
-        #     for _, body_part_index in enumerate(body_parts_index): # for each body part 
-        #         part_index = []
-        #         for _, joint_index in enumerate(body_part_index): # for each joint 
-        #             for j in range(4):
-        #                 part_index.append(4*joint_index + j)
-        #         groups_body_parts_index.append(part_index) # indices for 5 body 
-                
-        #     self.groups_body_parts_index.append(groups_body_parts_index)
+            self.start_pos.append(start_pos_group)
         
-        """ final_data: (2, 424, 913, 91) for 2 groups """
-        # for datasets in all_datas:
-        #     pt = 0
-        #     motions = []
-        #     skeleton_idx = []
-        #     for dataset in datasets:
-        #         motions.append(dataset[:])
-        #         skeleton_idx += [pt] * len(dataset)
-        #         pt += 1
-        #     motions = torch.cat(motions, dim=0)
-        #     if self.length != 0 and self.length != len(skeleton_idx):
-        #         self.length = min(self.length, len(skeleton_idx))
-        #     else:
-        #         self.length = len(skeleton_idx)
-        #     self.final_data.append(MixedData0(args, motions, skeleton_idx))
-
         """ Process motion: Get final_data """
         # Cropping: num_motions = batch_size * n
         num_motions = int(len(all_datas[0][0]) / args.batch_size) * args.batch_size
@@ -230,20 +207,6 @@ class TestData(Dataset):
             self.mean.append(mean_group)
             self.var.append(var_group)
             self.offsets.append(offsets_group)
-
-        """ body part index """
-        for _, characters in enumerate(character_group):
-            groups_body_parts_index = [] 
-            body_parts_index = np.load('./datasets/Mixamo/body_part_index/{}.npy'.format(characters[0]), allow_pickle=True)
-
-            for _, body_part_index in enumerate(body_parts_index): # for each body part 
-                part_index = []
-                for _, joint_index in enumerate(body_part_index): # for each joint 
-                    for j in range(4):
-                        part_index.append(4*joint_index + j)
-                groups_body_parts_index.append(part_index) # indices for 5 body 
-                
-            self.groups_body_parts_index.append(groups_body_parts_index)
 
     def __getitem__(self, item):
         res = []

@@ -45,30 +45,21 @@ class MotionData(Dataset):
         self.data.append(new_window)
         self.data = torch.cat(self.data)
 
-        """ Crop motion dimesnion """
-        # self.data = self.data[:, :-1, :]
-
-        """ Modify data  """
-        num_bs = self.data.size(0)
-        num_frames = self.data.size(1)
-        num_DoF = self.data.size(2)
-
-        # root position -> displacement
-        if args.root_pos_as_disp == 1:
-            for bs in range(num_bs):  # 0차원(motions)에 대해
-                for frame in range(num_frames - 1):  # 2차원(frames)에 대해
-                    self.data[bs][frame][num_DoF - 3] = self.data[bs][frame + 1][num_DoF - 3] - self.data[bs][frame][num_DoF - 3]
-                    self.data[bs][frame][num_DoF - 2] = self.data[bs][frame + 1][num_DoF - 2] - self.data[bs][frame][num_DoF - 2]
-                    self.data[bs][frame][num_DoF - 1] = self.data[bs][frame + 1][num_DoF - 1] - self.data[bs][frame][num_DoF - 1]
-
-                # 마지막 프레임의 disp는 0으로 셋팅해줍니다.
-                self.data[bs][num_frames - 1][num_DoF - 3] = 0
-                self.data[bs][num_frames - 1][num_DoF - 2] = 0
-                self.data[bs][num_frames - 1][num_DoF - 1] = 0
-
         """ Swap dimension: (bs, Windows, Joint) -> (bs, joint, windows) """
         if args.swap_dim == 1:
             self.data = torch.transpose(self.data, 1, 2)
+
+        """ Modify data  """
+        num_DoF = self.data.size(1)
+        num_frames = self.data.size(2)
+
+        self.start_pos = self.data[:, -3:, 0]
+
+        # root position -> displacement
+        if args.root_pos_as_disp == 1:
+            for frame in range(num_frames - 1):
+                self.data[:, num_DoF-3:, frame] = self.data[:, num_DoF-3:, frame + 1] - self.data[:, num_DoF-3:, frame]
+            self.data[:, num_DoF-3:, num_frames - 1] = 0
 
         """ normalization data:  mean, var of data & normalization """
         if args.normalization:
@@ -84,13 +75,8 @@ class MotionData(Dataset):
             self.var = torch.ones_like(self.mean)
 
         """ save data """
-        # motion window 데이터의 6%을 테스트 데이터로 사용함
-        # train_len = self.data.shape[0] * 94 // 100
+        # self.data_reverse = torch.tensor(self.data.numpy()[..., ::-1].copy())
 
-        # self.data = self.data[:train_len, ...]
-        self.data_reverse = torch.tensor(self.data.numpy()[..., ::-1].copy())
-
-        # self.test_set = self.data[train_len:, ...]
         self.reset_length_flag = 0
         self.virtual_length = 0
 

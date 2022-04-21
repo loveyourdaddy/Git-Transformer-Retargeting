@@ -152,6 +152,7 @@ class GeneralModel():
         self.element_losses = []
         self.cross_losses = []
         self.root_losses = [] 
+        self.root_rotation_losses = []
         self.rec_losses = [] 
         
         # loss 2 
@@ -199,6 +200,8 @@ class GeneralModel():
             # (window,bs,DoF)->(bs,DoF,window)
             gt_motions = torch.transpose(torch.transpose(self.gt_motions[j], 0, 1), 1, 2) 
             outputs = torch.transpose(torch.transpose(self.outputs[j], 0, 1), 1, 2)
+            # gt_motions = self.gt_motions[j]
+            # outputs = self.outputs[j]
 
             if self.args.normalization == 1:
                 denorm_gt_motions = self.denormalize(self.character_idx, gt_motions, j)
@@ -217,6 +220,7 @@ class GeneralModel():
         for src in range(self.n_topology):
             for dst in range(self.n_topology):
                 motion = torch.transpose(torch.transpose(self.fake_motions[2*src+dst], 0, 1), 1, 2)
+                # motion = self.fake_motions[2*src+dst]
                 if self.args.normalization == 1:
                     denorm_fake_motions = self.denormalize(self.character_idx, motion, dst)
                 else:
@@ -239,14 +243,18 @@ class GeneralModel():
 
             # loss1-2. root 
             # root_loss = self.rec_criterion(self.denorm_gt_motions[src][:, -3:, :], self.denorm_fake_motions[3*src][:, -3:, :]) # / height
-            root_loss = self.rec_criterion(self.denorm_gt_motions[src][:, -3:, :], self.denorm_outputs[src][:, -3:, :]) # / height
+            # root_loss = self.rec_criterion(self.denorm_gt_motions[src][:, -3:, :], self.denorm_outputs[src][:, -3:, :]) 
+            root_loss = self.rec_criterion(self.gt_motions[src][:, -3:, :], self.outputs[src][:, -3:, :]) 
             self.root_losses.append(root_loss.item())
+
+            root_rotation_loss = self.rec_criterion(self.gt_motions[src][:, :4, :], self.outputs[src][:, :4, :]) 
+            self.root_rotation_losses.append(root_rotation_loss.item())
 
             # loss 1-3. global_pos_loss
             # fk
 
             # Total loss
-            rec_loss = element_loss # + (root_loss) # + (2.5 * root_loss) # + 1* global_pos_loss 
+            rec_loss = 1000 * element_loss # + (root_loss) # + (2.5 * root_loss) # + 1* global_pos_loss 
             self.rec_loss += rec_loss
 
             self.rec_losses.append(rec_loss.item())
@@ -349,18 +357,17 @@ class GeneralModel():
         return self.dataset.denorm(i, character_idx, motions)
 
     def root_displacement_to_position(self, motions, j):
-        num_bs = self.args.batch_size
-        num_frame = self.args.window_size
         if j == 0 :
             num_DoF = self.args.input_size 
         else:
             num_DoF = self.args.output_size
 
-        for bs in range(num_bs):  
-            for frame in range(num_frame - 1):
-                motions[bs][frame + 1][num_DoF - 3] += motions[bs][frame][num_DoF - 3]
-                motions[bs][frame + 1][num_DoF - 2] += motions[bs][frame][num_DoF - 2]
-                motions[bs][frame + 1][num_DoF - 1] += motions[bs][frame][num_DoF - 1]
+        # frame 0 
+        # start_pos = self.dataset.start_pos[j][self.character_idx] # motion number 
+        # motions[:, num_DoF-3:, 0] += start_pos
+        # other frame 
+        for frame in range(self.args.window_size - 1):
+            motions[:, num_DoF-3:, frame + 1] += motions[:, num_DoF-3:, frame]
 
         return motions
 

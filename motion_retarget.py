@@ -9,8 +9,8 @@ from torch.utils.tensorboard import SummaryWriter
 
 """ Set Parameters """
 args = option_parser.get_args()
-save_name = "220420_rec_root_as_displacement/"
-args.epoch_begin = 60
+save_name = "220421_rec_lr_x1000/"
+# args.epoch_begin = 200
 # args.is_train = False
 
 """ Set Env """
@@ -44,6 +44,8 @@ if args.is_train == True:
         writer.add_scalar("Loss/latent_loss", np.mean(general_model.latent_losses), epoch)
 
         writer.add_scalar("Loss/root_loss", np.mean(general_model.root_losses), epoch)
+        writer.add_scalar("Loss/root_rotation_loss", np.mean(general_model.root_rotation_losses), epoch)
+
 
         # writer.add_scalar("Loss/cycle_loss", np.mean(general_model.cycle_losses), epoch)
         # writer.add_scalar("Loss/GAN_G_fake_loss", np.mean(general_model.G_fake_losses), epoch)
