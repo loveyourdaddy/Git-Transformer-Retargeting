@@ -277,7 +277,7 @@ class GeneralModel():
 
             # Total loss
             # + (root_loss) # + (2.5 * root_loss) # + 1* global_pos_loss
-            rec_loss = 1000 * element_loss
+            rec_loss = element_loss
             self.rec_loss += rec_loss
 
             self.rec_losses.append(rec_loss.item())
@@ -319,40 +319,6 @@ class GeneralModel():
             self.fake_motions[2], self.gt_motions[0])  # src 1->dst 0
         self.cross_losses.append(cross_loss.item())
 
-    def backward_G(self):
-        """ backward and optimize """
-        self.optimizerGs.zero_grad()
-        self.G_loss.backward()
-        self.optimizerGs.step()
-
-    def backward_D(self):
-        self.D_loss = 0
-        for src in range(self.args.n_topology):
-            for dst in range(self.args.n_topology):
-                netD = self.models[dst].discriminator
-
-                # output of real motion
-                real_pred = netD(self.gt_motions[src], self.gt_motions[dst])
-                D_real_loss = self.gan_criterion(real_pred, True)
-                self.D_real_losses.append(D_real_loss.item())
-
-                # output of fake motion
-                fake_pred = netD(
-                    self.fake_motions[2*src+dst].detach(), self.gt_motions[dst])
-                D_fake_loss = self.gan_criterion(fake_pred, False)
-                self.D_fake_losses.append(D_fake_loss.item())
-
-                D_loss = (D_real_loss + D_fake_loss) * 0.5
-                self.D_loss += D_loss
-
-        self.D_loss.backward()
-        self.optimizerDs.step()
-
-    def discriminator_requires_grad_(self, requires_grad):
-        for model in self.models:
-            for para in model.D_parameters():
-                para.requires_grad = requires_grad
-
     def bvh_writing(self, save_dir):  # for training
         """ BVH Writing """
         if self.epoch == 0:
@@ -386,6 +352,7 @@ class GeneralModel():
                 file_name = save_dir + \
                     "motion_{}.bvh".format(
                         int(motion_idx % self.args.num_motions + j))
+
             self.writers[i][character_idx].write_raw(
                 motion[j], self.args.rotation, file_name)
 
@@ -407,12 +374,39 @@ class GeneralModel():
 
         return motions
 
-    # def discriminator_requires_grad_(self, requires_grad):
-    #     for model in self.models:
-    #         for b in range(6):
-    #             # for para in model.body_part_discriminator[b].parameters(): # self.models[dst].body_part_discriminator[b] # D_parameters
-    #             for para in model.D_parameters():
-    #                 para.requires_grad = requires_grad
+    def backward_G(self):
+        """ backward and optimize """
+        self.optimizerGs.zero_grad()
+        self.G_loss.backward()
+        self.optimizerGs.step()
+
+    def backward_D(self):
+        self.D_loss = 0
+        for src in range(self.args.n_topology):
+            for dst in range(self.args.n_topology):
+                netD = self.models[dst].discriminator
+
+                # output of real motion
+                real_pred = netD(self.gt_motions[src], self.gt_motions[dst])
+                D_real_loss = self.gan_criterion(real_pred, True)
+                self.D_real_losses.append(D_real_loss.item())
+
+                # output of fake motion
+                fake_pred = netD(
+                    self.fake_motions[2*src+dst].detach(), self.gt_motions[dst])
+                D_fake_loss = self.gan_criterion(fake_pred, False)
+                self.D_fake_losses.append(D_fake_loss.item())
+
+                D_loss = (D_real_loss + D_fake_loss) * 0.5
+                self.D_loss += D_loss
+
+        self.D_loss.backward()
+        self.optimizerDs.step()
+
+    def discriminator_requires_grad_(self, requires_grad):
+        for model in self.models:
+            for para in model.D_parameters():
+                para.requires_grad = requires_grad
 
     """ eval """
 

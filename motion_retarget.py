@@ -9,8 +9,8 @@ from torch.utils.tensorboard import SummaryWriter
 
 """ Set Parameters """
 args = option_parser.get_args()
-save_name = "220421_rec_lr_x1000/"
-# args.epoch_begin = 200
+save_name = "220421_rec_lr_2e-4/"
+# args.epoch_begin = 50
 # args.is_train = False
 
 """ Set Env """
