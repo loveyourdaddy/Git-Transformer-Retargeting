@@ -160,6 +160,7 @@ class GeneralModel():
         # loss 1
         self.element_losses = []
         self.cross_losses = []
+        self.smooth_losses = []
         self.root_losses = []
         self.fk_losses = []
         self.root_rotation_losses = []
@@ -262,19 +263,26 @@ class GeneralModel():
             # element_loss = self.rec_criterion(self.gt_motions[src], self.fake_motions[3*src])
             element_loss = self.rec_criterion(
                 self.gt_motions[src], self.outputs[src]
-                )
+            )
             self.element_losses.append(element_loss.item())
 
-            # loss1-2. root
+            # loss 1-2.  # about root rotation
+            smooth_loss = self.rec_criterion(
+                self.outputs[src][:-1, :, :], self.outputs[src][1:, :, :]
+            )
+            self.smooth_losses.append(smooth_loss.item())
+
+            # loss1-3. root
             # root_loss = self.rec_criterion(self.denorm_gt_motions[src][:, -3:, :], self.denorm_fake_motions[3*src][:, -3:, :]) # / height
             # root_loss = self.rec_criterion(self.denorm_gt_motions[src][:, -3:, :], self.denorm_outputs[src][:, -3:, :])
             root_loss = self.rec_criterion(
-                self.gt_motions[src][:, -3:, :], self.outputs[src][:, -3:, :]
-                )
+                self.gt_motions[src][:, :, -3:], self.outputs[src][:, :, -3:]
+            )
             self.root_losses.append(root_loss.item())
 
             root_rotation_loss = self.rec_criterion(
-                self.gt_motions[src][:, :4, :], self.outputs[src][:, :4, :])
+                self.gt_motions[src][:, :, :4], self.outputs[src][:, :, :4]
+            )
             self.root_rotation_losses.append(root_rotation_loss.item())
 
             # loss 1-3. global_pos_loss
@@ -295,9 +303,7 @@ class GeneralModel():
             # self.fk_losses.append(fk_loss.item())
 
             # Total loss
-            # + (root_loss) # + (2.5 * root_loss) # + 1* global_pos_loss
-            # + fk_loss
-            rec_loss = element_loss
+            rec_loss = element_loss 
             self.rec_loss += rec_loss
 
             self.rec_losses.append(rec_loss.item())

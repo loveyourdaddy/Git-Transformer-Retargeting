@@ -55,9 +55,6 @@ class Discriminator(nn.Module):
 class Transformer(nn.Module):
     def __init__(self, args, offsets, i):
         super().__init__()
-        # self.args = args
-        # self.input_dim = args.window_size
-        # self.output_dim = args.window_size
 
         if i == 0:
             self.input_dim = args.input_size
@@ -71,53 +68,93 @@ class Transformer(nn.Module):
         self.num_layers = args.n_layer
         dropout = 0.5
 
-        self.encoder = nn.Linear(self.input_dim, self.hidden_dim)
-        self.pos_encoder = PositionalEncoding(self.hidden_dim, dropout)
-        self.project = nn.Linear(self.hidden_dim, self.input_dim)
-
-        self.transformer_encoder = Transformer_Encoder(
-            self.hidden_dim, self.num_heads, self.num_layers, dropout)
-        self.transformer_decoder = Transformer_Decoder(
-            self.hidden_dim, self.num_heads, self.num_layers, dropout)
-
-    def _generate_square_subsequent_mask(self, sz):
-        mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
-        mask = (
-            mask.float()
-            .masked_fill(mask == 0, float("-inf"))
-            .masked_fill(mask == 1, float(0.0))
-        )
-        return mask
+        self.encoder = nn.Linear(self.input_dim, self.input_dim)
+        self.project = nn.Linear(self.input_dim, self.input_dim)
 
     def enc_forward(self, src):
-        projected_src = self.encoder(src) * np.sqrt(self.input_dim)
-        pos_encoded_src = self.pos_encoder(projected_src)
-        encoder_output = self.transformer_encoder(pos_encoded_src)
-        return encoder_output
+        for i in range(self.num_layers):
+            src = self.encoder(src)
+        return src
 
     def dec_forward(self, encoder_output, tgt, src):
-        # mask
-        tgt_mask = self._generate_square_subsequent_mask(tgt.shape[0]).to(
-            device=tgt.device,
-        )
 
-        # Use last source pose as first input to decoder
-        # tgt = torch.cat((src[-1].unsqueeze(0), tgt[:-1]))
-        pos_encoder_tgt = self.pos_encoder(
-            self.encoder(tgt) * np.sqrt(self.input_dim)
-        )
-        output = self.transformer_decoder(
-            encoder_output, pos_encoder_tgt, tgt_mask)
-        output = self.project(output)
+        for i in range(self.num_layers):
+            encoder_output = self.project(encoder_output)
 
-        return output
+        return encoder_output
 
     def forward(self, src, tgt):
         encoder_output = self.enc_forward(src)
         output = self.dec_forward(encoder_output, tgt, src)
 
-        # , enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
         return output, encoder_output
+
+# class Transformer(nn.Module):
+#     def __init__(self, args, offsets, i):
+#         super().__init__()
+#         # self.args = args
+#         # self.input_dim = args.window_size
+#         # self.output_dim = args.window_size
+
+#         if i == 0:
+#             self.input_dim = args.input_size
+#             self.output_dim = args.input_size
+#         else:
+#             self.input_dim = args.output_size
+#             self.output_dim = args.output_size
+
+#         self.hidden_dim = args.d_hidn  # embedding dimension
+#         self.num_heads = args.n_head
+#         self.num_layers = args.n_layer
+#         dropout = 0.5
+
+#         self.encoder = nn.Linear(self.input_dim, self.hidden_dim)
+#         self.pos_encoder = PositionalEncoding(self.hidden_dim, dropout)
+#         self.project = nn.Linear(self.hidden_dim, self.input_dim)
+
+#         self.transformer_encoder = Transformer_Encoder(
+#             self.hidden_dim, self.num_heads, self.num_layers, dropout)
+#         self.transformer_decoder = Transformer_Decoder(
+#             self.hidden_dim, self.num_heads, self.num_layers, dropout)
+
+#     def _generate_square_subsequent_mask(self, sz):
+#         mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
+#         mask = (
+#             mask.float()
+#             .masked_fill(mask == 0, float("-inf"))
+#             .masked_fill(mask == 1, float(0.0))
+#         )
+#         return mask
+
+    # def enc_forward(self, src):
+    #     projected_src = self.encoder(src) * np.sqrt(self.input_dim)
+    #     pos_encoded_src = self.pos_encoder(projected_src)
+    #     encoder_output = self.transformer_encoder(pos_encoded_src)
+    #     return encoder_output
+
+    # def dec_forward(self, encoder_output, tgt, src):
+    #     # mask
+    #     tgt_mask = self._generate_square_subsequent_mask(tgt.shape[0]).to(
+    #         device=tgt.device,
+    #     )
+
+    #     # Use last source pose as first input to decoder
+    #     # tgt = torch.cat((src[-1].unsqueeze(0), tgt[:-1]))
+    #     pos_encoder_tgt = self.pos_encoder(
+    #         self.encoder(tgt) * np.sqrt(self.input_dim)
+    #     )
+    #     output = self.transformer_decoder(
+    #         encoder_output, pos_encoder_tgt, tgt_mask)
+    #     output = self.project(output)
+
+    #     return output
+
+    # def forward(self, src, tgt):
+    #     encoder_output = self.enc_forward(src)
+    #     output = self.dec_forward(encoder_output, tgt, src)
+
+    #     # , enc_self_attn_probs, dec_self_attn_probs, dec_enc_attn_probs
+    #     return output, encoder_output
 
 
 class Transformer_Encoder(nn.Module):
