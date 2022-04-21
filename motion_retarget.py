@@ -9,7 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 """ Set Parameters """
 args = option_parser.get_args()
-save_name = "220421_rec_lr_2e-4/"
+save_name = "220421_rec_fk/"
 # args.epoch_begin = 50
 # args.is_train = False
 
@@ -45,6 +45,8 @@ if args.is_train == True:
                           np.mean(general_model.element_losses), epoch)
         writer.add_scalar("Loss/cross_loss",
                           np.mean(general_model.cross_losses), epoch)
+        writer.add_scalar("Loss/fk_loss",
+                          np.mean(general_model.fk_losses), epoch)
         writer.add_scalar("Loss/latent_loss",
                           np.mean(general_model.latent_losses), epoch)
 

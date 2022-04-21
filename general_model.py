@@ -57,17 +57,21 @@ class GeneralModel():
         """ Set BVH writers """
         self.files = []
         self.writers = []
+        self.FKs = []
         for i in range(len(character_names)):
             bvh_writers = []
             files = []
+            FKs = []
             for j in range(len(character_names[0])):
                 file = BVH_file(option_parser.get_std_bvh(
                     dataset=character_names[i][j]))
                 files.append(file)
                 bvh_writers.append(BVH_writer(file.edges, file.names))
+                FKs.append(ForwardKinematics(args, file.edges))
 
             self.files.append(files)
             self.writers.append(bvh_writers)
+            self.FKs.append(FKs)
 
         """ define lists"""
         self.DoF = []
@@ -157,6 +161,7 @@ class GeneralModel():
         self.element_losses = []
         self.cross_losses = []
         self.root_losses = []
+        self.fk_losses = []
         self.root_rotation_losses = []
         self.rec_losses = []
 
@@ -175,7 +180,7 @@ class GeneralModel():
         for j in range(self.n_topology):
             motions, self.offset_idx[j] = value[j]
             # (bs,DoF,window)->(window,bs,DoF)
-            motions = torch.transpose(torch.transpose(motions, 1, 2), 0, 1)
+            motions = motions.permute(2, 0, 1)
             motions = motions.to(self.args.cuda_device)
             self.gt_motions.append(motions)
 
@@ -208,10 +213,10 @@ class GeneralModel():
         # gt, forward output
         for j in range(self.n_topology):
             # (window,bs,DoF)->(bs,DoF,window)
-            gt_motions = torch.transpose(
-                torch.transpose(self.gt_motions[j], 0, 1), 1, 2)
-            outputs = torch.transpose(
-                torch.transpose(self.outputs[j], 0, 1), 1, 2)
+            # motions = motions.permute(2, 0, 1)
+            gt_motions = self.gt_motions[j].permute(1, 2, 0)
+            outputs = self.outputs[j].permute(1, 2, 0)
+
             # gt_motions = self.gt_motions[j]
             # outputs = self.outputs[j]
 
@@ -235,8 +240,7 @@ class GeneralModel():
         # fake_output
         for src in range(self.n_topology):
             for dst in range(self.n_topology):
-                motion = torch.transpose(torch.transpose(
-                    self.fake_motions[2*src+dst], 0, 1), 1, 2)
+                motion = self.fake_motions[2*src+dst].permute(1, 2, 0)
                 # motion = self.fake_motions[2*src+dst]
                 if self.args.normalization == 1:
                     denorm_fake_motions = self.denormalize(
@@ -254,18 +258,19 @@ class GeneralModel():
         """ loss1. reconstruction loss for intra structure retargeting """
         self.rec_loss = 0
         for src in range(self.n_topology):
-
             # loss1-1. on each element
             # element_loss = self.rec_criterion(self.gt_motions[src], self.fake_motions[3*src])
             element_loss = self.rec_criterion(
-                self.gt_motions[src], self.outputs[src])
+                self.gt_motions[src], self.outputs[src]
+                )
             self.element_losses.append(element_loss.item())
 
             # loss1-2. root
             # root_loss = self.rec_criterion(self.denorm_gt_motions[src][:, -3:, :], self.denorm_fake_motions[3*src][:, -3:, :]) # / height
             # root_loss = self.rec_criterion(self.denorm_gt_motions[src][:, -3:, :], self.denorm_outputs[src][:, -3:, :])
             root_loss = self.rec_criterion(
-                self.gt_motions[src][:, -3:, :], self.outputs[src][:, -3:, :])
+                self.gt_motions[src][:, -3:, :], self.outputs[src][:, -3:, :]
+                )
             self.root_losses.append(root_loss.item())
 
             root_rotation_loss = self.rec_criterion(
@@ -273,10 +278,25 @@ class GeneralModel():
             self.root_rotation_losses.append(root_rotation_loss.item())
 
             # loss 1-3. global_pos_loss
-            # fk
+            # offset = self.dataset.offsets_group[src][self.character_idx]
+            # fk = self.FKs[src][self.character_idx]
+
+            # gt_pos = fk.forward_from_raw(
+            #     self.denorm_gt_motions[src], offset)
+            # output_pos = fk.forward_from_raw(
+            #     self.denorm_outputs[src], offset)
+
+            # gt_pos_global = fk.from_local_to_world(gt_pos)
+            # output_pos_global = fk.from_local_to_world(output_pos)
+
+            # # height =
+
+            # fk_loss = self.rec_criterion(gt_pos_global, output_pos_global)
+            # self.fk_losses.append(fk_loss.item())
 
             # Total loss
             # + (root_loss) # + (2.5 * root_loss) # + 1* global_pos_loss
+            # + fk_loss
             rec_loss = element_loss
             self.rec_loss += rec_loss
 

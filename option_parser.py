@@ -16,7 +16,7 @@ def get_parser():
 
     # learning parameter
     parser.add_argument('--learning_rate', type=float,
-                        default=2e-4, help='lr')  # 1e-5
+                        default=1e-4, help='lr')  # 1e-5
     parser.add_argument('--n_epoch', type=int, default=10001)
     parser.add_argument('--weight_decay', type=float, default=1)
     parser.add_argument('--alpha', type=float, default=0,
