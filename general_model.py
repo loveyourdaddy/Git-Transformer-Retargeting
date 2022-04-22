@@ -164,7 +164,7 @@ class GeneralModel():
         self.root_losses = []
         self.fk_losses = []
         self.root_rotation_losses = []
-        self.rec_losses = []
+        # self.rec_losses = []
 
         # loss 2
         self.cycle_losses = []
@@ -260,7 +260,6 @@ class GeneralModel():
         self.rec_loss = 0
         for src in range(self.n_topology):
             # loss1-1. on each element
-            # element_loss = self.rec_criterion(self.gt_motions[src], self.fake_motions[3*src])
             element_loss = self.rec_criterion(
                 self.gt_motions[src], self.outputs[src]
             )
@@ -273,8 +272,6 @@ class GeneralModel():
             self.smooth_losses.append(smooth_loss.item())
 
             # loss1-3. root
-            # root_loss = self.rec_criterion(self.denorm_gt_motions[src][:, -3:, :], self.denorm_fake_motions[3*src][:, -3:, :]) # / height
-            # root_loss = self.rec_criterion(self.denorm_gt_motions[src][:, -3:, :], self.denorm_outputs[src][:, -3:, :])
             root_loss = self.rec_criterion(
                 self.gt_motions[src][:, :, -3:], self.outputs[src][:, :, -3:]
             )
@@ -285,28 +282,9 @@ class GeneralModel():
             )
             self.root_rotation_losses.append(root_rotation_loss.item())
 
-            # loss 1-3. global_pos_loss
-            # offset = self.dataset.offsets_group[src][self.character_idx]
-            # fk = self.FKs[src][self.character_idx]
-
-            # gt_pos = fk.forward_from_raw(
-            #     self.denorm_gt_motions[src], offset)
-            # output_pos = fk.forward_from_raw(
-            #     self.denorm_outputs[src], offset)
-
-            # gt_pos_global = fk.from_local_to_world(gt_pos)
-            # output_pos_global = fk.from_local_to_world(output_pos)
-
-            # # height =
-
-            # fk_loss = self.rec_criterion(gt_pos_global, output_pos_global)
-            # self.fk_losses.append(fk_loss.item())
-
             # Total loss
-            rec_loss = element_loss 
+            rec_loss = element_loss#  + root_loss
             self.rec_loss += rec_loss
-
-            self.rec_losses.append(rec_loss.item())
 
         """ 2. latent consisteny and cycle loss for intra and cross strucuture retargeting  """
         self.latent_loss = 0
