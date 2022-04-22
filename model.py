@@ -66,16 +66,16 @@ class Transformer(nn.Module):
         self.hidden_dim = args.d_hidn  # embedding dimension
         self.num_heads = args.n_head
         self.num_layers = args.n_layer
-        # dropout = 0.5
+        dropout = 0  # 0.1
 
         self.encoder = nn.Linear(self.input_dim, self.hidden_dim)
-        self.pos_encoder = PositionalEncoding(self.hidden_dim)  # dropout
+        self.pos_encoder = PositionalEncoding(self.hidden_dim, dropout)
         self.project = nn.Linear(self.hidden_dim, self.input_dim)
 
         self.transformer_encoder = Transformer_Encoder(
-            self.hidden_dim, self.num_heads, self.num_layers)  # dropout
+            self.hidden_dim, self.num_heads, self.num_layers, dropout)
         self.transformer_decoder = Transformer_Decoder(
-            self.hidden_dim, self.num_heads, self.num_layers)  # dropout
+            self.hidden_dim, self.num_heads, self.num_layers, dropout)
 
     def _generate_square_subsequent_mask(self, sz):
         mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
@@ -115,17 +115,17 @@ class Transformer(nn.Module):
 
 
 class Transformer_Encoder(nn.Module):
-    def __init__(self, hidden_dim, num_heads, num_layers):  # dropout
+    def __init__(self, hidden_dim, num_heads, num_layers, dropout):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.num_heads = num_heads
         self.num_layers = num_layers
-        # self.dropout = dropout
+        self.dropout = dropout
 
         encoder_layer = TransformerEncoderLayer(
             d_model=self.hidden_dim,
             nhead=self.num_heads,
-            # dropout=dropout
+            dropout=dropout
         )
         self.transformer_encoder = TransformerEncoder(
             encoder_layer=encoder_layer,
@@ -140,7 +140,7 @@ class Transformer_Encoder(nn.Module):
 
 
 class Transformer_Decoder(nn.Module):
-    def __init__(self, hidden_dim, num_heads, num_layers):  # dropout
+    def __init__(self, hidden_dim, num_heads, num_layers, dropout):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.num_heads = num_heads
@@ -149,7 +149,7 @@ class Transformer_Decoder(nn.Module):
         decoder_layer = TransformerDecoderLayer(
             d_model=self.hidden_dim,
             nhead=self.num_heads,
-            # dropout=dropout
+            dropout=dropout
         )
         self.transformer_decoder = TransformerDecoder(
             decoder_layer=decoder_layer,
@@ -181,4 +181,4 @@ class PositionalEncoding(nn.Module):
 
     def forward(self, x):
         x = x + self.pe[: x.size(0), :]
-        return (x)  # self.dropout
+        return self.dropout(x)

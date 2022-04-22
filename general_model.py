@@ -143,19 +143,13 @@ class GeneralModel():
         self.gt_motions = []
         self.fake_motions = []
 
-        self.motions = []
-        self.outputs = []
-
         # latent codes
         self.latents = []
         self.fake_latents = []
-        self.bp_latents = []
-        self.bp_fake_latents = []
 
         # denorm
         self.denorm_gt_motions = []
         self.denorm_fake_motions = []
-        self.denorm_outputs = []
 
         # loss 1
         self.element_losses = []
@@ -188,11 +182,6 @@ class GeneralModel():
     def feed_to_network(self):
         # test forward direction
         for j in range(self.n_topology):
-            output, latent = self.models[j].transformer(
-                self.gt_motions[j], self.gt_motions[j])
-            self.outputs.append(output)
-
-        for j in range(self.n_topology):
             _, latent = self.models[j].transformer(
                 self.gt_motions[j], self.gt_motions[j])
 
@@ -214,29 +203,19 @@ class GeneralModel():
         # gt, forward output
         for j in range(self.n_topology):
             # (window,bs,DoF)->(bs,DoF,window)
-            # motions = motions.permute(2, 0, 1)
             gt_motions = self.gt_motions[j].permute(1, 2, 0)
-            outputs = self.outputs[j].permute(1, 2, 0)
-
-            # gt_motions = self.gt_motions[j]
-            # outputs = self.outputs[j]
 
             if self.args.normalization == 1:
                 denorm_gt_motions = self.denormalize(
                     self.character_idx, gt_motions, j)
-                denorm_outputs = self.denormalize(
-                    self.character_idx, outputs, j)
             else:
                 denorm_gt_motions = gt_motions
 
             if self.args.root_pos_as_disp == 1:
                 denorm_gt_motions = self.root_displacement_to_position(
                     denorm_gt_motions, j)
-                denorm_outputs = self.root_displacement_to_position(
-                    denorm_outputs, j)
 
             self.denorm_gt_motions.append(denorm_gt_motions)
-            self.denorm_outputs.append(denorm_outputs)
 
         # fake_output
         for src in range(self.n_topology):
@@ -250,8 +229,8 @@ class GeneralModel():
                     denorm_fake_motions = motion
 
                 if self.args.root_pos_as_disp == 1:
-                    denorm_gt_motions = self.root_displacement_to_position(
-                        denorm_gt_motions, dst)
+                    denorm_fake_motions = self.root_displacement_to_position(
+                        denorm_fake_motions, dst)
 
                 self.denorm_fake_motions.append(denorm_fake_motions)
 
@@ -261,40 +240,44 @@ class GeneralModel():
         for src in range(self.n_topology):
             # loss1-1. on each element
             element_loss = self.rec_criterion(
-                self.gt_motions[src], self.outputs[src]
+                self.gt_motions[src], self.fake_motions[3*src]
             )
             self.element_losses.append(element_loss.item())
 
-            # loss 1-2.  # about root rotation
+            # loss 1-2. check: smooth on next frame
             smooth_loss = self.rec_criterion(
-                self.outputs[src][:-1, :, :], self.outputs[src][1:, :, :]
+                self.fake_motions[3*src][:-1, :, :],
+                self.fake_motions[3*src][1:, :, :]
             )
             self.smooth_losses.append(smooth_loss.item())
 
-            # loss1-3. root
+            # loss1-3. check: root
             root_loss = self.rec_criterion(
-                self.gt_motions[src][:, :, -3:], self.outputs[src][:, :, -3:]
+                self.gt_motions[src][:, :, -3:],
+                self.fake_motions[3*src][:, :, -3:]
             )
             self.root_losses.append(root_loss.item())
 
+            # loss1-4. check: root roation
             root_rotation_loss = self.rec_criterion(
-                self.gt_motions[src][:, :, :4], self.outputs[src][:, :, :4]
+                self.gt_motions[src][:, :, :4],
+                self.fake_motions[3*src][:, :, :4]
             )
             self.root_rotation_losses.append(root_rotation_loss.item())
 
             # Total loss
-            rec_loss = element_loss#  + root_loss
+            rec_loss = element_loss  # + root_loss
             self.rec_loss += rec_loss
 
         """ 2. latent consisteny and cycle loss for intra and cross strucuture retargeting  """
         self.latent_loss = 0
 
-        # common latent loss
+        # loss 2-1. check: common latent loss
         latent_loss = self.cycle_criterion(self.latents[0], self.latents[1])
-        self.latent_loss += latent_loss
+        # self.latent_loss += latent_loss
         self.latent_losses.append(latent_loss.item())
 
-        # cycle loss
+        # loss 2-2. cycle loss
         for src in range(self.n_topology):
             for dst in range(self.n_topology):
                 cycle_loss = self.cycle_criterion(
@@ -303,6 +286,7 @@ class GeneralModel():
                 self.cycle_losses.append(cycle_loss.item())
 
         """ 3. GAN loss for each body part """
+        # loss 3-1. gan loss
         # self.gan_loss = 0
         # for src in range(self.n_topology):
         #     for dst in range(self.n_topology):
@@ -317,25 +301,23 @@ class GeneralModel():
 
         # cross loss
         cross_loss = self.rec_criterion(
-            self.fake_motions[1], self.gt_motions[1])  # src 0->dst 1
+            self.fake_motions[1], self.gt_motions[1])  # src 0 -> dst 1
         self.cross_losses.append(cross_loss.item())
         cross_loss = self.rec_criterion(
-            self.fake_motions[2], self.gt_motions[0])  # src 1->dst 0
+            self.fake_motions[2], self.gt_motions[0])  # src 1 -> dst 0
         self.cross_losses.append(cross_loss.item())
 
     def bvh_writing(self, save_dir):  # for training
         """ BVH Writing """
         if self.epoch == 0:
             for j in range(self.n_topology):
-                self.write_bvh(
-                    save_dir, "gt", self.denorm_gt_motions[j], self.character_idx, self.motion_idx, j)
+                self.write_bvh(save_dir, "gt",
+                               self.denorm_gt_motions[j], self.character_idx, self.motion_idx, j)
 
         for src in range(self.n_topology):
-            self.write_bvh(save_dir, "output"+str(self.epoch)+"_"+str(src),
-                           self.denorm_outputs[src], self.character_idx, self.motion_idx, src)
             for dst in range(self.n_topology):
-                self.write_bvh(save_dir, "fake"+str(self.epoch)+"_"+str(src)+"_"+str(
-                    dst), self.denorm_fake_motions[2*src+dst], self.character_idx, self.motion_idx, dst)
+                self.write_bvh(save_dir, "fake"+str(self.epoch)+"_"+str(src)+"_"+str(dst),
+                               self.denorm_fake_motions[2*src+dst], self.character_idx, self.motion_idx, dst)
 
     def write_bvh(self, save_dir, gt_or_output_epoch, motion, character_idx, motion_idx, i):
         if i == 0:
