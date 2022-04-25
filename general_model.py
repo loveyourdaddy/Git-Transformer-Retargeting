@@ -49,10 +49,10 @@ class GeneralModel():
             model = model.to(args.cuda_device)
             self.models.append(model)
             self.G_para += self.models[i].G_parameters()
-            # self.D_para += self.models[i].D_parameters()
+            self.D_para += self.models[i].D_parameters()
 
         self.optimizerGs = torch.optim.Adam(self.G_para, lr=args.learning_rate)
-        # self.optimizerDs = torch.optim.Adam(self.D_para, lr=args.learning_rate)
+        self.optimizerDs = torch.optim.Adam(self.D_para, lr=args.learning_rate)
 
         """ Set BVH writers """
         self.files = []
@@ -112,13 +112,12 @@ class GeneralModel():
                 self.denorm_motion()
                 self.get_loss()
 
-                # self.discriminator_requires_grad_(False)
+                self.discriminator_requires_grad_(False)
                 self.backward_G()
 
-                # self.discriminator_requires_grad_(True)
+                self.discriminator_requires_grad_(True)
                 # disable generator grad ?
-                # self.optimizerDs.zero_grad()
-                # self.backward_D()
+                self.backward_D()
 
                 if self.epoch % self.args.save_epoch == 0:
                     self.bvh_writing(save_dir)
@@ -237,67 +236,82 @@ class GeneralModel():
     def get_loss(self):
         """ loss1. reconstruction loss for intra structure retargeting """
         self.rec_loss = 0
+        self.fk_loss = 0
         for src in range(self.n_topology):
             # loss1-1. on each element
             element_loss = self.rec_criterion(
                 self.gt_motions[src], self.fake_motions[3*src]
             )
+            self.rec_loss += element_loss
             self.element_losses.append(element_loss.item())
 
-            # loss 1-2. check: smooth on next frame
+            # loss 1-2. fk
+            offset = self.dataset.offsets_group[src][self.character_idx]
+            fk = self.FKs[src][self.character_idx]
+
+            gt_pos = fk.forward_from_raw(
+                self.denorm_gt_motions[src], offset)
+            output_pos = fk.forward_from_raw(
+                self.denorm_fake_motions[3*src], offset)
+
+            gt_pos_global = fk.from_local_to_world(gt_pos)
+            output_pos_global = fk.from_local_to_world(output_pos)
+
+            fk_loss = self.rec_criterion(
+                gt_pos_global, output_pos_global
+            )
+            self.fk_loss += fk_loss
+            self.fk_losses.append(fk_loss.item())
+
+            # loss 1-3. check: smooth on next frame
             smooth_loss = self.rec_criterion(
                 self.fake_motions[3*src][:-1, :, :],
                 self.fake_motions[3*src][1:, :, :]
             )
             self.smooth_losses.append(smooth_loss.item())
 
-            # loss1-3. check: root
+            # loss1-4. check: root
             root_loss = self.rec_criterion(
                 self.gt_motions[src][:, :, -3:],
                 self.fake_motions[3*src][:, :, -3:]
             )
             self.root_losses.append(root_loss.item())
 
-            # loss1-4. check: root roation
+            # loss1-5. check: root roation
             root_rotation_loss = self.rec_criterion(
                 self.gt_motions[src][:, :, :4],
                 self.fake_motions[3*src][:, :, :4]
             )
             self.root_rotation_losses.append(root_rotation_loss.item())
 
-            # Total loss
-            rec_loss = element_loss  # + root_loss
-            self.rec_loss += rec_loss
 
-        """ 2. latent consisteny and cycle loss for intra and cross strucuture retargeting  """
-        self.latent_loss = 0
-
-        # loss 2-1. check: common latent loss
-        latent_loss = self.cycle_criterion(self.latents[0], self.latents[1])
-        # self.latent_loss += latent_loss
-        self.latent_losses.append(latent_loss.item())
-
-        # loss 2-2. cycle loss
+        """ loss 2. latent consisteny and cycle loss for intra and cross strucuture retargeting  """
+        # loss 2-1. cycle loss
+        self.cycle_loss = 0
         for src in range(self.n_topology):
             for dst in range(self.n_topology):
                 cycle_loss = self.cycle_criterion(
                     self.latents[dst], self.fake_latents[2*src+dst])
-                self.latent_loss += cycle_loss
+                self.cycle_loss += cycle_loss
                 self.cycle_losses.append(cycle_loss.item())
 
-        """ 3. GAN loss for each body part """
-        # loss 3-1. gan loss
-        # self.gan_loss = 0
-        # for src in range(self.n_topology):
-        #     for dst in range(self.n_topology):
-        #         netD = self.models[dst].discriminator
+        # loss 2-2. check: common latent loss
+        latent_loss = self.cycle_criterion(self.latents[0], self.latents[1])
+        # self.latent_loss += latent_loss
+        self.latent_losses.append(latent_loss.item())
 
-        #         fake_pred = netD(self.fake_motions[2*src+dst], self.gt_motions[dst])
-        #         G_fake_loss = self.gan_criterion(fake_pred, True)
-        #         self.gan_loss += G_fake_loss
-        #         self.G_fake_losses.append(G_fake_loss.item())
+        """ loss 3. GAN loss """
+        self.gan_loss = 0
+        for src in range(self.n_topology):
+            for dst in range(self.n_topology):
+                netD = self.models[dst].discriminator
 
-        self.G_loss = (self.rec_loss)  # + (self.latent_loss) # + self.gan_loss
+                fake_pred = netD(self.fake_motions[2*src+dst], self.gt_motions[dst])
+                G_fake_loss = self.gan_criterion(fake_pred, True)
+                self.gan_loss += G_fake_loss
+                self.G_fake_losses.append(G_fake_loss.item())
+
+        self.G_loss = (self.rec_loss) + (self.fk_loss) + (self.cycle_loss) + (self.gan_loss)
 
         # cross loss
         cross_loss = self.rec_criterion(
@@ -367,6 +381,8 @@ class GeneralModel():
         self.optimizerGs.step()
 
     def backward_D(self):
+        self.optimizerDs.zero_grad()
+
         self.D_loss = 0
         for src in range(self.args.n_topology):
             for dst in range(self.args.n_topology):

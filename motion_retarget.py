@@ -9,8 +9,8 @@ from torch.utils.tensorboard import SummaryWriter
 
 """ Set Parameters """
 args = option_parser.get_args()
-save_name = "220422_rec/"
-args.epoch_begin = 300
+save_name = "220424_rec_fk_lat_gan/"
+args.epoch_begin = 400
 # args.is_train = False
 
 """ Set Env """
@@ -45,22 +45,28 @@ if args.is_train == True:
                           np.mean(general_model.element_losses), epoch)
         writer.add_scalar("Loss/cross_loss",
                           np.mean(general_model.cross_losses), epoch)
+
         writer.add_scalar("Loss/smooth_loss",
                           np.mean(general_model.smooth_losses), epoch)
-        # writer.add_scalar("Loss/fk_loss",
-        #                   np.mean(general_model.fk_losses), epoch)
+        writer.add_scalar("Loss/fk_loss",
+                          np.mean(general_model.fk_losses), epoch)
 
         writer.add_scalar("Loss/latent_loss",
                           np.mean(general_model.latent_losses), epoch)
+        writer.add_scalar("Loss/cycle_loss",
+                          np.mean(general_model.cycle_losses), epoch)
+
         writer.add_scalar("Loss/root_loss",
                           np.mean(general_model.root_losses), epoch)
         writer.add_scalar("Loss/root_rotation_loss",
                           np.mean(general_model.root_rotation_losses), epoch)
 
-        # writer.add_scalar("Loss/cycle_loss", np.mean(general_model.cycle_losses), epoch)
-        # writer.add_scalar("Loss/GAN_G_fake_loss", np.mean(general_model.G_fake_losses), epoch)
-        # writer.add_scalar("Loss/GAN_D_real_loss", np.mean(general_model.D_real_losses), epoch)
-        # writer.add_scalar("Loss/GAN_D_fake_loss", np.mean(general_model.D_fake_losses), epoch)
+        writer.add_scalar("Loss/GAN_G_fake_loss",
+                          np.mean(general_model.G_fake_losses), epoch)
+        writer.add_scalar("Loss/GAN_D_real_loss",
+                          np.mean(general_model.D_real_losses), epoch)
+        writer.add_scalar("Loss/GAN_D_fake_loss",
+                          np.mean(general_model.D_fake_losses), epoch)
 
         if epoch % args.save_epoch == 0:
             general_model.save(para_path + save_name, epoch)
