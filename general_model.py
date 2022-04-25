@@ -385,13 +385,14 @@ class GeneralModel():
 
         self.D_loss = 0
         for src in range(self.args.n_topology):
+            # output of real motion
+            netD = self.models[src].discriminator
+            real_pred = netD(self.gt_motions[src], self.gt_motions[src])
+            D_real_loss = self.gan_criterion(real_pred, True)
+            self.D_real_losses.append(D_real_loss.item())
+
             for dst in range(self.args.n_topology):
                 netD = self.models[dst].discriminator
-
-                # output of real motion
-                real_pred = netD(self.gt_motions[src], self.gt_motions[dst])
-                D_real_loss = self.gan_criterion(real_pred, True)
-                self.D_real_losses.append(D_real_loss.item())
 
                 # output of fake motion
                 fake_pred = netD(

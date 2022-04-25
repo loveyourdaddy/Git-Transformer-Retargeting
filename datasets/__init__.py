@@ -6,7 +6,7 @@ def get_character_names(args):
 
     # cross strucutre retargeting
     characters = [['BigVegas', 'BigVegas', 'BigVegas', 'BigVegas'],
-                  ['BigVegas', 'BigVegas', 'BigVegas', 'BigVegas']]
+                  ['Goblin_m', 'Goblin_m', 'Goblin_m', 'Goblin_m']]
     # characters = [['BigVegas', 'BigVegas', 'BigVegas', 'BigVegas'],  ['Mousey_m', 'Goblin_m', 'Mremireh_m', 'Vampire_m']]
     # characters = [['Aj', 'BigVegas', 'Kaya', 'SportyGranny'], ['Mousey_m', 'Goblin_m', 'Mremireh_m', 'Vampire_m']]
 

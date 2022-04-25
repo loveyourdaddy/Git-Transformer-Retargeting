@@ -9,8 +9,8 @@ from torch.utils.tensorboard import SummaryWriter
 
 """ Set Parameters """
 args = option_parser.get_args()
-save_name = "220424_rec_fk_lat_gan/"
-args.epoch_begin = 400
+save_name = "220425_rec_fk_lat_gan_Diff_groups/"
+# args.epoch_begin = 400
 # args.is_train = False
 
 """ Set Env """
