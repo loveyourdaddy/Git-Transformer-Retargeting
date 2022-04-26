@@ -16,7 +16,7 @@ def get_parser():
 
     # learning parameter
     parser.add_argument('--learning_rate', type=float,
-                        default=1e-4, help='lr')  # 1e-5
+                        default=1e-4, help='lr')
     parser.add_argument('--n_epoch', type=int, default=10001)
     parser.add_argument('--weight_decay', type=float, default=1)
     parser.add_argument('--alpha', type=float, default=0,
@@ -54,9 +54,6 @@ def get_parser():
     parser.add_argument('--n_head', type=int, default=4)
     parser.add_argument('--d_head', type=int, default=64)
     parser.add_argument('--d_hidn', type=int, default=512)
-    # window을 얼마나 줄일지에 대한 embedding  # quaternion embedding dimenstion: 91 -> 91 -> 111
-    parser.add_argument('--embedding_dim', type=int,
-                        default=256, help='embedding dimension')
     parser.add_argument('--gan_mode', type=str, default='lsgan')  # vanilla
 
     # SAN Structure

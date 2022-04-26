@@ -21,7 +21,8 @@ class MotionGenerator(nn.Module):
 
         """ Transformer """
         self.transformer = Transformer(args, offsets, i).to(args.cuda_device)
-        self.discriminator = Discriminator(args, offsets, i).to(args.cuda_device)
+        self.discriminator = Discriminator(
+            args, offsets, i).to(args.cuda_device)
 
     """ Transofrmer """
 
@@ -42,8 +43,7 @@ class Discriminator(nn.Module):
         self.transformer = Transformer(args, offsets, i).to(args.cuda_device)
 
     def forward(self, src, tgt):
-        encoder_output = self.transformer.enc_forward(src)
-        output = self.transformer.dec_forward(encoder_output, tgt, src)
+        output, encoder_output = self.transformer.forward(src, tgt)
 
         # TODO: one of sigmoid is enough??? no fc?
         return torch.sigmoid(output).squeeze()
@@ -86,32 +86,62 @@ class Transformer(nn.Module):
         )
         return mask
 
+    def forward(self, src, tgt):
+        encoder_output = self.enc_forward(src)
+        output = self.dec_forward(tgt, encoder_output)
+
+        return output, encoder_output
+
     def enc_forward(self, src):
         projected_src = self.encoder(src) * np.sqrt(self.hidden_dim)
         pos_encoded_src = self.pos_encoder(projected_src)
-        encoder_output = self.transformer_encoder(pos_encoded_src)
+        encoder_output = self.transformer_encoder(
+            pos_encoded_src
+        )
         return encoder_output
 
-    def dec_forward(self, encoder_output, tgt, src):
+    def dec_forward(self, tgt, encoder_output):
         # mask
         tgt_mask = self._generate_square_subsequent_mask(tgt.shape[0]).to(
             device=tgt.device,
         )
 
+        # pos encoding
         pos_encoder_tgt = self.pos_encoder(
             self.encoder(tgt) * np.sqrt(self.hidden_dim)
         )
+
         output = self.transformer_decoder(
-            encoder_output, pos_encoder_tgt, tgt_mask)
+            pos_encoder_tgt, encoder_output, tgt_mask)
         output = self.project(output)
 
         return output
 
-    def forward(self, src, tgt):
-        encoder_output = self.enc_forward(src)
-        output = self.dec_forward(encoder_output, tgt, src)
+    def infer_dec_forward(self, tgt, encoder_output):
+        # Create mask for greedy encoding across the decoded output
+        max_len = tgt.shape[0]
+        tgt_mask = self._generate_square_subsequent_mask(max_len).to(
+            device=tgt.device
+        )
 
-        return output, encoder_output
+        decoder_input = torch.zeros(
+            max_len, tgt.shape[1], tgt.shape[-1]
+        ).type_as(tgt.data)
+        next_pose = tgt[0].clone()  # cheating possible ?
+
+        for i in range(max_len):
+            decoder_input[i] = next_pose
+            pos_encoded_input = self.pos_encoder(
+                self.encoder(decoder_input) * np.sqrt(self.hidden_dim)
+            )
+            decoder_outputs = self.transformer_decoder(
+                pos_encoded_input, encoder_output, tgt_mask)
+            output = self.project(decoder_outputs)
+            next_pose = output[i].clone()
+            del output
+
+        output = decoder_input
+        return output
 
 
 class Transformer_Encoder(nn.Module):
@@ -157,7 +187,7 @@ class Transformer_Decoder(nn.Module):
             norm=LayerNorm(self.hidden_dim),
         )
 
-    def forward(self, encoder_output, pos_encoder_tgt, tgt_mask):
+    def forward(self, pos_encoder_tgt, encoder_output, tgt_mask):
         output = self.transformer_decoder(
             pos_encoder_tgt, encoder_output, tgt_mask=tgt_mask,
         )

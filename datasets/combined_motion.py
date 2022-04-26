@@ -176,7 +176,7 @@ class TestData(Dataset):
         self.ee_ids = []
         self.args = args
         self.device = torch.device(args.cuda_device)
-        self.groups_body_parts_index = []
+        self.offsets_group = []
 
         for i, characters in enumerate(character_group):
             mean_group = []
@@ -207,6 +207,7 @@ class TestData(Dataset):
             offsets_group = torch.cat(offsets_group, dim=0).to(self.device)
             self.mean.append(mean_group)
             self.var.append(var_group)
+            self.offsets_group.append(offsets_group)
             self.offsets.append(offsets_group)
 
     def __getitem__(self, item):
@@ -255,7 +256,7 @@ class TestData(Dataset):
             raise Exception('Cannot find file')
         file = BVH_file(file)
         motion = file.to_tensor(quater=self.args.rotation == 'quaternion')
-        # motion = motion[:, ::2] # subsampling
+        motion = motion[:, ::8]  # subsampling
         length = motion.shape[-1]
         length = length // 4 * 4
         return motion[..., :length].to(self.device)
@@ -272,107 +273,3 @@ class TestData(Dataset):
 
     def get_offsets(self):
         return self.offsets
-
-# class TestData(Dataset):
-#     def __init__(self, args, character_groups):
-#         # self.characters = characters
-#         # self.file_list = get_test_set()
-#         self.args = args
-#         self.device = torch.device(args.cuda_device)
-#         self.final_data = []
-#         all_datas = []
-#         self.offsets = []
-#         self.means = []
-#         self.vars = []
-
-#         for i, characters in enumerate(character_groups):
-#             motion_data = []
-#             offsets_group = []
-#             means_group = []
-#             vars_group = []
-
-#             for j, character in enumerate(characters):
-#                 file = BVH_file(get_std_bvh(dataset=character))
-#                 args.dataset = character
-#                 motion = MotionData(args, 0)
-#                 motion_data.append(motion)
-
-#                 new_offset = file.offset
-#                 new_offset = torch.tensor(new_offset, dtype=torch.float)
-#                 new_offset = new_offset.reshape((1,) + new_offset.shape)
-#                 offsets_group.append(new_offset)
-
-#                 # get mean and var
-#                 mean = np.load('./datasets/Mixamo/mean_var/{}_mean_test.npy'.format(character))
-#                 var = np.load('./datasets/Mixamo/mean_var/{}_var_test.npy'.format(character))
-#                 mean = motion.mean
-#                 var = motion.var
-#                 mean = torch.tensor(mean)
-#                 mean = mean.reshape((1,) + mean.shape)
-#                 var = torch.tensor(var)
-#                 var = var.reshape((1,) + var.shape)
-
-#                 means_group.append(mean)
-#                 vars_group.append(var)
-
-#             all_datas.append(motion_data)
-#             # offsets_group = torch.cat(offsets_group, dim=0)
-#             # offsets_group = offsets_group.to(self.device)
-#             self.offsets.append(offsets_group)
-
-#             means_group = torch.cat(means_group, dim=0).to(self.device)
-#             vars_group = torch.cat(vars_group, dim=0).to(self.device)
-
-#             self.offsets.append(offsets_group)
-#             self.means.append(means_group)
-#             self.vars.append(vars_group)
-
-#         """ Get final """
-#         for group_idx, datasets in enumerate(all_datas):
-#             motions = []
-#             max_length = int( len(datasets[0]) / args.batch_size) * args.batch_size
-#             args.num_motions = max_length
-#             for character_idx, dataset in enumerate(datasets):
-#                 motions.append(dataset[:max_length])
-
-#             # (4,106, 91, 913) -> (424, 91, 913),  (4,51,138,128) -> (204,138,128)
-#             motions = torch.cat(motions, dim=0)
-#             self.length = motions.size(0)
-#             self.final_data.append(MixedData0(args, motions))
-
-#         """ Get enc / dec input motions """
-#         self.gt = self.final_data[1][:]
-#         self.enc_inputs = self.final_data[0][:]
-#         self.dec_inputs = self.final_data[1][:]
-
-#         """ update input/output dimension of network """
-#         # swap == 0: input / output DoF
-#         # swap == 1: window_size
-#         args.input_size = self.enc_inputs.size(2)
-#         args.output_size = self.dec_inputs.size(2)
-
-#     def denorm(self, gid, pid, data):
-#         means = self.means[gid][pid, ...]
-#         var = self.vars[gid][pid, ...]
-#         # data_tmp = data
-#         data = data * var + means
-
-#         # if self.args.root_pos_as_velocity == 1:
-#         #     if self.args.swap_dim == 0: #(bs, frame, DoF)
-#         #         data[:,:,-3:] = data_tmp[:,:,-3:]
-#         #     else:  #(bs, DoF, frame)
-#         #         data[:,-3:,:] = data_tmp[:,-3:,:]
-#         return data
-
-
-#     def get_offsets(self):
-#         return self.offsets
-
-
-#     def __getitem__(self, item):
-#         return (torch.as_tensor(self.enc_inputs[item].data),    # source motion
-#                 torch.as_tensor(self.dec_inputs[item].data),    # decoder source motion
-#                 torch.as_tensor(self.gt[item].data)) # gt target motion
-
-#     def __len__(self):
-#         return self.length

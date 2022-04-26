@@ -10,8 +10,8 @@ from torch.utils.tensorboard import SummaryWriter
 """ Set Parameters """
 args = option_parser.get_args()
 save_name = "220425_rec_fk_lat_gan_Diff_groups/"
-# args.epoch_begin = 400
-# args.is_train = False
+args.epoch_begin = 900
+args.is_train = False
 
 """ Set Env """
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -24,8 +24,12 @@ writer = SummaryWriter(log_dir, flush_secs=1)
 """ load Motion Dataset """
 characters = get_character_names(args)
 dataset = create_dataset(args, characters)
+if args.is_train == 1:
+    batch_size = args.batch_size
+else:
+    batch_size = 1
 loader = torch.utils.data.DataLoader(
-    dataset, batch_size=args.batch_size, shuffle=False)
+    dataset, batch_size=batch_size, shuffle=False)
 print("characters:{}".format(characters))
 
 """ load model  """
@@ -72,4 +76,4 @@ if args.is_train == True:
             general_model.save(para_path + save_name, epoch)
 else:
     # only test losses
-    general_model.eval_epoch(args.epoch_begin, dataset, save_name)
+    general_model.eval_epoch(args.epoch_begin, loader, save_name)
