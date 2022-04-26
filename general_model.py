@@ -193,6 +193,42 @@ class GeneralModel():
                 self.fake_motions.append(fake_motion)
                 self.fake_latents.append(fake_latent)
 
+    def denorm_motion(self):
+        """ Denorm and transpose & Remake root & Get global position """
+        # gt, forward output
+        for j in range(self.n_topology):
+            # (window,bs,DoF)->(bs,DoF,window)
+            gt_motions = self.gt_motions[j].permute(1, 2, 0)
+
+            if self.args.normalization == 1:
+                denorm_gt_motions = self.denormalize(
+                    self.character_idx, gt_motions, j)
+            else:
+                denorm_gt_motions = gt_motions
+
+            if self.args.root_pos_as_disp == 1:
+                denorm_gt_motions = self.root_displacement_to_position(
+                    denorm_gt_motions, j)
+
+            self.denorm_gt_motions.append(denorm_gt_motions)
+
+        # fake_output
+        for src in range(self.n_topology):
+            for dst in range(self.n_topology):
+                motion = self.fake_motions[2*src+dst].permute(1, 2, 0)
+                # motion = self.fake_motions[2*src+dst]
+                if self.args.normalization == 1:
+                    denorm_fake_motions = self.denormalize(
+                        self.character_idx, motion, dst)
+                else:
+                    denorm_fake_motions = motion
+
+                if self.args.root_pos_as_disp == 1:
+                    denorm_fake_motions = self.root_displacement_to_position(
+                        denorm_fake_motions, dst)
+
+                self.denorm_fake_motions.append(denorm_fake_motions)
+
     def get_loss(self):
         """ loss1. reconstruction loss for intra structure retargeting """
         self.rec_loss = 0
@@ -281,42 +317,6 @@ class GeneralModel():
         cross_loss = self.rec_criterion(
             self.fake_motions[2], self.gt_motions[0])  # src 1 -> dst 0
         self.cross_losses.append(cross_loss.item())
-
-    def denorm_motion(self):
-        """ Denorm and transpose & Remake root & Get global position """
-        # gt, forward output
-        for j in range(self.n_topology):
-            # (window,bs,DoF)->(bs,DoF,window)
-            gt_motions = self.gt_motions[j].permute(1, 2, 0)
-
-            if self.args.normalization == 1:
-                denorm_gt_motions = self.denormalize(
-                    self.character_idx, gt_motions, j)
-            else:
-                denorm_gt_motions = gt_motions
-
-            if self.args.root_pos_as_disp == 1:
-                denorm_gt_motions = self.root_displacement_to_position(
-                    denorm_gt_motions, j)
-
-            self.denorm_gt_motions.append(denorm_gt_motions)
-
-        # fake_output
-        for src in range(self.n_topology):
-            for dst in range(self.n_topology):
-                motion = self.fake_motions[2*src+dst].permute(1, 2, 0)
-                # motion = self.fake_motions[2*src+dst]
-                if self.args.normalization == 1:
-                    denorm_fake_motions = self.denormalize(
-                        self.character_idx, motion, dst)
-                else:
-                    denorm_fake_motions = motion
-
-                if self.args.root_pos_as_disp == 1:
-                    denorm_fake_motions = self.root_displacement_to_position(
-                        denorm_fake_motions, dst)
-
-                self.denorm_fake_motions.append(denorm_fake_motions)
 
     def bvh_writing(self, save_dir):  # for training
         """ BVH Writing """
@@ -464,7 +464,7 @@ class GeneralModel():
 
     def compute_test_result(self, save_dir):
         for src in range(self.n_topology):
-            gt = self.gt_motions[src].permute(1, 2, 0)
+            gt = self.denorm_gt_motions[src]
             idx = list(range(gt.shape[0]))
             for i in idx:  # i = [0,1,2,3]
                 new_path = os.path.join(save_dir, self.characters[src][i])
@@ -473,13 +473,15 @@ class GeneralModel():
                                                os.path.join(new_path, '{}_gt.bvh'.format(self.id_test)))
         for src in range(self.n_topology):
             for dst in range(self.n_topology):
-                output = self.fake_motions[2*src+dst].permute(1, 2, 0)
+                output = self.denorm_fake_motions[2*src+dst]
                 idx = list(range(output.shape[0]))
                 for i in idx:  # i = [0,1,2,3]
                     new_path = os.path.join(save_dir, self.characters[src][i])
                     try_mkdir(new_path)
                     self.writers[dst][i].write_raw(output[i, ...], 'quaternion',
                                                    os.path.join(new_path, '{}_output_{}_{}.bvh'.format(self.id_test, src, dst)))
+
+        self.id_test += 1
 
     """ save and load """
 

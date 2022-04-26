@@ -217,14 +217,23 @@ class TestData(Dataset):
             res_group = []
             ref_shape = None
             for j in range(len(characters)):
-                new_motion = self.get_item(i, j, item)
-                if new_motion is not None:
-                    new_motion = new_motion.reshape((1, ) + new_motion.shape)
-                    new_motion = (
-                        new_motion - self.mean[i][j]) / self.var[i][j]
+                data = self.get_item(i, j, item)
+
+                num_DoF = data.size(0)
+                num_frames = data.size(1)
+                if self.args.root_pos_as_disp == 1:
+                    for frame in range(num_frames - 1):
+                        data[num_DoF-3:, frame] \
+                            = data[num_DoF - 3:, frame + 1] - data[num_DoF-3:, frame]
+                    data[num_DoF-3:, num_frames - 1] = 0
+
+                if data is not None:
+                    data = data.reshape((1, ) + data.shape)
+                    data = (
+                        data - self.mean[i][j]) / self.var[i][j]
                     # new_motion = self.normalize(i, j, new_motion)
-                    ref_shape = new_motion
-                res_group.append(new_motion)
+                    ref_shape = data
+                res_group.append(data)
 
             if ref_shape is None:
                 print('Bad at {}'.format(item))
@@ -256,7 +265,7 @@ class TestData(Dataset):
             raise Exception('Cannot find file')
         file = BVH_file(file)
         motion = file.to_tensor(quater=self.args.rotation == 'quaternion')
-        motion = motion[:, ::8]  # subsampling
+        # motion = motion[:, ::2]  # subsampling
         length = motion.shape[-1]
         length = length // 4 * 4
         return motion[..., :length].to(self.device)

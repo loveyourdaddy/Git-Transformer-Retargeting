@@ -58,8 +58,8 @@ class MotionData(Dataset):
         # root position -> displacement
         if args.root_pos_as_disp == 1:
             for frame in range(num_frames - 1):
-                self.data[:, num_DoF-3:, frame] = self.data[:, num_DoF -
-                                                            3:, frame + 1] - self.data[:, num_DoF-3:, frame]
+                self.data[:, num_DoF-3:, frame] \
+                    = self.data[:, num_DoF -3:, frame + 1] - self.data[:, num_DoF-3:, frame]
             self.data[:, num_DoF-3:, num_frames - 1] = 0
 
         """ normalization data:  mean, var of data & normalization """
