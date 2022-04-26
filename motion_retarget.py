@@ -9,9 +9,9 @@ from torch.utils.tensorboard import SummaryWriter
 
 """ Set Parameters """
 args = option_parser.get_args()
-save_name = "220425_rec_fk_lat_gan_Diff_groups/"
-args.epoch_begin = 900
-args.is_train = False
+save_name = "220426_rec_dec_with_first_src/"
+# args.epoch_begin = 900
+# args.is_train = False
 
 """ Set Env """
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

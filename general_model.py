@@ -184,9 +184,12 @@ class GeneralModel():
             latent = self.models[src].transformer.enc_forward(
                 self.gt_motions[src])
             self.latents.append(latent)
+
+            encoding_first_src = self.models[src].transformer.encoding(
+                self.gt_motions[src][0, ...])
             for dst in range(self.n_topology):
                 fake_motion = self.models[dst].transformer.dec_forward(
-                    self.gt_motions[dst], latent)  # tgt, encoder_output
+                    self.gt_motions[dst], latent, encoding_first_src)
                 fake_latent = self.models[dst].transformer.enc_forward(
                     fake_motion)
 

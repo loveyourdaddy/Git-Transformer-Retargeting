@@ -88,7 +88,9 @@ class Transformer(nn.Module):
 
     def forward(self, src, tgt):
         encoder_output = self.enc_forward(src)
-        output = self.dec_forward(tgt, encoder_output)
+        
+        encoding_first_src = self.encoding(src[0, ...])
+        output = self.dec_forward(tgt, encoder_output, encoding_first_src)
 
         return output, encoder_output
 
@@ -100,15 +102,18 @@ class Transformer(nn.Module):
         )
         return encoder_output
 
-    def dec_forward(self, tgt, encoder_output):
+    def dec_forward(self, tgt, encoder_output, encoding_first_src):
         # mask
         tgt_mask = self._generate_square_subsequent_mask(tgt.shape[0]).to(
             device=tgt.device,
         )
 
-        # pos encoding
+        # concat encoding (src[0], tgt[:-1])
+        encoding_tgt = self.encoder(tgt) * np.sqrt(self.hidden_dim)
+        encoding_tgt = torch.cat((encoding_first_src.unsqueeze(0), encoding_tgt[:-1]))
+
         pos_encoder_tgt = self.pos_encoder(
-            self.encoder(tgt) * np.sqrt(self.hidden_dim)
+            encoding_tgt
         )
 
         output = self.transformer_decoder(
@@ -142,6 +147,9 @@ class Transformer(nn.Module):
 
         output = decoder_input
         return output
+
+    def encoding(self, src):
+        return self.encoder(src) * np.sqrt(self.hidden_dim)
 
 
 class Transformer_Encoder(nn.Module):
