@@ -88,9 +88,8 @@ class Transformer(nn.Module):
 
     def forward(self, src, tgt):
         encoder_output = self.enc_forward(src)
-        
-        encoding_first_src = self.encoding(src[0, ...])
-        output = self.dec_forward(tgt, encoder_output, encoding_first_src)
+
+        output = self.dec_forward(tgt, encoder_output)
 
         return output, encoder_output
 
@@ -102,27 +101,33 @@ class Transformer(nn.Module):
         )
         return encoder_output
 
-    def dec_forward(self, tgt, encoder_output, encoding_first_src):
+    def dec_forward(self, tgt, encoder_output):
+        first_frame = tgt[0]
+        tgt = tgt[:-1]  # tgt : input (0 ~ T-1)
+
         # mask
         tgt_mask = self._generate_square_subsequent_mask(tgt.shape[0]).to(
             device=tgt.device,
         )
 
-        # concat encoding (src[0], tgt[:-1])
-        encoding_tgt = self.encoder(tgt) * np.sqrt(self.hidden_dim)
-        encoding_tgt = torch.cat((encoding_first_src.unsqueeze(0), encoding_tgt[:-1]))
-
+        # encoding
         pos_encoder_tgt = self.pos_encoder(
-            encoding_tgt
+            self.encoder(tgt) * np.sqrt(self.hidden_dim)
         )
 
         output = self.transformer_decoder(
             pos_encoder_tgt, encoder_output, tgt_mask)
         output = self.project(output)
 
+        #  torch.cat((encoding_first_src.unsqueeze(0), encoding_tgt[:-1]))
+        output = torch.cat((first_frame.unsqueeze(0), output))
+
         return output
 
     def infer_dec_forward(self, tgt, encoder_output):
+        first_frame = tgt[0]
+        tgt = tgt[:-1]
+
         # Create mask for greedy encoding across the decoded output
         max_len = tgt.shape[0]
         tgt_mask = self._generate_square_subsequent_mask(max_len).to(
@@ -132,7 +137,7 @@ class Transformer(nn.Module):
         decoder_input = torch.zeros(
             max_len, tgt.shape[1], tgt.shape[-1]
         ).type_as(tgt.data)
-        next_pose = tgt[0].clone()  # cheating possible ?
+        next_pose = tgt[0].clone()
 
         for i in range(max_len):
             decoder_input[i] = next_pose
@@ -146,6 +151,9 @@ class Transformer(nn.Module):
             del output
 
         output = decoder_input
+
+        output = torch.cat((first_frame.unsqueeze(0), output))
+
         return output
 
     def encoding(self, src):

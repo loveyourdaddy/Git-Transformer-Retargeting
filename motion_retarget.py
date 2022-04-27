@@ -9,9 +9,9 @@ from torch.utils.tensorboard import SummaryWriter
 
 """ Set Parameters """
 args = option_parser.get_args()
-save_name = "220426_rec_dec_with_first_src/"
-# args.epoch_begin = 900
-# args.is_train = False
+save_name = "220427_rec_inference_T-1/"
+args.epoch_begin = 50
+args.is_train = False
 
 """ Set Env """
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -24,12 +24,12 @@ writer = SummaryWriter(log_dir, flush_secs=1)
 """ load Motion Dataset """
 characters = get_character_names(args)
 dataset = create_dataset(args, characters)
-if args.is_train == 1:
-    batch_size = args.batch_size
-else:
-    batch_size = 1
+# if args.is_train == 1:
+#     batch_size = args.batch_size
+# else:
+#     batch_size = 1
 loader = torch.utils.data.DataLoader(
-    dataset, batch_size=batch_size, shuffle=False)
+    dataset, batch_size=args.batch_size, shuffle=False)
 print("characters:{}".format(characters))
 
 """ load model  """

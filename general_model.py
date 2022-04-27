@@ -40,9 +40,9 @@ class GeneralModel():
 
         args.input_size = dataset[0][0][0].size(0)
         args.output_size = dataset[0][1][0].size(0)
-        if args.is_train == 0:
-            args.input_size = dataset[0][0][0].size(1)
-            args.output_size = dataset[0][1][0].size(1)
+        # if args.is_train == 0:
+        #     args.input_size = dataset[0][0][0].size(1)
+        #     args.output_size = dataset[0][1][0].size(1)
 
         for i in range(self.n_topology):
             model = MotionGenerator(args, offsets, i)
@@ -112,12 +112,12 @@ class GeneralModel():
                 self.denorm_motion()
                 self.get_loss()
 
-                self.discriminator_requires_grad_(False)
+                # self.discriminator_requires_grad_(False)
                 self.backward_G()
 
-                self.discriminator_requires_grad_(True)
+                # self.discriminator_requires_grad_(True)
                 # disable generator grad ?
-                self.backward_D()
+                # self.backward_D()
 
                 if self.epoch % self.args.save_epoch == 0:
                     self.bvh_writing(save_dir)
@@ -128,13 +128,17 @@ class GeneralModel():
                     f"element: {np.mean(self.element_losses):.3f}, cross: {np.mean(self.cross_losses):.3f}")
 
     def iter_setting(self, i):
-        if self.args.is_train == 1:
-            self.motion_idx = self.get_curr_motion(i, self.args.batch_size)
-            self.character_idx = self.get_curr_character(
-                self.motion_idx, self.args.num_motions)
-        else:  # TODO : character index for test set
-            self.motion_idx = 0
-            self.character_idx = 0
+        # if self.args.is_train == 1:
+        #     self.motion_idx = self.get_curr_motion(i, self.args.batch_size)
+        #     self.character_idx = self.get_curr_character(
+        #         self.motion_idx, self.args.num_motions)
+        # else:  # TODO : character index for test set
+        #     self.motion_idx = 0
+        #     self.character_idx = 0
+
+        self.motion_idx = self.get_curr_motion(i, self.args.batch_size)
+        self.character_idx = self.get_curr_character(
+            self.motion_idx, self.args.num_motions)
 
         # motions
         self.input_motions = []
@@ -164,7 +168,6 @@ class GeneralModel():
         self.latent_losses = []
 
         # loss 3
-        # self.G_losses = []
         self.G_fake_losses = []
         self.D_real_losses = []
         self.D_fake_losses = []
@@ -185,11 +188,9 @@ class GeneralModel():
                 self.gt_motions[src])
             self.latents.append(latent)
 
-            encoding_first_src = self.models[src].transformer.encoding(
-                self.gt_motions[src][0, ...])
             for dst in range(self.n_topology):
                 fake_motion = self.models[dst].transformer.dec_forward(
-                    self.gt_motions[dst], latent, encoding_first_src)
+                    self.gt_motions[dst], latent)
                 fake_latent = self.models[dst].transformer.enc_forward(
                     fake_motion)
 
@@ -299,19 +300,19 @@ class GeneralModel():
         self.latent_losses.append(latent_loss.item())
 
         """ loss 3. GAN loss """
-        self.gan_loss = 0
-        for src in range(self.n_topology):
-            for dst in range(self.n_topology):
-                netD = self.models[dst].discriminator
+        # self.gan_loss = 0
+        # for src in range(self.n_topology):
+        #     for dst in range(self.n_topology):
+        #         netD = self.models[dst].discriminator
 
-                fake_pred = netD(
-                    self.gt_motions[dst], self.fake_motions[2*src+dst])
-                G_fake_loss = self.gan_criterion(fake_pred, True)
-                self.gan_loss += G_fake_loss
-                self.G_fake_losses.append(G_fake_loss.item())
+        #         fake_pred = netD(
+        #             self.gt_motions[dst], self.fake_motions[2*src+dst])
+        #         G_fake_loss = self.gan_criterion(fake_pred, True)
+        #         self.gan_loss += G_fake_loss
+        #         self.G_fake_losses.append(G_fake_loss.item())
 
-        self.G_loss = (self.rec_loss) + (self.fk_loss) + \
-            (self.cycle_loss) + (self.gan_loss)
+        self.G_loss = (self.rec_loss) # + (self.fk_loss) + \
+            # (self.cycle_loss) + (self.gan_loss)
 
         # cross loss
         cross_loss = self.rec_criterion(
@@ -440,7 +441,7 @@ class GeneralModel():
         for j in range(self.n_topology):
             motions, self.offset_idx[j] = value[j]
             # (bs,DoF,window)->(window,bs,DoF)
-            motions = motions[0].permute(2, 0, 1)
+            motions = motions.permute(2, 0, 1)
             motions = motions.to(self.args.cuda_device)
             self.gt_motions.append(motions)
 
@@ -450,6 +451,7 @@ class GeneralModel():
         #     motion, self.offset_idx[j] = motions[j]
         #     motion = motion.to(self.args.cuda_device)
         #     self.gt_motions.append(motion)
+
         """ Get fake output and fake latent code """
         for src in range(self.n_topology):
             latents = self.models[src].transformer.enc_forward(
