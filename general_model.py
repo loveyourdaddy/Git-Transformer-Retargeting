@@ -10,7 +10,7 @@ from datasets.bvh_writer import BVH_writer
 from models.Kinematics import ForwardKinematics
 # # from rendering import *
 # import torchvision
-from models.utils import GAN_loss
+from models.utils import GAN_loss, get_ee
 from model import MotionGenerator
 
 # SAVE_ATTENTION_DIR = "attention_vis"
@@ -33,16 +33,19 @@ class GeneralModel():
         offsets = dataset.get_offsets()
         self.n_topology = self.args.n_topology
 
+        """ update input/output dimension of network: Set DoF """
+        self.DoF = []
+        for j in range(self.n_topology):
+            # (256 total motions , 4 characters, 2 motion/offset, DoF, window)
+            motion = self.dataset[0][j][0]
+            self.DoF.append(motion.size(0))
+        args.input_size = dataset[0][0][0].size(0)
+        args.output_size = dataset[0][1][0].size(0)
+
         """ Models """
         self.models = []
         self.G_para = []
         self.D_para = []
-
-        args.input_size = dataset[0][0][0].size(0)
-        args.output_size = dataset[0][1][0].size(0)
-        # if args.is_train == 0:
-        #     args.input_size = dataset[0][0][0].size(1)
-        #     args.output_size = dataset[0][1][0].size(1)
 
         for i in range(self.n_topology):
             model = MotionGenerator(args, offsets, i)
@@ -58,23 +61,25 @@ class GeneralModel():
         self.files = []
         self.writers = []
         self.FKs = []
+        self.height = []
         for i in range(len(character_names)):
             bvh_writers = []
             files = []
             FKs = []
+            height = []
             for j in range(len(character_names[0])):
                 file = BVH_file(option_parser.get_std_bvh(
                     dataset=character_names[i][j]))
                 files.append(file)
                 bvh_writers.append(BVH_writer(file.edges, file.names))
                 FKs.append(ForwardKinematics(args, file.edges))
-
+                height.append(file.get_height())
+            self.height.append(height)
             self.files.append(files)
             self.writers.append(bvh_writers)
             self.FKs.append(FKs)
 
         """ define lists"""
-        self.DoF = []
         self.offset_idx = [0] * self.n_topology
 
         # pos
@@ -87,12 +92,6 @@ class GeneralModel():
         self.rec_criterion = torch.nn.MSELoss()
         self.cycle_criterion = torch.nn.MSELoss()
         self.gan_criterion = GAN_loss(args.gan_mode).to(args.cuda_device)
-
-        """ update input/output dimension of network: Set DoF """
-        for j in range(self.n_topology):
-            # (256 total motions , 4 characters, 2 motion/offset, DoF, window)
-            motion = self.dataset[0][j][0]
-            self.DoF.append(motion.size(0))
 
     def train_epoch(self, epoch, data_loader, save_name):
         self.epoch = epoch
@@ -116,7 +115,7 @@ class GeneralModel():
                 self.backward_G()
 
                 self.discriminator_requires_grad_(True)
-                
+
                 self.backward_D()
 
                 if self.epoch % self.args.save_epoch == 0:
@@ -125,17 +124,9 @@ class GeneralModel():
                 """ show info """
                 pbar.update(1)
                 pbar.set_postfix_str(
-                    f"element: {np.mean(self.element_losses):.3f}, cross: {np.mean(self.cross_losses):.3f}")
+                    f"element: {np.mean(self.element_losses):.3f}, cross: {np.mean(self.cross_losses):.3f}, fk: {np.mean(self.fk_losses):.3f}")
 
     def iter_setting(self, i):
-        # if self.args.is_train == 1:
-        #     self.motion_idx = self.get_curr_motion(i, self.args.batch_size)
-        #     self.character_idx = self.get_curr_character(
-        #         self.motion_idx, self.args.num_motions)
-        # else:  # TODO : character index for test set
-        #     self.motion_idx = 0
-        #     self.character_idx = 0
-
         self.motion_idx = self.get_curr_motion(i, self.args.batch_size)
         self.character_idx = self.get_curr_character(
             self.motion_idx, self.args.num_motions)
@@ -157,17 +148,19 @@ class GeneralModel():
         # loss 1
         self.element_losses = []
         self.cross_losses = []
+        self.fk_losses = []
         self.smooth_losses = []
         self.root_losses = []
-        self.fk_losses = []
         self.root_rotation_losses = []
-        # self.rec_losses = []
 
         # loss 2
         self.cycle_losses = []
         self.latent_losses = []
 
         # loss 3
+        self.ee_losses = []
+
+        # loss 4
         self.G_fake_losses = []
         self.D_real_losses = []
         self.D_fake_losses = []
@@ -236,6 +229,7 @@ class GeneralModel():
     def get_loss(self):
         """ loss1. reconstruction loss for intra structure retargeting """
         self.rec_loss = 0
+        self.root_loss = 0
         self.fk_loss = 0
         for src in range(self.n_topology):
             # loss1-1. on each element
@@ -245,7 +239,16 @@ class GeneralModel():
             self.rec_loss += element_loss
             self.element_losses.append(element_loss.item())
 
-            # loss 1-2. fk
+            # loss1-2. root
+            height = self.height[src][self.character_idx]
+            root_loss = self.rec_criterion(
+                self.gt_motions[src][:, :, -3:] / height,
+                self.fake_motions[3*src][:, :, -3:] / height
+            )
+            self.root_loss += root_loss
+            self.root_losses.append(root_loss.item())
+
+            # loss 1-3. fk
             offset = self.dataset.offsets_group[src][self.character_idx]
             fk = self.FKs[src][self.character_idx]
 
@@ -263,21 +266,14 @@ class GeneralModel():
             self.fk_loss += fk_loss
             self.fk_losses.append(fk_loss.item())
 
-            # loss 1-3. check: smooth on next frame
+            # check: smooth on next frame
             smooth_loss = self.rec_criterion(
                 self.fake_motions[3*src][:-1, :, :],
                 self.fake_motions[3*src][1:, :, :]
             )
             self.smooth_losses.append(smooth_loss.item())
 
-            # loss1-4. check: root
-            root_loss = self.rec_criterion(
-                self.gt_motions[src][:, :, -3:],
-                self.fake_motions[3*src][:, :, -3:]
-            )
-            self.root_losses.append(root_loss.item())
-
-            # loss1-5. check: root roation
+            # check: root roation
             root_rotation_loss = self.rec_criterion(
                 self.gt_motions[src][:, :, :4],
                 self.fake_motions[3*src][:, :, :4]
@@ -296,10 +292,19 @@ class GeneralModel():
 
         # loss 2-2. check: common latent loss
         latent_loss = self.cycle_criterion(self.latents[0], self.latents[1])
-        # self.latent_loss += latent_loss
         self.latent_losses.append(latent_loss.item())
 
-        """ loss 3. GAN loss """
+        """ loss 3. ee loss """
+        # ee = get_ee(pos, self.dataset.joint_topologies[i], self.dataset.ee_ids[i],
+        #             velo=self.args.ee_velo, from_root=self.args.ee_from_root)
+        # self.ee_loss = 0
+        # for src in range(self.n_topology):
+        #     for dst in range(self.n_topology):
+        #         ee_loss = self.criterion_ee(self.ee_ref[src], self.fake_ee[p])
+        #         self.ee_loss += ee_loss
+        #         self.ee_losses.append(ee_loss.item())
+
+        """ loss 4. GAN loss """
         self.gan_loss = 0
         for src in range(self.n_topology):
             for dst in range(self.n_topology):
@@ -311,8 +316,10 @@ class GeneralModel():
                 self.gan_loss += G_fake_loss
                 self.G_fake_losses.append(G_fake_loss.item())
 
-        self.G_loss = (self.rec_loss) + (self.fk_loss) + \
-            (self.cycle_loss) + (self.gan_loss)
+        self.G_loss = 5*(self.rec_loss) + 1250*(self.root_loss) + 500*(self.fk_loss) \
+            + 5*(self.cycle_loss) \
+            + (self.gan_loss)
+        # + 100 * (self.ee_loss) \
 
         # cross loss
         cross_loss = self.rec_criterion(
@@ -446,7 +453,6 @@ class GeneralModel():
             self.gt_motions.append(motions)
 
     def feed_to_network_test(self):
-
         """ Get fake output and fake latent code """
         for src in range(self.n_topology):
             latents = self.models[src].transformer.enc_forward(

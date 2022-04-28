@@ -9,7 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 """ Set Parameters """
 args = option_parser.get_args()
-save_name = "220428_gan_inference_T-1/"
+save_name = "220428_lambda_setting/"  # ee_and
 # args.epoch_begin = 350
 # args.is_train = False
 

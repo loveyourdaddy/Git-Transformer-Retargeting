@@ -36,6 +36,21 @@ class GAN_loss(nn.Module):
         loss = self.loss(prediction, target_tensor)
         return loss
 
+def get_ee(pos, pa, ees, velo=False, from_root=False):
+    pos = pos.clone()
+    for i, fa in enumerate(pa):
+        if i == 0:
+            continue
+        if not from_root and fa == 0:
+            continue
+        pos[:, :, i, :] += pos[:, :, fa, :]
+
+    pos = pos[:, :, ees, :]
+    if velo:
+        pos = pos[:, 1:, ...] - pos[:, :-1, ...]
+        pos = pos * 10
+    return pos
+
 
 # class Criterion_EE:
 #     def __init__(self, args, base_criterion, norm_eps=0.008):
@@ -160,17 +175,3 @@ class GAN_loss(nn.Module):
 #     else:
 #         return NotImplementedError('learning rate policy [%s] is not implemented', opt.lr_policy)
 #     return scheduler
-
-
-# def get_ee(pos, pa, ees, velo=False, from_root=False):
-#     pos = pos.clone()
-#     for i, fa in enumerate(pa):
-#         if i == 0: continue
-#         if not from_root and fa == 0: continue
-#         pos[:, :, i, :] += pos[:, :, fa, :]
-
-#     pos = pos[:, :, ees, :]
-#     if velo:
-#         pos = pos[:, 1:, ...] - pos[:, :-1, ...]
-#         pos = pos * 10
-#     return pos
