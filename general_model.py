@@ -311,8 +311,8 @@ class GeneralModel():
         #         self.gan_loss += G_fake_loss
         #         self.G_fake_losses.append(G_fake_loss.item())
 
-        self.G_loss = (self.rec_loss) # + (self.fk_loss) + \
-            # (self.cycle_loss) + (self.gan_loss)
+        self.G_loss = (self.rec_loss) + (self.fk_loss) + \
+            (self.cycle_loss) # + (self.gan_loss)
 
         # cross loss
         cross_loss = self.rec_criterion(
@@ -451,7 +451,6 @@ class GeneralModel():
         #     motion, self.offset_idx[j] = motions[j]
         #     motion = motion.to(self.args.cuda_device)
         #     self.gt_motions.append(motion)
-
         """ Get fake output and fake latent code """
         for src in range(self.n_topology):
             latents = self.models[src].transformer.enc_forward(

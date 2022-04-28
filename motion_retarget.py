@@ -9,9 +9,9 @@ from torch.utils.tensorboard import SummaryWriter
 
 """ Set Parameters """
 args = option_parser.get_args()
-save_name = "220427_rec_inference_T-1/"
-args.epoch_begin = 50
-args.is_train = False
+save_name = "220427_except_gan_inference_T-1/"
+args.epoch_begin = 100
+# args.is_train = False
 
 """ Set Env """
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
