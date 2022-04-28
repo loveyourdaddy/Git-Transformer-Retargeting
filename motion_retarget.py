@@ -9,8 +9,8 @@ from torch.utils.tensorboard import SummaryWriter
 
 """ Set Parameters """
 args = option_parser.get_args()
-save_name = "220427_except_gan_inference_T-1/"
-args.epoch_begin = 100
+save_name = "220428_gan_inference_T-1/"
+# args.epoch_begin = 350
 # args.is_train = False
 
 """ Set Env """
@@ -24,10 +24,6 @@ writer = SummaryWriter(log_dir, flush_secs=1)
 """ load Motion Dataset """
 characters = get_character_names(args)
 dataset = create_dataset(args, characters)
-# if args.is_train == 1:
-#     batch_size = args.batch_size
-# else:
-#     batch_size = 1
 loader = torch.utils.data.DataLoader(
     dataset, batch_size=args.batch_size, shuffle=False)
 print("characters:{}".format(characters))

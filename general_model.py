@@ -112,12 +112,12 @@ class GeneralModel():
                 self.denorm_motion()
                 self.get_loss()
 
-                # self.discriminator_requires_grad_(False)
+                self.discriminator_requires_grad_(False)
                 self.backward_G()
 
-                # self.discriminator_requires_grad_(True)
-                # disable generator grad ?
-                # self.backward_D()
+                self.discriminator_requires_grad_(True)
+                
+                self.backward_D()
 
                 if self.epoch % self.args.save_epoch == 0:
                     self.bvh_writing(save_dir)
@@ -300,19 +300,19 @@ class GeneralModel():
         self.latent_losses.append(latent_loss.item())
 
         """ loss 3. GAN loss """
-        # self.gan_loss = 0
-        # for src in range(self.n_topology):
-        #     for dst in range(self.n_topology):
-        #         netD = self.models[dst].discriminator
+        self.gan_loss = 0
+        for src in range(self.n_topology):
+            for dst in range(self.n_topology):
+                netD = self.models[dst].discriminator
 
-        #         fake_pred = netD(
-        #             self.gt_motions[dst], self.fake_motions[2*src+dst])
-        #         G_fake_loss = self.gan_criterion(fake_pred, True)
-        #         self.gan_loss += G_fake_loss
-        #         self.G_fake_losses.append(G_fake_loss.item())
+                fake_pred = netD(
+                    self.gt_motions[dst], self.fake_motions[2*src+dst])
+                G_fake_loss = self.gan_criterion(fake_pred, True)
+                self.gan_loss += G_fake_loss
+                self.G_fake_losses.append(G_fake_loss.item())
 
         self.G_loss = (self.rec_loss) + (self.fk_loss) + \
-            (self.cycle_loss) # + (self.gan_loss)
+            (self.cycle_loss) + (self.gan_loss)
 
         # cross loss
         cross_loss = self.rec_criterion(
@@ -427,14 +427,14 @@ class GeneralModel():
                 for i, value in enumerate(loader):
                     self.iter_setting(i)
                     self.separate_motion_test(value)
-                    self.feed_to_network_test(value)
+                    self.feed_to_network_test()
                     self.denorm_motion()
                     self.get_loss()
                     self.compute_test_result(save_dir)
 
                     pbar.update(1)
                     pbar.set_postfix_str(
-                        f"element: {np.mean(self.element_losses):.3f}, cross: {np.mean(self.cross_losses):.3f}")
+                        f"element: {np.mean(self.element_losses):.3f}, cross: {np.mean(self.cross_losses):.3f}, fk: {np.mean(self.fk_losses):.3f}")
 
     def separate_motion_test(self, value):
         # dataset
@@ -445,12 +445,8 @@ class GeneralModel():
             motions = motions.to(self.args.cuda_device)
             self.gt_motions.append(motions)
 
-    def feed_to_network_test(self, motions):
+    def feed_to_network_test(self):
 
-        # for j in range(self.n_topology):
-        #     motion, self.offset_idx[j] = motions[j]
-        #     motion = motion.to(self.args.cuda_device)
-        #     self.gt_motions.append(motion)
         """ Get fake output and fake latent code """
         for src in range(self.n_topology):
             latents = self.models[src].transformer.enc_forward(
