@@ -33,6 +33,8 @@ def get_parser():
     parser.add_argument('--window_size', type=int, default=128,
                         help='length of time axis per window')
     parser.add_argument('--num_motions', type=int, default=1)
+    parser.add_argument('--ee_velo', type=int, default=1)
+    parser.add_argument('--ee_from_root', type=int, default=1)
 
     # Dataset representation (flag)
     parser.add_argument('--normalization', type=int, default=1)
@@ -56,7 +58,7 @@ def get_parser():
     parser.add_argument('--d_hidn', type=int, default=512)
     parser.add_argument('--gan_mode', type=str, default='lsgan')  # vanilla
 
-    # SAN Structure
+    # SAN Structure weight
     # parser.add_argument('--kernel_size', type=int, default='15')
     # parser.add_argument('--num_layers', type=int, default='2')
     # parser.add_argument('--skeleton_dist', type=int, default='2')

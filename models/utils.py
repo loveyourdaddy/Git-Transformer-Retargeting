@@ -52,24 +52,24 @@ def get_ee(pos, pa, ees, velo=False, from_root=False):
     return pos
 
 
-# class Criterion_EE:
-#     def __init__(self, args, base_criterion, norm_eps=0.008):
-#         self.args = args
-#         self.base_criterion = base_criterion
-#         self.norm_eps = norm_eps
+class Criterion_EE:
+    def __init__(self, args, base_criterion, norm_eps=0.008):
+        self.args = args
+        self.base_criterion = base_criterion
+        self.norm_eps = norm_eps
 
-#     def __call__(self, pred, gt):
-#         reg_ee_loss = self.base_criterion(pred, gt)
-#         if self.args.ee_velo:
-#             gt_norm = torch.norm(gt, dim=-1)
-#             contact_idx = gt_norm < self.norm_eps
-#             extra_ee_loss = self.base_criterion(pred[contact_idx], gt[contact_idx])
-#         else:
-#             extra_ee_loss = 0
-#         return reg_ee_loss + extra_ee_loss * 100
+    def __call__(self, pred, gt):
+        reg_ee_loss = self.base_criterion(pred, gt)
+        if self.args.ee_velo:
+            gt_norm = torch.norm(gt, dim=-1)
+            contact_idx = gt_norm < self.norm_eps
+            extra_ee_loss = self.base_criterion(pred[contact_idx], gt[contact_idx])
+        else:
+            extra_ee_loss = 0
+        return reg_ee_loss + extra_ee_loss * 100
 
-#     def parameters(self):
-#         return []
+    def parameters(self):
+        return []
 
 # class Criterion_EE_2:
 #     def __init__(self, args, base_criterion, norm_eps=0.008):

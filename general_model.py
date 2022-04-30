@@ -8,20 +8,11 @@ from tqdm import tqdm
 from datasets.bvh_parser import BVH_file
 from datasets.bvh_writer import BVH_writer
 from models.Kinematics import ForwardKinematics
-# # from rendering import *
-# import torchvision
-from models.utils import GAN_loss, get_ee
+from models.utils import GAN_loss, get_ee, Criterion_EE
 from model import MotionGenerator
-
-# SAVE_ATTENTION_DIR = "attention_vis"
-# SAVE_ATTENTION_DIR_INTRA = "attention_vis_intra"
-# os.makedirs(SAVE_ATTENTION_DIR, exist_ok=True)
-# os.makedirs(SAVE_ATTENTION_DIR_INTRA, exist_ok=True)
-
 
 def try_mkdir(path):
     if not os.path.exists(path):
-        # print('make new dir')
         os.system('mkdir -p {}'.format(path))
 
 
@@ -82,16 +73,11 @@ class GeneralModel():
         """ define lists"""
         self.offset_idx = [0] * self.n_topology
 
-        # pos
-        self.output_pos = [0] * self.n_topology
-        self.gt_pos = [0] * self.n_topology
-        self.output_pos_global = [0] * self.n_topology
-        self.gt_pos_global = [0] * self.n_topology
-
         """ Criternion """
         self.rec_criterion = torch.nn.MSELoss()
         self.cycle_criterion = torch.nn.MSELoss()
         self.gan_criterion = GAN_loss(args.gan_mode).to(args.cuda_device)
+        self.criterion_ee = Criterion_EE(args, torch.nn.MSELoss())
 
     def train_epoch(self, epoch, data_loader, save_name):
         self.epoch = epoch
@@ -104,8 +90,12 @@ class GeneralModel():
             self.models[i].train()
 
         with tqdm(total=len(data_loader), desc=f"TrainEpoch {epoch}") as pbar:
+            self.iter_setting()
             for i, value in enumerate(data_loader):
-                self.iter_setting(i)
+                self.motion_idx = self.get_curr_motion(i, self.args.batch_size)
+                self.character_idx = self.get_curr_character(
+                    self.motion_idx, self.args.num_motions)
+
                 self.separate_motion(value)
                 self.feed_to_network()
                 self.denorm_motion()
@@ -115,7 +105,6 @@ class GeneralModel():
                 self.backward_G()
 
                 self.discriminator_requires_grad_(True)
-
                 self.backward_D()
 
                 if self.epoch % self.args.save_epoch == 0:
@@ -126,25 +115,7 @@ class GeneralModel():
                 pbar.set_postfix_str(
                     f"element: {np.mean(self.element_losses):.3f}, cross: {np.mean(self.cross_losses):.3f}, fk: {np.mean(self.fk_losses):.3f}")
 
-    def iter_setting(self, i):
-        self.motion_idx = self.get_curr_motion(i, self.args.batch_size)
-        self.character_idx = self.get_curr_character(
-            self.motion_idx, self.args.num_motions)
-
-        # motions
-        self.input_motions = []
-        self.output_motions = []
-        self.gt_motions = []
-        self.fake_motions = []
-
-        # latent codes
-        self.latents = []
-        self.fake_latents = []
-
-        # denorm
-        self.denorm_gt_motions = []
-        self.denorm_fake_motions = []
-
+    def iter_setting(self):
         # loss 1
         self.element_losses = []
         self.cross_losses = []
@@ -167,6 +138,7 @@ class GeneralModel():
 
     def separate_motion(self, value):
         # dataset
+        self.gt_motions = []
         for j in range(self.n_topology):
             motions, self.offset_idx[j] = value[j]
             # (bs,DoF,window)->(window,bs,DoF)
@@ -175,56 +147,129 @@ class GeneralModel():
             self.gt_motions.append(motions)
 
     def feed_to_network(self):
-        """ Get fake output and fake latent code """
+        self.output_motions = []
+        self.latents = []
+        self.fake_motions = []
+        self.fake_latents = []
+
         for src in range(self.n_topology):
-            latent = self.models[src].transformer.enc_forward(
-                self.gt_motions[src])
+            # reconstruction: output
+            output_motion, latent = self.models[src].transformer.forward(
+                self.gt_motions[src], self.gt_motions[src]  # src, tgt
+            )
+            self.output_motions.append(output_motion)
             self.latents.append(latent)
 
+            # retargeting: fake
             for dst in range(self.n_topology):
                 fake_motion = self.models[dst].transformer.dec_forward(
-                    self.gt_motions[dst], latent)
+                    self.gt_motions[dst], latent
+                )
                 fake_latent = self.models[dst].transformer.enc_forward(
-                    fake_motion)
-
+                    fake_motion
+                )
                 self.fake_motions.append(fake_motion)
                 self.fake_latents.append(fake_latent)
 
     def denorm_motion(self):
         """ Denorm and transpose & Remake root & Get global position """
-        # gt, forward output
-        for j in range(self.n_topology):
+        self.denorm_gt_motions = []
+        self.denorm_output_motions = []
+        self.denorm_fake_motions = []
+        for src in range(self.n_topology):
+            # reconstruction
             # (window,bs,DoF)->(bs,DoF,window)
-            gt_motions = self.gt_motions[j].permute(1, 2, 0)
+            gt_motions = self.gt_motions[src].permute(1, 2, 0)
+            output_motions = self.output_motions[src].permute(1, 2, 0)
 
             if self.args.normalization == 1:
                 denorm_gt_motions = self.denormalize(
-                    self.character_idx, gt_motions, j)
+                    self.character_idx, gt_motions, src)
+                denorm_output_motions = self.denormalize(
+                    self.character_idx, output_motions, src)
             else:
                 denorm_gt_motions = gt_motions
+                denorm_output_motions = output_motions
 
             if self.args.root_pos_as_disp == 1:
                 denorm_gt_motions = self.root_displacement_to_position(
-                    denorm_gt_motions, j)
+                    denorm_gt_motions, src)
+                denorm_output_motions = self.root_displacement_to_position(
+                    denorm_output_motions, src)
 
             self.denorm_gt_motions.append(denorm_gt_motions)
+            self.denorm_output_motions.append(denorm_output_motions)
 
-        # fake_output
-        for src in range(self.n_topology):
+            # retargeting
             for dst in range(self.n_topology):
-                motion = self.fake_motions[2*src+dst].permute(1, 2, 0)
-                # motion = self.fake_motions[2*src+dst]
+                idx = self.n_topology * src + dst
+                fake_motion = self.fake_motions[idx].permute(
+                    1, 2, 0)  # from src to dst
                 if self.args.normalization == 1:
                     denorm_fake_motions = self.denormalize(
-                        self.character_idx, motion, dst)
+                        self.character_idx, fake_motion, dst)
                 else:
-                    denorm_fake_motions = motion
+                    denorm_fake_motions = fake_motion
 
                 if self.args.root_pos_as_disp == 1:
                     denorm_fake_motions = self.root_displacement_to_position(
                         denorm_fake_motions, dst)
-
                 self.denorm_fake_motions.append(denorm_fake_motions)
+
+        # save fk and ee
+        self.gt_pos = []
+        self.output_pos = []
+        self.fake_pos = []
+
+        self.gt_global_pos = []
+        self.output_global_pos = []
+        self.fake_global_pos = []
+
+        self.gt_ee = []
+        self.output_ee = []
+        self.fake_ee = []
+        
+        for src in range(self.n_topology):
+            offset = self.dataset.offsets_group[src][self.character_idx]
+            fk = self.FKs[src][self.character_idx]
+
+            gt_pos = fk.forward_from_raw(
+                self.denorm_gt_motions[src], offset)
+            output_pos = fk.forward_from_raw(
+                self.denorm_output_motions[src], offset)
+            self.gt_pos.append(gt_pos)
+            self.output_pos.append(output_pos)
+
+            gt_global_pos = fk.from_local_to_world(gt_pos)
+            output_global_pos = fk.from_local_to_world(output_pos)
+
+            self.gt_global_pos.append(gt_global_pos)
+            self.output_global_pos.append(output_global_pos)
+
+            gt_ee = get_ee(gt_pos, self.dataset.joint_topologies[src], self.dataset.ee_ids[src],
+                           velo=self.args.ee_velo, from_root=self.args.ee_from_root)
+            output_ee = get_ee(output_pos, self.dataset.joint_topologies[src], self.dataset.ee_ids[src],
+                               velo=self.args.ee_velo, from_root=self.args.ee_from_root)
+            self.gt_ee.append(gt_ee)
+            self.output_ee.append(output_ee)
+
+            # retargeting
+            for dst in range(self.n_topology):
+                offset = self.dataset.offsets_group[dst][self.character_idx]
+                fk = self.FKs[dst][self.character_idx]
+
+                idx = self.n_topology * src + dst
+
+                fake_pos = fk.forward_from_raw(
+                    self.denorm_fake_motions[idx], offset)  # from src
+                self.fake_pos.append(fake_pos)
+
+                fake_global_pos = fk.from_local_to_world(fake_pos)
+                self.fake_global_pos.append(fake_global_pos)
+
+                fake_ee = get_ee(fake_pos, self.dataset.joint_topologies[dst], self.dataset.ee_ids[dst],
+                                 velo=self.args.ee_velo, from_root=self.args.ee_from_root)
+                self.fake_ee.append(fake_ee)
 
     def get_loss(self):
         """ loss1. reconstruction loss for intra structure retargeting """
@@ -232,7 +277,7 @@ class GeneralModel():
         self.root_loss = 0
         self.fk_loss = 0
         for src in range(self.n_topology):
-            # loss1-1. on each element
+            # loss1-1. on each element 1``
             element_loss = self.rec_criterion(
                 self.gt_motions[src], self.fake_motions[3*src]
             )
@@ -249,19 +294,8 @@ class GeneralModel():
             self.root_losses.append(root_loss.item())
 
             # loss 1-3. fk
-            offset = self.dataset.offsets_group[src][self.character_idx]
-            fk = self.FKs[src][self.character_idx]
-
-            gt_pos = fk.forward_from_raw(
-                self.denorm_gt_motions[src], offset)
-            output_pos = fk.forward_from_raw(
-                self.denorm_fake_motions[3*src], offset)
-
-            gt_pos_global = fk.from_local_to_world(gt_pos)
-            output_pos_global = fk.from_local_to_world(output_pos)
-
             fk_loss = self.rec_criterion(
-                gt_pos_global, output_pos_global
+                self.gt_global_pos[src], self.output_global_pos[src]
             )
             self.fk_loss += fk_loss
             self.fk_losses.append(fk_loss.item())
@@ -285,8 +319,9 @@ class GeneralModel():
         self.cycle_loss = 0
         for src in range(self.n_topology):
             for dst in range(self.n_topology):
+                idx = self.n_topology * src + dst
                 cycle_loss = self.cycle_criterion(
-                    self.latents[dst], self.fake_latents[2*src+dst])
+                    self.latents[dst], self.fake_latents[idx])
                 self.cycle_loss += cycle_loss
                 self.cycle_losses.append(cycle_loss.item())
 
@@ -295,14 +330,13 @@ class GeneralModel():
         self.latent_losses.append(latent_loss.item())
 
         """ loss 3. ee loss """
-        # ee = get_ee(pos, self.dataset.joint_topologies[i], self.dataset.ee_ids[i],
-        #             velo=self.args.ee_velo, from_root=self.args.ee_from_root)
-        # self.ee_loss = 0
-        # for src in range(self.n_topology):
-        #     for dst in range(self.n_topology):
-        #         ee_loss = self.criterion_ee(self.ee_ref[src], self.fake_ee[p])
-        #         self.ee_loss += ee_loss
-        #         self.ee_losses.append(ee_loss.item())
+        self.ee_loss = 0
+        for src in range(self.n_topology):
+            for dst in range(self.n_topology):
+                idx = self.n_topology * src + dst
+                ee_loss = self.criterion_ee(self.gt_ee[dst], self.fake_ee[idx])
+                self.ee_loss += ee_loss
+                self.ee_losses.append(ee_loss.item())
 
         """ loss 4. GAN loss """
         self.gan_loss = 0
@@ -316,10 +350,10 @@ class GeneralModel():
                 self.gan_loss += G_fake_loss
                 self.G_fake_losses.append(G_fake_loss.item())
 
-        self.G_loss = 5*(self.rec_loss) + 1250*(self.root_loss) + 500*(self.fk_loss) \
-            + 5*(self.cycle_loss) \
+        self.G_loss = 5*(self.rec_loss) + 1250*(self.root_loss) + 500*(self.fk_loss)\
+            + 5 * (self.cycle_loss) \
+            + 100 * (self.ee_loss) \
             + (self.gan_loss)
-        # + 100 * (self.ee_loss) \
 
         # cross loss
         cross_loss = self.rec_criterion(

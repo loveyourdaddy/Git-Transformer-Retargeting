@@ -1,16 +1,16 @@
 import torch
+import numpy as np
 import os
 import option_parser
 from datasets import get_character_names, create_dataset
 from general_model import GeneralModel
-from general_model import *
 from test import *
 from torch.utils.tensorboard import SummaryWriter
 
 """ Set Parameters """
 args = option_parser.get_args()
-save_name = "220428_lambda_setting/"  # ee_and
-# args.epoch_begin = 350
+save_name = "220430_ee/"  # ee_and
+# args.epoch_begin = 650
 # args.is_train = False
 
 """ Set Env """

@@ -58,8 +58,8 @@ class MixedData(Dataset):
         self.encoded_final_data = []
         self.length = 0
         self.offsets = []
-        # self.joint_topologies = []
-        # self.ee_ids = []
+        self.joint_topologies = []
+        self.ee_ids = []
         self.means = []
         self.vars = []
         self.start_pos = []
@@ -101,9 +101,9 @@ class MixedData(Dataset):
                 start_pos_group.append(start_pos)
 
                 file = BVH_file(get_std_bvh(dataset=character))
-                # if i == 0:
-                #     self.joint_topologies.append(file.topology)
-                #     self.ee_ids.append(file.get_ee_id())
+                if i == 0:
+                    self.joint_topologies.append(file.topology)
+                    self.ee_ids.append(file.get_ee_id())
 
                 new_offset = file.offset
                 new_offset = torch.tensor(new_offset, dtype=torch.float)
@@ -182,8 +182,8 @@ class TestData(Dataset):
         self.encoded_final_data = []
         self.length = 0
         self.offsets = []
-        # self.joint_topologies = []
-        # self.ee_ids = []
+        self.joint_topologies = []
+        self.ee_ids = []
         self.means = []
         self.vars = []
         self.start_pos = []
@@ -225,9 +225,9 @@ class TestData(Dataset):
                 start_pos_group.append(start_pos)
 
                 file = BVH_file(get_std_bvh(dataset=character))
-                # if i == 0:
-                #     self.joint_topologies.append(file.topology)
-                #     self.ee_ids.append(file.get_ee_id())
+                if i == 0:
+                    self.joint_topologies.append(file.topology)
+                    self.ee_ids.append(file.get_ee_id())
 
                 new_offset = file.offset
                 new_offset = torch.tensor(new_offset, dtype=torch.float)
