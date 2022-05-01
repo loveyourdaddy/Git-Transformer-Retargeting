@@ -11,6 +11,7 @@ from models.Kinematics import ForwardKinematics
 from models.utils import GAN_loss, get_ee, Criterion_EE
 from model import MotionGenerator
 
+
 def try_mkdir(path):
     if not os.path.exists(path):
         os.system('mkdir -p {}'.format(path))
@@ -107,7 +108,7 @@ class GeneralModel():
                 self.discriminator_requires_grad_(True)
                 self.backward_D()
 
-                if self.epoch % self.args.save_epoch == 0:
+                if self.epoch % self.args.writiing_epoch == 0:
                     self.bvh_writing(save_dir)
 
                 """ show info """
@@ -139,12 +140,14 @@ class GeneralModel():
     def separate_motion(self, value):
         # dataset
         self.gt_motions = []
+        self.offset_idx = []
         for j in range(self.n_topology):
-            motions, self.offset_idx[j] = value[j]
+            motions, offset_idx = value[j]
             # (bs,DoF,window)->(window,bs,DoF)
             motions = motions.permute(2, 0, 1)
             motions = motions.to(self.args.cuda_device)
             self.gt_motions.append(motions)
+            self.offset_idx.append(offset_idx)
 
     def feed_to_network(self):
         self.output_motions = []
@@ -228,10 +231,12 @@ class GeneralModel():
         self.gt_ee = []
         self.output_ee = []
         self.fake_ee = []
-        
+
         for src in range(self.n_topology):
             offset = self.dataset.offsets_group[src][self.character_idx]
             fk = self.FKs[src][self.character_idx]
+            height = self.height[src][self.character_idx]
+            # height = height.reshape((height.shape[0], 1, height.shape[1], 1))
 
             gt_pos = fk.forward_from_raw(
                 self.denorm_gt_motions[src], offset)
@@ -250,6 +255,10 @@ class GeneralModel():
                            velo=self.args.ee_velo, from_root=self.args.ee_from_root)
             output_ee = get_ee(output_pos, self.dataset.joint_topologies[src], self.dataset.ee_ids[src],
                                velo=self.args.ee_velo, from_root=self.args.ee_from_root)
+
+            gt_ee /= height
+            output_ee /= height
+
             self.gt_ee.append(gt_ee)
             self.output_ee.append(output_ee)
 
@@ -257,6 +266,8 @@ class GeneralModel():
             for dst in range(self.n_topology):
                 offset = self.dataset.offsets_group[dst][self.character_idx]
                 fk = self.FKs[dst][self.character_idx]
+                height = self.height[dst][self.character_idx]
+                # height = height.reshape((height.shape[0], 1, height.shape[1], 1))
 
                 idx = self.n_topology * src + dst
 
@@ -269,6 +280,7 @@ class GeneralModel():
 
                 fake_ee = get_ee(fake_pos, self.dataset.joint_topologies[dst], self.dataset.ee_ids[dst],
                                  velo=self.args.ee_velo, from_root=self.args.ee_from_root)
+                fake_ee /= height
                 self.fake_ee.append(fake_ee)
 
     def get_loss(self):
@@ -342,10 +354,12 @@ class GeneralModel():
         self.gan_loss = 0
         for src in range(self.n_topology):
             for dst in range(self.n_topology):
+                idx = self.n_topology * src + dst
                 netD = self.models[dst].discriminator
+                fake_motion = self.fake_motions[idx]
 
                 fake_pred = netD(
-                    self.gt_motions[dst], self.fake_motions[2*src+dst])
+                    fake_motion, fake_motion)
                 G_fake_loss = self.gan_criterion(fake_pred, True)
                 self.gan_loss += G_fake_loss
                 self.G_fake_losses.append(G_fake_loss.item())
@@ -427,16 +441,23 @@ class GeneralModel():
         for src in range(self.args.n_topology):
             # output of real motion
             netD = self.models[src].discriminator
-            real_pred = netD(self.gt_motions[src], self.gt_motions[src])
+            gt_motion = self.gt_motions[src]
+
+            real_pred = netD(
+                gt_motion, gt_motion
+            )
             D_real_loss = self.gan_criterion(real_pred, True)
             self.D_real_losses.append(D_real_loss.item())
 
             for dst in range(self.args.n_topology):
-                netD = self.models[dst].discriminator
-
                 # output of fake motion
+                netD = self.models[dst].discriminator
+                idx = self.n_topology * src + dst
+
+                fake_motion = self.fake_motions[idx].detach()
                 fake_pred = netD(
-                    self.fake_motions[2*src+dst].detach(), self.gt_motions[dst])
+                    fake_motion, fake_motion
+                )
                 D_fake_loss = self.gan_criterion(fake_pred, False)
                 self.D_fake_losses.append(D_fake_loss.item())
 

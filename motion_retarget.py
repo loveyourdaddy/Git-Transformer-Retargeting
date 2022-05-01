@@ -3,23 +3,26 @@ import numpy as np
 import os
 import option_parser
 from datasets import get_character_names, create_dataset
-from general_model import GeneralModel
+from general_model import *
 from test import *
 from torch.utils.tensorboard import SummaryWriter
 
 """ Set Parameters """
 args = option_parser.get_args()
-save_name = "220430_ee/"  # ee_and
-# args.epoch_begin = 650
+save_name = "220501_total_loss/"  # ee_and
+# args.epoch_begin = 750
 # args.is_train = False
 
 """ Set Env """
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args.n_topology = 2
-para_path = "./parameters/"
 print("cuda availiable: {}".format(torch.cuda.is_available()))
-log_dir = './run/' + save_name
+para_path = "./parameters/" + save_name
+log_dir = "./run/" + save_name
+try_mkdir(log_dir)
 writer = SummaryWriter(log_dir, flush_secs=1)
+
+hdd_path = "/media/hdd_4t/Inseo/"
 
 """ load Motion Dataset """
 characters = get_character_names(args)
@@ -34,7 +37,7 @@ general_model = GeneralModel(
 
 """ Load model if load mode """
 if args.epoch_begin:
-    general_model.load(para_path+save_name, args.epoch_begin)
+    general_model.load(para_path, args.epoch_begin)
 
 if args.is_train == True:
     # for every epoch
