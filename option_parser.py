@@ -6,7 +6,7 @@ def get_parser():
 
     # env
     parser.add_argument('--save_epoch', type=int, default=100)
-    parser.add_argument('--writiing_epoch', type=int, default=1000)
+    parser.add_argument('--writing_epoch', type=int, default=200)
     parser.add_argument('--save_dir', type=str,
                         default='./output/', help='directory for all savings')
     parser.add_argument('--cuda_device', type=str,

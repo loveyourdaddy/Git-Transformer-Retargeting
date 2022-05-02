@@ -40,12 +40,20 @@ class MotionGenerator(nn.Module):
 class Discriminator(nn.Module):
     def __init__(self, args, offsets, i):
         super().__init__()
+        if i == 0:
+            self.input_dim = args.input_size
+            self.output_dim = args.input_size
+        else:
+            self.input_dim = args.output_size
+            self.output_dim = args.output_size
+
         self.transformer = Transformer(args, offsets, i).to(args.cuda_device)
+        self.compress = nn.Linear(in_features=self.output_dim, out_features=1)
 
     def forward(self, src, tgt):
         output, encoder_output = self.transformer.forward(src, tgt)
+        output = self.compress(output)
 
-        # TODO: one of sigmoid is enough??? no fc?
         return torch.sigmoid(output).squeeze()
 
 

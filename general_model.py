@@ -108,7 +108,7 @@ class GeneralModel():
                 self.discriminator_requires_grad_(True)
                 self.backward_D()
 
-                if self.epoch % self.args.writiing_epoch == 0:
+                if self.epoch % self.args.writing_epoch == 0 and self.epoch != 0:
                     self.bvh_writing(save_dir)
 
                 """ show info """
@@ -291,7 +291,8 @@ class GeneralModel():
         for src in range(self.n_topology):
             # loss1-1. on each element 1``
             element_loss = self.rec_criterion(
-                self.gt_motions[src], self.fake_motions[3*src]
+                self.gt_motions[src],
+                self.output_motions[src]
             )
             self.rec_loss += element_loss
             self.element_losses.append(element_loss.item())
@@ -300,29 +301,30 @@ class GeneralModel():
             height = self.height[src][self.character_idx]
             root_loss = self.rec_criterion(
                 self.gt_motions[src][:, :, -3:] / height,
-                self.fake_motions[3*src][:, :, -3:] / height
+                self.output_motions[src][:, :, -3:] / height
             )
             self.root_loss += root_loss
             self.root_losses.append(root_loss.item())
 
             # loss 1-3. fk
             fk_loss = self.rec_criterion(
-                self.gt_global_pos[src], self.output_global_pos[src]
+                self.gt_global_pos[src],
+                self.output_global_pos[src]
             )
             self.fk_loss += fk_loss
             self.fk_losses.append(fk_loss.item())
 
             # check: smooth on next frame
             smooth_loss = self.rec_criterion(
-                self.fake_motions[3*src][:-1, :, :],
-                self.fake_motions[3*src][1:, :, :]
+                self.output_motions[src][:-1, :, :],
+                self.output_motions[src][1:, :, :]
             )
             self.smooth_losses.append(smooth_loss.item())
 
             # check: root roation
             root_rotation_loss = self.rec_criterion(
                 self.gt_motions[src][:, :, :4],
-                self.fake_motions[3*src][:, :, :4]
+                self.output_motions[src][:, :, :4]
             )
             self.root_rotation_losses.append(root_rotation_loss.item())
 
@@ -333,12 +335,17 @@ class GeneralModel():
             for dst in range(self.n_topology):
                 idx = self.n_topology * src + dst
                 cycle_loss = self.cycle_criterion(
-                    self.latents[dst], self.fake_latents[idx])
+                    self.latents[dst],
+                    self.fake_latents[idx]
+                )
                 self.cycle_loss += cycle_loss
                 self.cycle_losses.append(cycle_loss.item())
 
         # loss 2-2. check: common latent loss
-        latent_loss = self.cycle_criterion(self.latents[0], self.latents[1])
+        latent_loss = self.cycle_criterion(
+            self.latents[0],
+            self.latents[1]
+        )
         self.latent_losses.append(latent_loss.item())
 
         """ loss 3. ee loss """
@@ -346,7 +353,10 @@ class GeneralModel():
         for src in range(self.n_topology):
             for dst in range(self.n_topology):
                 idx = self.n_topology * src + dst
-                ee_loss = self.criterion_ee(self.gt_ee[dst], self.fake_ee[idx])
+                ee_loss = self.criterion_ee(
+                    self.gt_ee[dst],
+                    self.fake_ee[idx]
+                )
                 self.ee_loss += ee_loss
                 self.ee_losses.append(ee_loss.item())
 
@@ -360,7 +370,10 @@ class GeneralModel():
 
                 fake_pred = netD(
                     fake_motion, fake_motion)
-                G_fake_loss = self.gan_criterion(fake_pred, True)
+                G_fake_loss = self.gan_criterion(
+                    fake_pred,
+                    True
+                )
                 self.gan_loss += G_fake_loss
                 self.G_fake_losses.append(G_fake_loss.item())
 

@@ -9,7 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 """ Set Parameters """
 args = option_parser.get_args()
-save_name = "220501_total_loss/"  # ee_and
+save_name = "220501_total_loss0/" 
 # args.epoch_begin = 750
 # args.is_train = False
 
@@ -17,7 +17,7 @@ save_name = "220501_total_loss/"  # ee_and
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 args.n_topology = 2
 print("cuda availiable: {}".format(torch.cuda.is_available()))
-para_path = "./parameters/" + save_name
+para_path = "./parameters/" + save_name  # "/media/Personal/InseoJang/"
 log_dir = "./run/" + save_name
 try_mkdir(log_dir)
 writer = SummaryWriter(log_dir, flush_secs=1)
@@ -33,7 +33,7 @@ print("characters:{}".format(characters))
 
 """ load model  """
 general_model = GeneralModel(
-    args, characters, dataset)  # .to(args.cuda_device)
+    args, characters, dataset)
 
 """ Load model if load mode """
 if args.epoch_begin:
@@ -71,7 +71,7 @@ if args.is_train == True:
         writer.add_scalar("Loss/GAN_D_fake_loss",
                           np.mean(general_model.D_fake_losses), epoch)
 
-        if epoch % args.save_epoch == 0:
+        if epoch % args.save_epoch == 0 and epoch != 0:
             general_model.save(para_path + save_name, epoch)
 else:
     # only test losses

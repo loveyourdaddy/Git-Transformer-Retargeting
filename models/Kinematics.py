@@ -56,7 +56,7 @@ class ForwardKinematics:
         result = torch.empty(rotation.shape[:-1] + (3, ), device=position.device) # (16,128,23,2)
 
         norm = torch.norm(rotation, dim=-1, keepdim=True) # 16,128,23,4 -> 16,128,23,1
-        #norm[norm < 1e-10] = 1
+        norm[norm < 1e-10] = 1
 
         rotation = rotation / norm
 
