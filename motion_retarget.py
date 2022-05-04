@@ -9,9 +9,9 @@ from torch.utils.tensorboard import SummaryWriter
 
 """ Set Parameters """
 args = option_parser.get_args()
-save_name = "220501_total_loss0/" 
-# args.epoch_begin = 750
-# args.is_train = False
+save_name = "220501_total_loss0/"  # 220501_smaller_fk
+args.epoch_begin = 800
+args.is_train = False
 
 """ Set Env """
 args.cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -21,8 +21,6 @@ para_path = "./parameters/" + save_name  # "/media/Personal/InseoJang/"
 log_dir = "./run/" + save_name
 try_mkdir(log_dir)
 writer = SummaryWriter(log_dir, flush_secs=1)
-
-hdd_path = "/media/hdd_4t/Inseo/"
 
 """ load Motion Dataset """
 characters = get_character_names(args)
@@ -59,6 +57,9 @@ if args.is_train == True:
         writer.add_scalar("Loss/cycle_loss",
                           np.mean(general_model.cycle_losses), epoch)
 
+        writer.add_scalar("Loss/ee_loss",
+                          np.mean(general_model.ee_losses), epoch)
+
         writer.add_scalar("Loss/root_loss",
                           np.mean(general_model.root_losses), epoch)
         writer.add_scalar("Loss/root_rotation_loss",
@@ -72,7 +73,7 @@ if args.is_train == True:
                           np.mean(general_model.D_fake_losses), epoch)
 
         if epoch % args.save_epoch == 0 and epoch != 0:
-            general_model.save(para_path + save_name, epoch)
+            general_model.save(para_path, epoch)
 else:
     # only test losses
-    general_model.eval_epoch(args.epoch_begin, loader, save_name)
+    general_model.eval_epoch(args.epoch_begin, dataset, save_name)

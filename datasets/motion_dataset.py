@@ -57,10 +57,7 @@ class MotionData(Dataset):
 
         # root position -> displacement
         if args.root_pos_as_disp == 1:
-            for frame in range(num_frames - 1):
-                self.data[:, num_DoF-3:, frame] \
-                    = self.data[:, num_DoF -3:, frame + 1] - self.data[:, num_DoF-3:, frame]
-            self.data[:, num_DoF-3:, num_frames - 1] = 0
+            self.data = root_pos_to_disp(self.data, num_DoF, num_frames)
 
         """ normalization data:  mean, var of data & normalization """
         if args.normalization:
@@ -183,3 +180,12 @@ class MotionData(Dataset):
 
     def subsample(self, motion):
         return motion[::2, :]
+
+
+def root_pos_to_disp(data, num_DoF, num_frames):
+    for frame in range(num_frames - 1):
+        data[:, num_DoF-3:, frame] = \
+            data[:, num_DoF - 3:, frame + 1] - data[:, num_DoF-3:, frame]
+
+    data[:, num_DoF-3:, num_frames - 1] = 0
+    return data

@@ -17,7 +17,7 @@ def create_dataset(args, character_names=None):
 
 
 def get_test_set():
-    with open('./datasets/Mixamo/test_list.txt', 'r') as file:
+    with open('./datasets/Mixamo/test_additional_list.txt', 'r') as file:  # test_list
         list = file.readlines()
         list = [f[:-1] for f in list]
 
